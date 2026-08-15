@@ -108,9 +108,12 @@ in Klassifikationen und Fragen bereinigt. Je Meilenstein-Gruppe gibt es eine
 den eingebauten Fragenkatalog (Standard-Fragen plus kuratierte Fragen aus
 AWS Well-Architected, OWASP ASVS, BSI IT-Grundschutz, TOGAF, arc42/aim42 und
 CH-DSG in `src/catalog.ts` — jeweils mit Quellenangabe); ein Klick übernimmt
-die Frage. Jede Frage hat zudem einen **aktiv-Schalter**: Deaktivierte
-Fragen bleiben in `model.json` erhalten, werden im OnePager aber nicht
-gestellt (Nummern bleiben stabil). Dazu:
+die Frage; Klick ins leere Feld zeigt sofort alle verfügbaren Fragen des
+Meilensteins. Die **Quelle** ist reiner Text (nicht editierbar); eigene
+Fragen zeigen «Quelle: ‹Firma›» — der Firmenname ist im Admin
+konfigurierbar (`company` in `model.json`). Jede Frage hat zudem einen
+**aktiv-Schalter**: Deaktivierte Fragen bleiben in `model.json` erhalten,
+werden im OnePager aber nicht gestellt (Nummern bleiben stabil). Dazu:
 **Themen** (Titel + Info-Markdown, A–Z automatisch) und **Fragen** (Text,
 Meilenstein- und Themen-Dropdown, Antworttyp, Erläuterung; Nummer
 automatisch) lassen sich on the fly erstellen, anpassen und löschen.

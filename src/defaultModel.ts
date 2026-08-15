@@ -5,6 +5,7 @@ import { Model } from './types';
 // model.json (noch) keine Fragen enthält.
 export const DEFAULT_MODEL: Model = {
   "version": 2,
+  "company": "Eigene Firma",
   "classifications": [
     {
       "id": "A",
@@ -338,7 +339,9 @@ export const DEFAULT_MODEL: Model = {
       "text": "Sind technische Schulden aus dem Vorhaben erfasst?",
       "milestone": "M40",
       "themeId": "technical-debt",
-      "source": "Dummy — Fachinhalt folgt"
+      "source": "Dummy — Fachinhalt folgt",
+      "hint": "Liegen Teile an mehreren Orten (Reporting, Testumgebung, Cache), sind alle zu nennen.",
+      "kind": "text"
     },
     {
       "id": "T2",
@@ -346,14 +349,22 @@ export const DEFAULT_MODEL: Model = {
       "milestone": "M40",
       "themeId": "technical-debt",
       "kind": "text",
-      "source": "Dummy — Fachinhalt folgt"
+      "source": "Prüfformular Datenhaltung (V0.3, 04.08.2026), Schritt 3",
+      "hint": "Eigenes Rechenzentrum, Private Cloud, Public Cloud oder SaaS.",
+      "options": [
+        "eigenes Rechenzentrum",
+        "Private Cloud",
+        "Public Cloud",
+        "SaaS"
+      ]
     },
     {
       "id": "T3",
       "text": "Sind Risiken und Conditions im OnePager nachgeführt?",
       "milestone": "M40",
       "themeId": "technical-debt",
-      "source": "Dummy — Fachinhalt folgt"
+      "source": "Dummy — Fachinhalt folgt",
+      "hint": "Vertrag, Regionseinstellung oder schriftliche Herstellerangabe — Beleg in den Bemerkungen festhalten."
     },
     {
       "id": "E1",
@@ -542,6 +553,13 @@ export const DEFAULT_MODEL: Model = {
       "text": "Sind die Datenhaltungsvorgaben im Betrieb weiterhin eingehalten (Überprüfung)?",
       "hint": "Betriebsnahe Überprüfung von Ort, Backup, Logs und Exporten gegen die Schutzklasse.",
       "source": "Architekturprüfmodell, MS40 (Überprüfung)"
+    },
+    {
+      "id": "cat-sc2",
+      "themeId": "security-compliance",
+      "milestone": "M20",
+      "text": "Ist ein Prozess für den Umgang mit Security-Incidents definiert?",
+      "source": "AWS Well-Architected, Security / FINMA-RS 2023/1"
     }
   ],
   "classificationInfoMd": "# Klassifikation & Prüftiefe\n\n*Dummy — die echten Kriterien für die Architekturklassifikation folgen.*\n\nDie Klassifikation des Projekts bestimmt die **Prüftiefe** — und damit den\nAufwand der Begleitung und wie viele Fragen im Review gestellt werden\n(Fragen können eine Mindest-Prüftiefe haben, z. B. «ab M»).\n\n| Klassifikation | Prüftiefe | Aufwand |\n|---|---|---|\n| Klasse A (Platzhalter) | L | 15 PT |\n| Klasse B (Platzhalter) | M | 10 PT |\n| Klasse C (Platzhalter) | S | 5 PT |\n\nDie Zuordnung Klassifikation → Prüftiefe ist im Admin-Modus konfigurierbar.\nNach welchen Kriterien ein Projekt seine Klasse erhält (Bezug: Community IT\nStrategie), wird von der Architektur ausgearbeitet.\n"

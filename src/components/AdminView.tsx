@@ -26,6 +26,7 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
   const [newClassLabel, setNewClassLabel] = useState('');
   const [newDepthLabel, setNewDepthLabel] = useState('');
   const [pickQuery, setPickQuery] = useState<Record<string, string>>({});
+  const [pickOpen, setPickOpen] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState('');
   const [saveError, setSaveError] = useState('');
@@ -81,6 +82,9 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
     }
     if (!mat.classificationInfoMd && DEFAULT_MODEL.classificationInfoMd) {
       mat.classificationInfoMd = DEFAULT_MODEL.classificationInfoMd;
+    }
+    if (!mat.company && DEFAULT_MODEL.company) {
+      mat.company = DEFAULT_MODEL.company;
     }
     setDraft(mat);
     setBaseline(JSON.stringify(mat));
@@ -154,8 +158,8 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
 
   // ── Fragenkatalog: Suche mit Live-Filter, Übernehmen per Klick ───────────
   const catalogCandidates = (ms: string) => {
+    if (!draft) return [];
     const query = (pickQuery[ms] ?? '').trim().toLowerCase();
-    if (!query || !draft) return [];
     const present = new Set(draft.questions.map(q => q.id));
     const themeTitle = (id: string) =>
       draft.themes.find(t => t.id === id)?.title
@@ -163,10 +167,10 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
     return [...DEFAULT_MODEL.questions, ...CATALOG_QUESTIONS]
       .filter(q => q.milestone === ms && !present.has(q.id))
       .filter(q => {
+        if (!query) return true; // Fokus ohne Eingabe → alle verfügbaren Fragen
         const hay = `${q.text} ${q.source ?? ''} ${themeTitle(q.themeId)}`.toLowerCase();
         return query.split(/\s+/).every(term => hay.includes(term));
       })
-      .slice(0, 10)
       .map(q => ({ q, themeTitle: themeTitle(q.themeId) }));
   };
 
@@ -251,6 +255,15 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
         <div className={`text-[11px] ${textMuted}`}>
           Admin — Meilensteine sind fix: {MILESTONES.join(' / ')}
         </div>
+      </div>
+
+      {/* Firma: erscheint als Quelle bei eigenen Fragen */}
+      <div className={`${cardCls} mb-8 px-4 py-3 flex items-center gap-3 flex-wrap`}>
+        <label className={`text-[10px] uppercase tracking-wider ${labelCls}`}>Firma</label>
+        <input value={draft.company ?? ''} placeholder="Eigene Firma"
+          onChange={e => setDraft(d => d ? { ...d, company: e.target.value || undefined } : d)}
+          className={`w-64 text-xs px-3 py-1.5 rounded border outline-none transition-colors ${inputCls}`} />
+        <span className={`text-[10px] ${textMuted}`}>wird als «Quelle» bei eigenen Fragen angezeigt</span>
       </div>
 
       {/* Klassifikation & Prüftiefe */}
@@ -424,12 +437,14 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
                 <div className="relative ml-auto w-72 max-w-full">
                   <input value={pickQuery[ms] ?? ''}
                     onChange={e => setPickQuery(prev => ({ ...prev, [ms]: e.target.value }))}
-                    placeholder="Frage aus Katalog suchen …"
+                    onFocus={() => setPickOpen(ms)}
+                    onBlur={() => setTimeout(() => setPickOpen(o => (o === ms ? null : o)), 150)}
+                    placeholder="Frage aus Katalog wählen …"
                     className={`w-full text-[11px] px-2 py-1.5 rounded border outline-none transition-colors ${inputCls}`} />
-                  {catalogCandidates(ms).length > 0 && (
+                  {pickOpen === ms && catalogCandidates(ms).length > 0 && (
                     <div className={`absolute z-20 mt-1 w-[28rem] max-w-[80vw] right-0 max-h-72 overflow-y-auto rounded-lg border shadow-lg ${isDark ? 'bg-[#16171a] border-white/15' : 'bg-white border-black/15'}`}>
                       {catalogCandidates(ms).map(({ q, themeTitle }) => (
-                        <button key={q.id} onClick={() => addFromCatalog(q, ms)}
+                        <button key={q.id} onMouseDown={e => { e.preventDefault(); addFromCatalog(q, ms); }}
                           className={`block w-full text-left px-3 py-2 border-b last:border-b-0 transition-colors ${isDark ? 'border-white/8 hover:bg-white/5' : 'border-black/8 hover:bg-black/5'}`}>
                           <span className={`block text-[11px] ${isDark ? 'text-white/85' : 'text-black/85'}`}>{q.text}</span>
                           <span className={`block text-[10px] mt-0.5 ${textMuted}`}>
@@ -439,9 +454,9 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
                       ))}
                     </div>
                   )}
-                  {(pickQuery[ms] ?? '').trim() !== '' && catalogCandidates(ms).length === 0 && (
+                  {pickOpen === ms && catalogCandidates(ms).length === 0 && (
                     <div className={`absolute z-20 mt-1 w-72 right-0 rounded-lg border shadow-lg px-3 py-2 text-[11px] ${isDark ? 'bg-[#16171a] border-white/15 text-white/40' : 'bg-white border-black/15 text-black/40'}`}>
-                      Keine passenden Katalogfragen — mit + eine eigene Frage anlegen.
+                      Keine weiteren Katalogfragen verfügbar — mit + eine eigene Frage anlegen.
                     </div>
                   )}
                 </div>
@@ -504,10 +519,10 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
                       <input value={q.hint ?? ''} placeholder="Erläuterung (optional)"
                         onChange={e => updateQuestion(q.id, { hint: e.target.value || undefined })}
                         className={`flex-1 min-w-[200px] text-[11px] px-2 py-1.5 rounded border outline-none transition-colors ${inputCls}`} />
-                      <input value={q.source ?? ''} placeholder="Quelle (optional)"
-                        onChange={e => updateQuestion(q.id, { source: e.target.value || undefined })}
-                        title="Woher die Frage stammt, z. B. «Prüfformular Datenhaltung, Schritt 2»"
-                        className={`w-56 text-[11px] px-2 py-1.5 rounded border outline-none transition-colors ${inputCls}`} />
+                      <span className={`max-w-[16rem] truncate text-[10px] ${textMuted}`}
+                        title={q.source ?? `${draft.company ?? 'Eigene Firma'} (eigene Frage)`}>
+                        Quelle: {q.source ?? (draft.company ?? 'Eigene Firma')}
+                      </span>
                       <select value={q.minDepth ?? ''}
                         onChange={e => updateQuestion(q.id, { minDepth: e.target.value || undefined })}
                         title="Ab welcher Prüftiefe die Frage gestellt wird (kumulativ)"

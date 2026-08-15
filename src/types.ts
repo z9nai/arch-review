@@ -45,6 +45,7 @@ export interface Question {
 
 export interface Model {
   version: number;
+  company?: string; // Firmenname — wird als Quelle bei eigenen Fragen angezeigt
   classifications: Classification[];
   reviewDepths: ReviewDepth[];
   classificationInfoMd?: string; // Erklärung Klassifikation → Prüftiefe (Markdown)

@@ -3,16 +3,16 @@
   "slug": "core-datenbank-migration",
   "name": "Core Datenbank Migration",
   "description": "Die bestehende Core-Datenbank wird auf eine neue Plattform migriert. Im Rahmen der Migration werden Datenbestände verschoben, die Backup-Strategie erneuert und die Reporting-Anbindung angepasst. Dieses Beispielprojekt zeigt den Ablauf der Architekturprüfung.",
-  "responsibleProject": "",
-  "responsibleArchitecture": "",
-  "classification": null,
-  "reviewDepth": "S",
+  "responsibleProject": "Peter Müller",
+  "responsibleArchitecture": "Max Muster",
+  "classification": "B",
+  "reviewDepth": "M",
   "architectureRelevant": null,
   "createdAt": "2026-08-15",
-  "updatedAt": "2026-08-15T12:20:01+02:00",
+  "updatedAt": "2026-08-15T16:38:32+02:00",
   "reviews": {
     "data-storage": {
-      "relevant": null,
+      "relevant": true,
       "reviewed": false,
       "result": null,
       "milestone": "",
@@ -21,6 +21,18 @@
         "S1": {
           "value": true,
           "remarks": "Kundendaten wandern in die neue Core-Datenbank"
+        },
+        "S2": {
+          "value": true,
+          "remarks": ""
+        },
+        "S3": {
+          "value": true,
+          "remarks": ""
+        },
+        "S4": {
+          "value": true,
+          "remarks": ""
         }
       }
     },
@@ -41,6 +53,10 @@
           "remarks": ""
         },
         "D2": {
+          "value": false,
+          "remarks": ""
+        },
+        "qoa6a8zcfrq": {
           "value": false,
           "remarks": ""
         }
@@ -91,7 +107,7 @@
       "milestone": "M10",
       "notes": "sdfdsfkjhkjh",
       "approved": true,
-      "approvedBy": "Pascal"
+      "approvedBy": "Martin"
     },
     "m20": {
       "relevant": null,

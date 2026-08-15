@@ -307,9 +307,9 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
         {question.hint && (
           <p className={`text-[10px] italic mt-0.5 ${textMuted}`}>{question.hint}</p>
         )}
-        {question.source && (
-          <p className={`text-[10px] mt-0.5 ${textMuted}`}>Quelle: {question.source}</p>
-        )}
+        <p className={`text-[10px] mt-0.5 ${textMuted}`}>
+          Quelle: {question.source ?? (model?.company ?? DEFAULT_MODEL.company ?? 'Eigene Firma')}
+        </p>
       </div>
     );
   };
