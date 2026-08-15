@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, FileUp, Info, Minus, Plus, Save, X } from 'lucide-react';
+import { ArrowLeft, ClipboardPaste, Copy, FileUp, Info, Mail, Minus, Plus, Save, X } from 'lucide-react';
 import { marked } from 'marked';
 import { useStore } from '../store';
 import { MILESTONES, MILESTONE_TITLES, Project, Question, QuestionAnswer, Review, Theme } from '../types';
@@ -38,6 +38,10 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
   const [importData, setImportData] = useState<Ms10Data | null>(null);
   const [infoTheme, setInfoTheme] = useState<Theme | null>(null);
   const [showClassInfo, setShowClassInfo] = useState(false);
+  const [exportMs, setExportMs] = useState<string | null>(null);
+  const [exportCopied, setExportCopied] = useState(false);
+  const [answersMs, setAnswersMs] = useState<string | null>(null);
+  const [answersText, setAnswersText] = useState('');
   const [expanded, setExpanded] = useState<Set<string>>(new Set()); // "M10:themeId"
   const [openRemarks, setOpenRemarks] = useState<Set<string>>(new Set()); // "themeId:frageId"
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -378,6 +382,178 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
     return vals.some(v => v === true);
   };
 
+  // Offene Fragen eines Meilensteins als E-Mail-Text (mit Ankreuzformat)
+  const isQuestionOpen = (themeId: string, q: Question): boolean => {
+    const a = getThemeReview(proj, themeId).answers?.[q.id];
+    if ((q.kind ?? 'yesNo') === 'yesNo') return (a?.value ?? null) === null;
+    if (q.kind === 'choice') return !(a?.choice);
+    return !(a?.remarks ?? '').trim();
+  };
+
+  const buildExport = (ms: string): { text: string; count: number } => {
+    const title = `${ms} · ${MILESTONE_TITLES[ms] ?? 'Prüfung'}`;
+    const lines: string[] = [];
+    let count = 0;
+    lines.push(`Architekturprüfung «${proj.name || proj.slug}» — offene Fragen ${title}`);
+    lines.push('');
+    lines.push('Guten Tag');
+    lines.push('');
+    lines.push(`Für die Architekturprüfung sind im Meilenstein ${title} die folgenden Fragen noch offen.`);
+    lines.push('Bitte direkt unter der jeweiligen Frage antworten ([X] ankreuzen bzw. Antwort ergänzen).');
+    themes.forEach((theme, ti) => {
+      const isFoundation = ms === FOUNDATION_MS;
+      if (!isFoundation && derivedRelevant(proj, theme.id) === false) return;
+      const qs = questionsAt(theme.id, ms).filter(({ q }) => isQuestionOpen(theme.id, q));
+      if (!qs.length) return;
+      lines.push('');
+      lines.push(`${themeLetter(ti)} · ${theme.title}`);
+      lines.push('-'.repeat(46));
+      for (const { q, number } of qs) {
+        lines.push('');
+        lines.push(`${number} ${q.text}`);
+        if (q.hint) lines.push(`(${q.hint})`);
+        if ((q.kind ?? 'yesNo') === 'yesNo') {
+          lines.push('[ ] Ja    [ ] Nein');
+          lines.push('Bemerkung:');
+        } else if (q.kind === 'choice') {
+          lines.push(`Antwort (${(q.options ?? []).filter(Boolean).join(' / ')}):`);
+          lines.push('Bemerkung:');
+        } else {
+          lines.push('Antwort / Bemerkung:');
+        }
+        count++;
+      }
+    });
+    lines.push('');
+    lines.push('Vielen Dank!');
+    return { text: lines.join('\n'), count };
+  };
+
+  // Ausgefüllten Export-Text wieder einlesen: erkennt Themen-Header,
+  // Fragenummern (M20F3 …), angekreuzte [X] Ja/[X] Nein, Auswahl-Antworten
+  // und Bemerkungen (auch mehrzeilig).
+  type ImportItem = { themeId: string; q: Question; number: string; patch: Partial<QuestionAnswer>; summary: string };
+
+  const parseAnswersImport = (ms: string, text: string): ImportItem[] => {
+    const themeByTitle = new Map<string, string>();
+    themes.forEach(t => themeByTitle.set(t.title.trim().toLowerCase(), t.id));
+    const numberMap = new Map<string, Map<string, Question>>();
+    for (const t of themes) {
+      const m = new Map<string, Question>();
+      allQuestions
+        .filter(q => q.themeId === t.id && q.milestone === ms)
+        .forEach((q, i) => m.set(`${ms}F${i + 1}`, q));
+      numberMap.set(t.id, m);
+    }
+
+    const items: ImportItem[] = [];
+    let currentTheme: string | null = null;
+    let cur: { themeId: string; q: Question; number: string } | null = null;
+    let curValue: boolean | undefined;
+    let curChoice: string | undefined;
+    let curRemarks: string[] = [];
+    // Erst nach einer Marker-Zeile (Checkboxen, «Bemerkung:», «Antwort …»)
+    // zählt freier Text als Bemerkung — schützt vor umbrochenen Fragetexten.
+    let seenMarker = false;
+
+    const flush = () => {
+      if (cur) {
+        const patch: Partial<QuestionAnswer> = {};
+        if (curValue !== undefined) patch.value = curValue;
+        if (curChoice) patch.choice = curChoice;
+        const rem = curRemarks.join('\n').trim();
+        if (rem) patch.remarks = rem;
+        if (Object.keys(patch).length) {
+          const parts: string[] = [];
+          if (curValue !== undefined) parts.push(curValue ? 'Ja' : 'Nein');
+          if (curChoice) parts.push(curChoice);
+          if (rem) parts.push(`«${rem.length > 40 ? rem.slice(0, 40) + '…' : rem}»`);
+          items.push({ ...cur, patch, summary: parts.join(' · ') });
+        }
+      }
+      cur = null;
+      curValue = undefined;
+      curChoice = undefined;
+      curRemarks = [];
+      seenMarker = false;
+    };
+
+    for (const raw of text.split(/\r?\n/)) {
+      // Zitatzeichen aus E-Mail-Antworten («> ») entfernen
+      const line = raw.replace(/^[ \t>]+/, '').trim();
+      const themeId = themeByTitle.get(line.replace(/^[A-Z]\s*·\s*/, '').trim().toLowerCase());
+      if (themeId) { flush(); currentTheme = themeId; continue; }
+      if (/^-{5,}$/.test(line) || /^(Guten Tag|Vielen Dank|Freundliche Grüsse)/i.test(line)) continue;
+      const qm = line.match(/^(M\d+F\d+)\b\s*(.*)/);
+      if (qm) {
+        flush();
+        const q = currentTheme ? numberMap.get(currentTheme)?.get(qm[1]) : undefined;
+        if (q && currentTheme) cur = { themeId: currentTheme, q, number: qm[1] };
+        continue;
+      }
+      if (!cur) continue;
+      // Ja/Nein: tolerant gegenüber [], [x], [X], Zusatztext hinter Nein
+      const jn = line.match(/\[([^\]]{0,3})\]\s*Ja\b[^\[]*\[([^\]]{0,3})\]\s*Nein\b(.*)$/i);
+      if (jn) {
+        const ja = /\S/.test(jn[1]);
+        const nein = /\S/.test(jn[2]);
+        if (ja !== nein) curValue = ja;
+        const rest = jn[3].replace(/^[\s:,-]+/, '').trim();
+        if (rest) curRemarks.push(rest);
+        seenMarker = true;
+        continue;
+      }
+      // Alleinstehendes Ja/Nein (wenn die Checkboxen entfernt wurden)
+      const solo = line.match(/^(ja|nein)[.!]?$/i);
+      if (solo) {
+        curValue = solo[1].toLowerCase() === 'ja';
+        seenMarker = true;
+        continue;
+      }
+      const bm = line.match(/^(?:Antwort \/ )?Bemerkung(?:en)?:\s*(.*)$/i);
+      if (bm) {
+        seenMarker = true;
+        if (bm[1].trim()) curRemarks.push(bm[1].trim());
+        continue;
+      }
+      const am = line.match(/^Antwort\s*\([^)]*\):\s*(.*)$/i);
+      if (am) {
+        seenMarker = true;
+        const val = am[1].trim();
+        if (val) {
+          const opt = (cur.q.options ?? []).find(o => o.toLowerCase() === val.toLowerCase());
+          if (opt) curChoice = opt;
+          else curRemarks.push(val);
+        }
+        continue;
+      }
+      // Hinweiszeile in Klammern nur vor dem ersten Marker überspringen
+      if (!seenMarker && /^\(.*\)$/.test(line)) continue;
+      // Alles Übrige nach einem Marker gehört zur Bemerkung — bis zur nächsten Frage
+      if (seenMarker && line) curRemarks.push(line);
+    }
+    flush();
+    return items;
+  };
+
+  const applyAnswersImport = (items: ImportItem[]) => {
+    setProj(p => {
+      if (!p) return p;
+      const reviews = { ...p.reviews };
+      for (const it of items) {
+        const review = { ...emptyReview(), ...(reviews[it.themeId] ?? {}) };
+        const answers = { ...(review.answers ?? {}) };
+        const existing: QuestionAnswer = answers[it.q.id] ?? { value: null, remarks: '' };
+        answers[it.q.id] = { ...existing, ...it.patch };
+        reviews[it.themeId] = { ...review, answers };
+      }
+      return syncDerived({ ...p, reviews });
+    });
+    showToast(`${items.length} ${items.length === 1 ? 'Antwort' : 'Antworten'} übernommen.`);
+    setAnswersMs(null);
+    setAnswersText('');
+  };
+
   // Kopfbereich eines Meilenstein-Blocks
   const milestoneHeader = (opts: {
     chipLabel: string;
@@ -517,10 +693,22 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
 
       {/* M10 · Foundation-Prüfung */}
       <div className={`${cardCls} mb-4`}>
-        <div className="px-4 pt-3">
+        <div className="px-4 pt-3 flex items-center justify-between gap-3">
           <h3 className={`text-[11px] font-semibold uppercase tracking-widest ${isDark ? 'text-white/50' : 'text-black/50'}`}>
             {FOUNDATION_MS} · {MILESTONE_TITLES[FOUNDATION_MS] ?? 'Prüfung'}
           </h3>
+          <div className="flex items-center gap-2">
+            <button onClick={() => { setExportMs(FOUNDATION_MS); setExportCopied(false); }}
+              title="Offene Fragen als E-Mail-Text exportieren"
+              className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
+              <Mail size={11} /> Offene Fragen
+            </button>
+            <button onClick={() => { setAnswersMs(FOUNDATION_MS); setAnswersText(''); }}
+              title="Ausgefüllten E-Mail-Text einlesen und Antworten übernehmen"
+              className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
+              <ClipboardPaste size={11} /> Antworten importieren
+            </button>
+          </div>
         </div>
         {milestoneHeader({
           chipLabel: 'Architekturrelevant',
@@ -546,10 +734,22 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
           if (!prevApproved) break;
           panels.push(
             <div key={ms} className={`${cardCls} mb-4`}>
-              <div className="px-4 pt-3">
+              <div className="px-4 pt-3 flex items-center justify-between gap-3">
                 <h3 className={`text-[11px] font-semibold uppercase tracking-widest ${isDark ? 'text-white/50' : 'text-black/50'}`}>
                   {ms} · {MILESTONE_TITLES[ms] ?? 'Prüfung'}
                 </h3>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => { setExportMs(ms); setExportCopied(false); }}
+                    title="Offene Fragen als E-Mail-Text exportieren"
+                    className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
+                    <Mail size={11} /> Offene Fragen
+                  </button>
+                  <button onClick={() => { setAnswersMs(ms); setAnswersText(''); }}
+                    title="Ausgefüllten E-Mail-Text einlesen und Antworten übernehmen"
+                    className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
+                    <ClipboardPaste size={11} /> Antworten importieren
+                  </button>
+                </div>
               </div>
               {milestoneHeader({
                 chipLabel: 'Ergebnis',
@@ -590,6 +790,132 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
           </button>
         </div>
       </div>
+
+      {/* Import: ausgefüllte Antworten aus E-Mail-Text übernehmen */}
+      {answersMs && (() => {
+        const items = parseAnswersImport(answersMs, answersText);
+        return (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-6" onClick={() => setAnswersMs(null)}>
+            <div className={`max-w-2xl w-full max-h-[85vh] flex flex-col rounded-xl border p-6 ${isDark ? 'border-white/15 bg-[#16171a]' : 'border-black/15 bg-white'}`}
+              onClick={e => e.stopPropagation()}>
+              <div className="flex items-start justify-between gap-4 mb-3">
+                <h3 className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-black'}`}>
+                  Antworten importieren {answersMs}
+                </h3>
+                <button onClick={() => setAnswersMs(null)}
+                  className={`p-1 rounded flex-shrink-0 transition-colors ${isDark ? 'text-white/25 hover:text-white/70' : 'text-black/25 hover:text-black/70'}`}>
+                  <X size={14} />
+                </button>
+              </div>
+              <p className={`text-[11px] mb-2 ${textMuted}`}>
+                Ausgefüllten E-Mail-Text hier einfügen — erkannt werden angekreuzte [X] Ja/Nein,
+                Auswahl-Antworten und Bemerkungen.
+              </p>
+              <textarea value={answersText} autoFocus rows={10}
+                onChange={e => setAnswersText(e.target.value)}
+                placeholder={'M20F2 Bleiben die Daten dort liegen (nicht nur Anzeige)?\n[X] Ja    [ ] Nein\nBemerkung: bleibt in der neuen Core-DB'}
+                className={`w-full text-[11px] leading-relaxed px-3 py-2 rounded border outline-none resize-y font-mono ${inputCls}`} />
+              <div className={`mt-3 text-[11px] ${textMuted}`}>
+                {answersText.trim() === ''
+                  ? 'Noch kein Text eingefügt.'
+                  : items.length === 0
+                    ? 'Keine Antworten erkannt — stimmt der Meilenstein? Themen-Titel und Fragenummern müssen erhalten bleiben.'
+                    : `${items.length} ${items.length === 1 ? 'Antwort' : 'Antworten'} erkannt:`}
+              </div>
+              {items.length > 0 && (
+                <div className={`mt-2 max-h-40 overflow-y-auto rounded border px-3 py-2 space-y-1 ${isDark ? 'border-white/10' : 'border-black/10'}`}>
+                  {items.map(it => (
+                    <div key={`${it.themeId}:${it.q.id}`} className={`text-[11px] ${isDark ? 'text-white/75' : 'text-black/75'}`}>
+                      <span className={textMuted}>{it.number}</span> {it.summary}
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex gap-2 pt-4">
+                <button onClick={() => setAnswersMs(null)}
+                  className={`flex-1 text-xs py-2 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
+                  Abbrechen
+                </button>
+                <button onClick={() => applyAnswersImport(items)} disabled={items.length === 0}
+                  className={`flex-1 text-xs py-2 rounded font-semibold transition-colors disabled:opacity-40 ${isDark ? 'bg-white text-black hover:bg-white/90' : 'bg-black text-white hover:bg-black/80'}`}>
+                  Übernehmen
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Export: offene Fragen als E-Mail-Text */}
+      {exportMs && (() => {
+        const { text, count } = buildExport(exportMs);
+        const subject = `Architekturprüfung «${proj.name || proj.slug}» — offene Fragen ${exportMs}`;
+        return (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-6" onClick={() => setExportMs(null)}>
+            <div className={`max-w-2xl w-full max-h-[85vh] flex flex-col rounded-xl border p-6 ${isDark ? 'border-white/15 bg-[#16171a]' : 'border-black/15 bg-white'}`}
+              onClick={e => e.stopPropagation()}>
+              <div className="flex items-start justify-between gap-4 mb-3">
+                <h3 className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-black'}`}>
+                  Offene Fragen {exportMs}
+                  <span className={`ml-2 text-[11px] font-normal ${textMuted}`}>
+                    {count} {count === 1 ? 'Frage' : 'Fragen'}
+                  </span>
+                </h3>
+                <button onClick={() => setExportMs(null)}
+                  className={`p-1 rounded flex-shrink-0 transition-colors ${isDark ? 'text-white/25 hover:text-white/70' : 'text-black/25 hover:text-black/70'}`}>
+                  <X size={14} />
+                </button>
+              </div>
+              {count === 0 ? (
+                <p className={`text-xs ${textMuted}`}>Alle Fragen dieses Meilensteins sind beantwortet — nichts zu verschicken.</p>
+              ) : (
+                <>
+                  <textarea readOnly value={text}
+                    onFocus={e => e.currentTarget.select()}
+                    className={`w-full flex-1 min-h-[280px] text-[11px] leading-relaxed px-3 py-2 rounded border outline-none resize-none font-mono ${inputCls}`} />
+                  <div className="flex gap-2 pt-4">
+                    <button
+                      onClick={async () => {
+                        let ok = false;
+                        try {
+                          // writeText kann in restriktiven Umgebungen hängen → Timeout
+                          await Promise.race([
+                            navigator.clipboard.writeText(text),
+                            new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 800)),
+                          ]);
+                          ok = true;
+                        } catch {
+                          // Fallback für Umgebungen ohne Clipboard-Berechtigung
+                          const ta = document.createElement('textarea');
+                          ta.value = text;
+                          ta.style.position = 'fixed';
+                          ta.style.opacity = '0';
+                          document.body.appendChild(ta);
+                          ta.select();
+                          ok = document.execCommand('copy');
+                          document.body.removeChild(ta);
+                        }
+                        if (ok) {
+                          setExportCopied(true);
+                          setTimeout(() => setExportCopied(false), 2000);
+                        } else {
+                          showToast('Kopieren fehlgeschlagen — Text im Feld markieren und mit Ctrl/Cmd+C kopieren.');
+                        }
+                      }}
+                      className={`flex-1 flex items-center justify-center gap-1.5 text-xs py-2 rounded font-semibold transition-colors ${isDark ? 'bg-white text-black hover:bg-white/90' : 'bg-black text-white hover:bg-black/80'}`}>
+                      <Copy size={12} /> {exportCopied ? '✓ Kopiert' : 'Kopieren'}
+                    </button>
+                    <a href={`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`}
+                      className={`flex-1 flex items-center justify-center gap-1.5 text-xs py-2 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
+                      <Mail size={12} /> E-Mail-Entwurf öffnen
+                    </a>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Info: Klassifikation & Prüftiefe (Markdown) */}
       {showClassInfo && (

@@ -122,6 +122,29 @@ Ordner; Änderungen wirken sofort für alle Projekte. Beim Löschen eines
 Themas werden seine Fragen mitgelöscht; bereits erfasste Antworten bleiben
 in den Projektdateien erhalten.
 
+## Export «Offene Fragen»
+
+Jeder Meilenstein-Block hat einen Button **«Offene Fragen»**: Er erzeugt
+einen E-Mail-tauglichen Text mit allen noch unbeantworteten Fragen des
+Meilensteins (nur relevante Themen; Ja/Nein-Fragen im Ankreuzformat
+«[ ] Ja  [ ] Nein» mit Bemerkungszeile, Auswahl-Fragen mit den Optionen,
+Text-Fragen mit «Antwort / Bemerkung:», Hinweise in Klammern). Der Dialog
+zeigt die Anzahl, den Text zum Prüfen sowie **Kopieren** (Zwischenablage,
+mit «✓ Kopiert»-Feedback und Fallback für restriktive Umgebungen) und
+**E-Mail-Entwurf öffnen** (mailto mit Betreff und Text).
+
+Der Rückweg: **«Antworten importieren»** (daneben) nimmt den ausgefüllten
+E-Mail-Text entgegen. Erkannt werden angekreuzte Ja/Nein-Checkboxen
+(tolerant: «[x]», «[X]», «[]», auch ein alleinstehendes «Ja»/«Nein» als
+Antwortzeile), Auswahl-Antworten (gegen die Optionen abgeglichen; unbekannte
+Werte landen in den Bemerkungen) und Bemerkungen — diese laufen ab
+«Bemerkung:» bis zur nächsten Frage, über mehrere Zeilen und Absätze.
+Zitatzeichen («> ») aus E-Mail-Antworten werden entfernt. Die Zuordnung läuft
+über die Themen-Titel und Fragenummern aus dem Export — eine Vorschau zeigt
+die erkannten Antworten, «Übernehmen» schreibt sie ins Projekt (Autosave,
+Relevanz-Ableitung inklusive). Beide Ankreuzungen oder keine → die Frage
+bleibt unangetastet.
+
 ## MS10-Import
 
 Aus einem MS10-Antrags-PDF (Vorlage «MS10 Antrag - Light») lassen sich Felder

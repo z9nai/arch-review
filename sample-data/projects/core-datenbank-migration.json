@@ -7,9 +7,9 @@
   "responsibleArchitecture": "Max Muster",
   "classification": "B",
   "reviewDepth": "M",
-  "architectureRelevant": null,
+  "architectureRelevant": true,
   "createdAt": "2026-08-15",
-  "updatedAt": "2026-08-15T16:38:32+02:00",
+  "updatedAt": "2026-08-15T18:11:54+02:00",
   "reviews": {
     "data-storage": {
       "relevant": true,
@@ -63,7 +63,7 @@
       }
     },
     "integration-application": {
-      "relevant": null,
+      "relevant": true,
       "reviewed": false,
       "result": null,
       "milestone": "",
@@ -76,29 +76,71 @@
         "I2": {
           "value": false,
           "remarks": ""
+        },
+        "I3": {
+          "value": true,
+          "remarks": ""
         }
       }
     },
     "cloud-infrastructure": {
-      "relevant": null,
+      "relevant": true,
       "reviewed": false,
       "result": null,
       "milestone": "",
-      "notes": ""
+      "notes": "",
+      "answers": {
+        "C1": {
+          "value": false,
+          "remarks": ""
+        },
+        "C3": {
+          "value": true,
+          "remarks": "ok wir haben alles im griff"
+        },
+        "C2": {
+          "value": true,
+          "remarks": ""
+        }
+      }
     },
     "security-compliance": {
-      "relevant": null,
+      "relevant": true,
       "reviewed": false,
       "result": null,
       "milestone": "",
-      "notes": ""
+      "notes": "",
+      "answers": {
+        "SC1": {
+          "value": true,
+          "remarks": ""
+        },
+        "SC2": {
+          "value": false,
+          "remarks": ""
+        }
+      }
     },
     "idm-iam": {
-      "relevant": null,
+      "relevant": true,
       "reviewed": false,
       "result": null,
       "milestone": "",
-      "notes": ""
+      "notes": "",
+      "answers": {
+        "A1": {
+          "value": true,
+          "remarks": ""
+        },
+        "A2": {
+          "value": true,
+          "remarks": ""
+        },
+        "A3": {
+          "value": false,
+          "remarks": "alles super\nwarum auch nicht"
+        }
+      }
     },
     "m10": {
       "relevant": null,

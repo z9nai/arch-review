@@ -177,8 +177,9 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
   const addFromCatalog = (q: Question, ms: string) => {
     setDraft(d => {
       if (!d) return d;
-      // nur übernehmen, wenn das Thema existiert
+      // nur übernehmen, wenn das Thema existiert und die Frage nicht schon da ist
       if (!d.themes.some(t => t.id === q.themeId)) return d;
+      if (d.questions.some(x => x.id === q.id)) return d;
       return { ...d, questions: [...d.questions, JSON.parse(JSON.stringify(q))] };
     });
     setPickQuery(prev => ({ ...prev, [ms]: '' }));
