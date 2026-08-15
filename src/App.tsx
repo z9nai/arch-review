@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Sun, Moon, FolderOpen, AlertTriangle } from 'lucide-react';
+import { Sun, Moon, FolderOpen, AlertTriangle, Wrench } from 'lucide-react';
 import { useStore } from './store';
 import ProjectsView from './components/ProjectsView';
 import OnePagerView from './components/OnePagerView';
+import AdminView from './components/AdminView';
 
-type View = { kind: 'projects' } | { kind: 'project'; slug: string };
+type View = { kind: 'projects' } | { kind: 'project'; slug: string } | { kind: 'admin' };
 
 export default function App() {
   const { isDark, toggleTheme, dirHandle, pickDirectory, savedHandleName, reconnectDirectory, model, modelError } = useStore();
@@ -28,6 +29,22 @@ export default function App() {
         </span>
 
         <div className="ml-auto flex items-center gap-3">
+          {/* Admin-Modus: Themen und Fragen pflegen */}
+          {dirHandle && model && (
+            <button
+              onClick={() => setView(v => v.kind === 'admin' ? { kind: 'projects' } : { kind: 'admin' })}
+              title="Admin — Themen und Fragen bearbeiten"
+              className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 rounded border transition-colors ${
+                view.kind === 'admin'
+                  ? isDark ? 'border-white/40 text-white bg-white/10' : 'border-black/40 text-black bg-black/10'
+                  : isDark ? 'border-white/15 text-white/50 hover:border-white/30' : 'border-black/15 text-black/50 hover:border-black/30'
+              }`}
+            >
+              <Wrench size={12} />
+              Admin
+            </button>
+          )}
+
           {/* Geteilter Ordner */}
           <button
             onClick={pickDirectory}
@@ -101,6 +118,8 @@ export default function App() {
           <div className={`h-full flex items-center justify-center text-xs ${textMuted}`}>Lade model.json …</div>
         ) : view.kind === 'projects' ? (
           <ProjectsView onOpen={slug => setView({ kind: 'project', slug })} />
+        ) : view.kind === 'admin' ? (
+          <AdminView onBack={() => setView({ kind: 'projects' })} />
         ) : (
           <OnePagerView slug={view.slug} onBack={() => setView({ kind: 'projects' })} />
         )}

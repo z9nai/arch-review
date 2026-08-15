@@ -9,11 +9,16 @@ export default defineConfig({
   resolve: {
     alias: { '@': path.resolve(__dirname, '.') },
   },
+  server: {
+    // sample-data kann als geteilter Ordner gewählt werden — Schreibzugriffe
+    // der App dürfen keinen Dev-Server-Reload auslösen
+    watch: { ignored: ['**/sample-data/**'] },
+  },
   build: {
     rollupOptions: {
       output: {
         // grosse, nur bei Bedarf genutzte Bibliotheken als eigene Chunks
-        manualChunks: { pdfjs: ['pdfjs-dist'], mammoth: ['mammoth'] },
+        manualChunks: { pdfjs: ['pdfjs-dist'] },
       },
     },
   },

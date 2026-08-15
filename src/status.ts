@@ -1,56 +1,36 @@
-import { FactsheetDef, Project, Review, ReviewResult } from './types';
+import { MILESTONES, Project, Review } from './types';
 
-export type ProjectStatus = 'notRelevant' | 'open' | 'ok' | 'withConditions' | 'notOk';
+export type ProjectStatus = 'notRelevant' | 'open' | 'ok';
 
-export function defaultReview(def: FactsheetDef): Review {
-  return {
-    relevant: def.id === 'foundation' ? true : null,
-    reviewed: false,
-    result: null,
-    milestone: def.milestone,
-    notes: '',
-  };
+export function emptyReview(): Review {
+  return { relevant: null, reviewed: false, result: null, milestone: '', notes: '' };
 }
 
-// Fehlt ein Eintrag in project.reviews, gilt er als «noch nicht bearbeitet».
-// Foundation ist immer relevant, unabhängig vom gespeicherten Wert.
-export function getReview(project: Project, def: FactsheetDef): Review {
-  const stored = project.reviews?.[def.id];
-  const merged: Review = { ...defaultReview(def), ...(stored ?? {}) };
-  if (def.id === 'foundation') merged.relevant = true;
-  return merged;
+// Review-Eintrag eines Themas (Relevanz + Antworten).
+// Fehlt der Eintrag, gilt «noch nicht bearbeitet».
+export function getThemeReview(project: Project, themeId: string): Review {
+  return { ...emptyReview(), ...(project.reviews?.[themeId] ?? {}) };
 }
 
-// result zählt nur, wenn reviewed === true (Konsistenzregel).
-export function effectiveResult(r: Review): ReviewResult | null {
-  return r.reviewed ? r.result : null;
+// Kopf eines Meilensteins (geprüft/freigegeben, Prüfer, Bemerkungen) unter
+// reviews.m10/m20/m40 — mit Fallback auf die alten Schlüssel (foundation, ms20 …).
+export function getMilestoneReview(project: Project, ms: string): Review {
+  const stored = project.reviews?.[ms.toLowerCase()]
+    ?? project.reviews?.[`ms${ms.slice(1)}`.toLowerCase()]
+    ?? (ms === 'M10' ? project.reviews?.foundation : undefined);
+  return { ...emptyReview(), milestone: ms, ...(stored ?? {}) };
 }
 
-export function deriveStatus(project: Project, factsheets: FactsheetDef[]): ProjectStatus {
+// Projektstatus (abgeleitet, nicht gespeichert)
+export function deriveStatus(project: Project): ProjectStatus {
   if (project.architectureRelevant === false) return 'notRelevant';
-  if (project.architectureRelevant === null) return 'open';
-  // relevant === null zählt als «noch nicht entschieden» und hält das Projekt offen
-  const results = factsheets
-    .map(def => getReview(project, def))
-    .filter(r => r.relevant !== false)
-    .map(effectiveResult);
-  if (results.some(x => x === null)) return 'open';
-  if (results.some(x => x === 'notOk' || x === 'notAssessable')) return 'notOk';
-  if (results.some(x => x === 'okWithConditions')) return 'withConditions';
-  return 'ok';
+  const last = MILESTONES[MILESTONES.length - 1];
+  if (getMilestoneReview(project, last).approved === true) return 'ok';
+  return 'open';
 }
 
 export const STATUS_META: Record<ProjectStatus, { label: string; dark: string; light: string }> = {
-  notRelevant:    { label: 'nicht architekturrelevant', dark: 'bg-white/8 text-white/50 border-white/15',              light: 'bg-black/5 text-black/50 border-black/15' },
-  open:           { label: 'offen',                     dark: 'bg-blue-500/15 text-blue-300 border-blue-500/30',       light: 'bg-blue-50 text-blue-700 border-blue-300' },
-  ok:             { label: 'in Ordnung',                dark: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30', light: 'bg-emerald-50 text-emerald-700 border-emerald-300' },
-  withConditions: { label: 'mit Conditions',            dark: 'bg-amber-500/15 text-amber-300 border-amber-500/30',    light: 'bg-amber-50 text-amber-700 border-amber-300' },
-  notOk:          { label: 'nicht in Ordnung',          dark: 'bg-rose-500/15 text-rose-300 border-rose-500/30',       light: 'bg-rose-50 text-rose-700 border-rose-300' },
-};
-
-export const RESULT_LABELS: Record<ReviewResult, string> = {
-  ok: 'in Ordnung',
-  okWithConditions: 'mit Conditions',
-  notOk: 'nicht in Ordnung',
-  notAssessable: 'nicht beurteilbar',
+  notRelevant: { label: 'nicht architekturrelevant', dark: 'bg-white/8 text-white/50 border-white/15',                light: 'bg-black/5 text-black/50 border-black/15' },
+  open:        { label: 'offen',                     dark: 'bg-blue-500/15 text-blue-300 border-blue-500/30',         light: 'bg-blue-50 text-blue-700 border-blue-300' },
+  ok:          { label: 'abgeschlossen',             dark: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30', light: 'bg-emerald-50 text-emerald-700 border-emerald-300' },
 };

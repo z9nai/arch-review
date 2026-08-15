@@ -34,63 +34,90 @@ Fehlen `model.json` oder `projects/` im gewählten Ordner, legt die App sie an
 vorhandene, aber defekte `model.json` wird nie überschrieben.
 
 Zum Ausprobieren kann `sample-data/` als geteilter Ordner gewählt werden
-(enthält `model.json` und das Beispielprojekt `demo-alpha`).
+(enthält `model.json` und das Beispielprojekt «Core Datenbank Migration»).
 
 ## Fachregeln (V1)
 
-- **Foundation-Prüfung (MS10), abgeleitet**: Die editierbaren Relevanz-Fragen
-  je Thema (Fragen mit `milestone: "MS10"`) stehen fix ausgeklappt im
-  Foundation-Block; die Titelzeile jedes Themas zeigt Zähler und den
-  abgeleiteten Relevanz-Chip (eine Frage offen → Offen, eine mit Ja → Ja,
-  sonst Nein; Text-Fragen zählen nicht). Als letzte Zeile steht das
-  abgeleitete **Projekt architekturrelevant** (ein Thema offen → Offen, ein
-  Thema relevant → Ja, sonst Nein) — beides nicht editierbar. Die
-  abgeleiteten Werte werden in die Projektdatei geschrieben
-  (`reviews.<id>.relevant`, `architectureRelevant`). Nur MS20-Themen haben
-  MS10-Relevanzfragen; Themen späterer Meilensteine (MS40) nehmen nicht an
-  der Foundation-Befragung teil, zählen nicht zur Architekturrelevanz und
-  behalten eine manuell schaltbare Relevanz in ihrer Tabellenzeile. Themen
-  können in späteren Meilensteinen weitere Fragen haben (Frage-Feld
-  `milestone`); diese erscheinen im Ausklapp-Panel der jeweiligen
-  Meilenstein-Zeile. Nicht relevante Themen sind dort ausgegraut und readonly.
-- **MS10-Gate**: «nicht architekturrelevant» blendet MS20/MS40 aus; erfasste
-  Daten bleiben in der Datei erhalten.
-- **Relevanz**: nicht relevante Factsheets sind ausgegraut und nicht editierbar.
-- **Konsistenz**: ein Ergebnis zählt nur mit gesetztem «geprüft»; wird «geprüft»
-  entfernt, bleibt das Ergebnis gespeichert und wird als «noch nicht bestätigt»
-  angezeigt.
-- **Projektstatus** (abgeleitet, nicht gespeichert): nicht architekturrelevant /
-  offen / in Ordnung / mit Conditions / nicht in Ordnung.
+- **M10 · Foundation-Prüfung**: Kopf mit abgeleitetem Tag **Architekturrelevant**
+  (ein Thema offen → Offen, ein Thema relevant → Ja, sonst Nein; nicht
+  editierbar), Checkbox **«Geprüft und freigegeben»** mit Feld «Prüfer/in»
+  und Pflicht-Bemerkungen (Textarea wächst mit dem Text). Darunter je Thema
+  ein aufklappbarer Fragenblock (+/−) mit Zähler und abgeleitetem
+  Relevanz-Chip (eine Frage offen → Offen, eine mit Ja → Ja, sonst Nein;
+  Text-Fragen zählen nicht). Die abgeleiteten Werte werden in die
+  Projektdatei geschrieben (`reviews.<themeId>.relevant`,
+  `architectureRelevant`).
+- **Meilenstein-Kaskade (M20 → M40)**: Jeder Block erscheint, sobald der
+  vorherige freigegeben ist — und nur solange die Architekturrelevanz nicht
+  Nein ist. Aufbau analog M10 (Status-Tag «Ergebnis», Freigabe, Prüfer/in,
+  Pflicht-Bemerkungen; gespeichert unter `reviews.m20` / `reviews.m40`).
+  Themen, die laut Foundation keinen Review brauchen (relevant = Nein), sind
+  ausgegraut, readonly und auf Nein gesetzt («kein Review nötig»).
+- **Fragen beantworten**: Ja/Nein sind sich gegenseitig ausschliessende
+  Checkboxen; «Bemerkungen …» öffnet beim Klick eine Textarea (bleibt offen,
+  solange Text drinsteht). Antworten hängen am stabilen Frage-Schlüssel in
+  `reviews.<themeId>.answers`.
+- **Themen-Info**: Das ⓘ-Icon öffnet die statische Info des Themas als
+  gerendertes Markdown (`infoMd`; für Datenhaltung der Inhalt des Factsheets
+  Datenhaltung, ehemals «Leitlinie Datenhaltungsvorgaben»).
+- **Projektstatus** (abgeleitet, nicht gespeichert): nicht
+  architekturrelevant / offen / abgeschlossen (M40 freigegeben).
 - **Autosave**: Änderungen werden ca. 1 Sekunde nach der letzten Eingabe
   automatisch gespeichert (Statuszeile «Automatisch gespeichert ✓ HH:MM»);
-  der Speichern-Button bleibt für sofortiges Speichern. `updatedAt` wird bei
-  jedem Speichern gesetzt; Konflikt­erkennung über `lastModified` (überschreiben
-  oder neu laden — bei Konflikt pausiert der Autosave, bis entschieden ist).
-  Beim Zurücknavigieren werden ausstehende Änderungen noch weggeschrieben.
-  Unbekannte JSON-Felder überleben den Roundtrip.
-- **Dokument-Links**: Klick kopiert den Pfad in die Zwischenablage
-  (Browser dürfen lokale Dateien nicht direkt öffnen).
-- **Ordner-Persistenz**: Der gewählte Ordner wird in IndexedDB gemerkt. Beim
-  nächsten Öffnen verbindet die App automatisch; verlangt der Browser eine neue
-  Bestätigung, erscheint «Wieder verbinden» auf dem Startscreen.
-- **Factsheet-Info**: Das ⓘ-Icon neben jedem Factsheet-Titel öffnet einen
-  Dialog mit rein statischer Information als **Markdown** (Feld `infoMd` je
-  Factsheet in `model.json`; gerendert mit marked, inkl. Tabellen). Für
-  Datenhaltung enthält der Standard-Katalog den Inhalt des «Factsheet
-  Datenhaltung» (ehemals «Leitlinie Datenhaltungsvorgaben»), die übrigen
-  Themen haben Dummy-Inhalte. Fehlt `infoMd` in einer bestehenden
-  `model.json`, greift der Standard-Katalog; als letzter Fallback der
-  Kurztext `description`.
-- **Ausklappbare Factsheets mit Prüffragen**: Das +/−-Icon vor jedem
-  Factsheet-Titel klappt ein Panel mit den Prüffragen auf. Ja/Nein sind
-  echte, sich gegenseitig ausschliessende Checkboxen; «Bemerkungen …» öffnet
-  beim Klick eine Textarea (bleibt offen, solange Text drinsteht). Antworten
-  werden je Frage im Projekt gespeichert (`reviews.<id>.answers`, via
-  Autosave). Die Fragen stehen je Factsheet in `model.json` (`questionsTitle`,
-  `questions[]` mit `id`, `text`, `hint`, `kind: "text"` für offene Fragen);
-  fehlen sie dort, greifen die Fragen aus dem Standard-Katalog (Datenhaltung:
-  Schritt-1-Fragen S1–S4, übrige Themen: Dummy-Leitfragen). Ohne Fragen zeigt
-  das Panel das Word-Dokument (`factsheetDoc`) formatiert an (mammoth.js).
+  `updatedAt` wird gesetzt, Konflikte werden über `lastModified` erkannt
+  (überschreiben oder neu laden). Beim Zurücknavigieren werden ausstehende
+  Änderungen noch weggeschrieben. Unbekannte JSON-Felder überleben den
+  Roundtrip.
+- **Ordner-Persistenz**: Der gewählte Ordner wird in IndexedDB gemerkt; beim
+  nächsten Öffnen verbindet die App automatisch oder bietet «Wieder
+  verbinden» an.
+
+## Datenmodell (v2)
+
+- **Meilensteine** sind fix und hart codiert: **M10 / M20 / M40**
+  (Konstante `MILESTONES` in `src/types.ts`; Titel in `MILESTONE_TITLES`).
+- **Themen**: nur Titel und Info (Markdown, hinter dem ⓘ-Icon). Die
+  Nummerierung **A–Z** ergibt sich automatisch aus der Reihenfolge.
+- **Fragen**: ein Text, per Dropdown einem Meilenstein und einem Thema
+  zugeordnet; optional Antworttyp (**Ja/Nein**, **Text** oder **Auswahl**
+  mit vorgegebenen Optionen, z. B. Schutzklasse K0–K4) und Erläuterung. Die
+  angezeigte Nummer wird automatisch vergeben (n-te Frage des Themas im
+  Meilenstein, z. B. **M10F1**); intern hängt jede Frage an einem stabilen
+  Schlüssel, damit Antworten beim Umsortieren erhalten bleiben. Optional
+  trägt eine Frage eine **Quelle** (wird unter der Frage angezeigt, z. B.
+  «Prüfformular Datenhaltung, Schritt 2») und eine **Mindest-Prüftiefe**
+  («ab M», «ab L», kumulativ): Solche Fragen erscheinen nur, wenn die
+  Prüftiefe des Projekts hoch genug ist; die Nummern bleiben dabei stabil
+  (ausgeblendete Fragen hinterlassen Lücken). Ohne Angabe gilt die Frage
+  für alle Prüftiefen. Die Klassifikation bleibt bewusst auf Projektebene —
+  sie soll später die Prüftiefe ableiten (Regel folgt), nicht einzelne
+  Fragen filtern.
+- Alte `model.json`-Dateien (Factsheet-Format mit MSxx-Nummern) werden beim
+  Laden automatisch in die neue Struktur überführt; MS60-Zuordnungen landen
+  in M40.
+
+## Admin-Modus
+
+Der Button **Admin** in der Kopfleiste öffnet die Pflege der Stammdaten.
+**Klassifikationen** (hinzufügen/löschen, Label, Zuordnung zur Prüftiefe)
+und **Prüftiefen** (hinzufügen/löschen, Label, PT-Aufwand, Reihenfolge per
+↑/↓ — die Reihenfolge definiert die aufsteigende Tiefe für «ab …»-Fragen)
+sind vollständig editierbar; beim Löschen einer Prüftiefe werden Verweise
+in Klassifikationen und Fragen bereinigt. Je Meilenstein-Gruppe gibt es eine
+**Katalogsuche**: Tippen filtert live über Fragetext, Thema und Quelle durch
+den eingebauten Fragenkatalog (Standard-Fragen plus kuratierte Fragen aus
+AWS Well-Architected, OWASP ASVS, BSI IT-Grundschutz, TOGAF, arc42/aim42 und
+CH-DSG in `src/catalog.ts` — jeweils mit Quellenangabe); ein Klick übernimmt
+die Frage. Jede Frage hat zudem einen **aktiv-Schalter**: Deaktivierte
+Fragen bleiben in `model.json` erhalten, werden im OnePager aber nicht
+gestellt (Nummern bleiben stabil). Dazu:
+**Themen** (Titel + Info-Markdown, A–Z automatisch) und **Fragen** (Text,
+Meilenstein- und Themen-Dropdown, Antworttyp, Erläuterung; Nummer
+automatisch) lassen sich on the fly erstellen, anpassen und löschen.
+Gespeichert wird per Autosave direkt in die `model.json` im geteilten
+Ordner; Änderungen wirken sofort für alle Projekte. Beim Löschen eines
+Themas werden seine Fragen mitgelöscht; bereits erfasste Antworten bleiben
+in den Projektdateien erhalten.
 
 ## MS10-Import
 

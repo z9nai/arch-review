@@ -1,8 +1,8 @@
 // MS10-Import: Text aus einem MS10-Antrags-PDF extrahieren und die für den
 // OnePager relevanten Felder herauslesen. Best-effort — was nicht gefunden
 // wird, bleibt einfach leer.
-import { FactsheetDef, Model, Project } from './types';
-import { defaultReview } from './status';
+import { Model, Project } from './types';
+import { emptyReview } from './status';
 
 export interface Ms10Data {
   projectNumber?: string;      // z. B. KP123456
@@ -120,14 +120,14 @@ export function applyMs10(project: Project, d: Ms10Data, model: Model): Project 
   if (d.architectureRelevant !== undefined) p.architectureRelevant = d.architectureRelevant;
 
   const summary = ms10Summary(d);
-  const foundationDef: FactsheetDef | undefined = model.factsheets.find(f => f.id === 'foundation');
-  if (summary && foundationDef) {
-    const existing = { ...defaultReview(foundationDef), ...(p.reviews.foundation ?? {}) };
+  if (summary) {
+    // Zusammenfassung in die Bemerkungen des M10-Kopfs
+    const existing = { ...emptyReview(), milestone: 'M10', ...(p.reviews.m10 ?? {}) };
     // nicht doppelt anhängen, wenn derselbe Import schon in den Notizen steht
     if (!String(existing.notes ?? '').includes(summary)) {
       existing.notes = existing.notes ? `${existing.notes}\n${summary}` : summary;
     }
-    p.reviews.foundation = existing;
+    p.reviews.m10 = existing;
   }
   return p;
 }

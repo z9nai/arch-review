@@ -24,6 +24,7 @@ interface StoreCtx {
   reconnectDirectory: () => Promise<void>;
   model: Model | null;
   modelError: string | null;
+  saveModel: (m: Model) => Promise<{ ok: true } | { ok: false; message: string }>;
   projects: ProjectListItem[];
   refreshProjects: () => Promise<void>;
   loadProject: (slug: string) => Promise<{ data: Project; lastModified: number } | null>;
@@ -72,6 +73,35 @@ async function loadStoredHandle(): Promise<FileSystemDirectoryHandle | null> {
   }
 }
 
+// Altes model.json-Format (factsheets mit eingebetteten Fragen, MSxx-Nummern)
+// beim Lesen in die neue Struktur (themes + questions, Mxx) überführen.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function normalizeModel(raw: any): Model {
+  if (raw && Array.isArray(raw.themes) && Array.isArray(raw.questions)) return raw as Model;
+  const msMap: Record<string, string> = { MS10: 'M10', MS20: 'M20', MS40: 'M40', MS60: 'M40' };
+  const themes: Model['themes'] = [];
+  const questions: Model['questions'] = [];
+  for (const fs of raw?.factsheets ?? []) {
+    if (fs.id === 'foundation') continue;
+    themes.push({ id: fs.id, title: fs.name ?? fs.id, ...(fs.infoMd ? { infoMd: fs.infoMd } : {}) });
+    for (const q of fs.questions ?? []) {
+      questions.push({
+        id: q.id, text: q.text,
+        milestone: msMap[q.milestone ?? fs.milestone] ?? 'M20',
+        themeId: fs.id,
+        ...(q.kind ? { kind: q.kind } : {}),
+        ...(q.hint ? { hint: q.hint } : {}),
+      });
+    }
+  }
+  return {
+    version: 2,
+    classifications: raw?.classifications ?? DEFAULT_MODEL.classifications,
+    reviewDepths: raw?.reviewDepths ?? DEFAULT_MODEL.reviewDepths,
+    themes, questions,
+  };
+}
+
 async function readProjectFile(handle: FileSystemFileHandle): Promise<{ data: Project; lastModified: number } | null> {
   const file = await handle.getFile();
   try {
@@ -115,7 +145,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
     try {
       const file = await fh.getFile();
-      const m = JSON.parse(await file.text()) as Model;
+      const m = normalizeModel(JSON.parse(await file.text()));
       setModel(m);
       modelRef.current = m;
       setModelError(null);
@@ -261,7 +291,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     } catch {
       return { ok: false as const, message: 'projects-Ordner konnte nicht angelegt werden.' };
     }
-    const foundation = modelRef.current?.factsheets.find(f => f.id === 'foundation');
     let project: Project = {
       version: 1,
       slug,
@@ -274,15 +303,36 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       architectureRelevant: null,
       createdAt: todayIso(),
       updatedAt: nowIsoWithTimezone(),
-      reviews: foundation
-        ? { foundation: { relevant: true, reviewed: false, result: null, milestone: foundation.milestone, notes: '' } }
-        : {},
+      reviews: {},
     };
     if (ms10 && modelRef.current) project = applyMs10(project, ms10, modelRef.current);
     const res = await saveProject(project, null);
     if (res.status === 'saved') return { ok: true as const };
     return { ok: false as const, message: res.status === 'error' ? res.message : 'Speichern fehlgeschlagen.' };
   }, [saveProject]);
+
+  // Admin-Modus: Stammdaten (Themen/Fragen) zurück in model.json schreiben
+  const saveModel = useCallback(async (m: Model): Promise<{ ok: true } | { ok: false; message: string }> => {
+    if (!dirRef.current) return { ok: false, message: 'Kein Ordner gewählt.' };
+    let json: string;
+    try {
+      json = JSON.stringify(m, null, 2);
+    } catch {
+      return { ok: false, message: 'Stammdaten konnten nicht serialisiert werden.' };
+    }
+    try {
+      const fh = await dirRef.current.getFileHandle('model.json', { create: true });
+      const w = await fh.createWritable();
+      await w.write(json);
+      await w.close();
+      setModel(m);
+      modelRef.current = m;
+      return { ok: true };
+    } catch (e) {
+      console.error('[arch-review] saveModel:', e);
+      return { ok: false, message: 'model.json konnte nicht geschrieben werden.' };
+    }
+  }, []);
 
   const toggleTheme = () => setIsDark(d => !d);
 
@@ -293,7 +343,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <Ctx.Provider value={{
-      isDark, toggleTheme, dirHandle, pickDirectory, savedHandleName, reconnectDirectory, model, modelError,
+      isDark, toggleTheme, dirHandle, pickDirectory, savedHandleName, reconnectDirectory, model, modelError, saveModel,
       projects, refreshProjects, loadProject, saveProject, createProject,
     }}>
       {children}

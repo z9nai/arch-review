@@ -1,0 +1,104 @@
+{
+  "version": 1,
+  "slug": "core-datenbank-migration",
+  "name": "Core Datenbank Migration",
+  "description": "Die bestehende Core-Datenbank wird auf eine neue Plattform migriert. Im Rahmen der Migration werden Datenbestände verschoben, die Backup-Strategie erneuert und die Reporting-Anbindung angepasst. Dieses Beispielprojekt zeigt den Ablauf der Architekturprüfung.",
+  "responsibleProject": "",
+  "responsibleArchitecture": "",
+  "classification": null,
+  "reviewDepth": "S",
+  "architectureRelevant": null,
+  "createdAt": "2026-08-15",
+  "updatedAt": "2026-08-15T12:20:01+02:00",
+  "reviews": {
+    "data-storage": {
+      "relevant": null,
+      "reviewed": false,
+      "result": null,
+      "milestone": "",
+      "notes": "",
+      "answers": {
+        "S1": {
+          "value": true,
+          "remarks": "Kundendaten wandern in die neue Core-Datenbank"
+        }
+      }
+    },
+    "data-classification": {
+      "relevant": false,
+      "reviewed": false,
+      "result": null,
+      "milestone": "",
+      "notes": "",
+      "answers": {
+        "D3": {
+          "value": null,
+          "remarks": "",
+          "choice": "B"
+        },
+        "D1": {
+          "value": false,
+          "remarks": ""
+        },
+        "D2": {
+          "value": false,
+          "remarks": ""
+        }
+      }
+    },
+    "integration-application": {
+      "relevant": null,
+      "reviewed": false,
+      "result": null,
+      "milestone": "",
+      "notes": "",
+      "answers": {
+        "I1": {
+          "value": false,
+          "remarks": ""
+        },
+        "I2": {
+          "value": false,
+          "remarks": ""
+        }
+      }
+    },
+    "cloud-infrastructure": {
+      "relevant": null,
+      "reviewed": false,
+      "result": null,
+      "milestone": "",
+      "notes": ""
+    },
+    "security-compliance": {
+      "relevant": null,
+      "reviewed": false,
+      "result": null,
+      "milestone": "",
+      "notes": ""
+    },
+    "idm-iam": {
+      "relevant": null,
+      "reviewed": false,
+      "result": null,
+      "milestone": "",
+      "notes": ""
+    },
+    "m10": {
+      "relevant": null,
+      "reviewed": true,
+      "result": null,
+      "milestone": "M10",
+      "notes": "sdfdsfkjhkjh",
+      "approved": true,
+      "approvedBy": "Pascal"
+    },
+    "m20": {
+      "relevant": null,
+      "reviewed": false,
+      "result": null,
+      "milestone": "M20",
+      "notes": "sssss"
+    }
+  }
+}

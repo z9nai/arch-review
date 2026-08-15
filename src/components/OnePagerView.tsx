@@ -1,15 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, FileText, FileUp, Info, Minus, Plus, Save, ClipboardCopy, ExternalLink, X } from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { ArrowLeft, FileUp, Info, Minus, Plus, Save, X } from 'lucide-react';
 import { marked } from 'marked';
 import { useStore } from '../store';
-import { FactsheetDef, Project, QuestionAnswer, Review, ReviewResult } from '../types';
-import { defaultReview, deriveStatus, effectiveResult, getReview, RESULT_LABELS, STATUS_META } from '../status';
+import { MILESTONES, MILESTONE_TITLES, Project, Question, QuestionAnswer, Review, Theme } from '../types';
+import { deriveStatus, emptyReview, getMilestoneReview, getThemeReview, STATUS_META } from '../status';
 import { applyMs10, extractPdfText, hasMs10Data, Ms10Data, MS10_FIELD_LABELS, parseMs10Text } from '../ms10';
-import { DocxResult, loadDocxHtml } from '../docx';
 import { DEFAULT_MODEL } from '../defaultModel';
-import { basename, fmtTimestamp, nowIsoWithTimezone } from '../util';
+import { fmtTimestamp, nowIsoWithTimezone } from '../util';
 
-// ── kleine Bausteine ────────────────────────────────────────────────────────
+const FOUNDATION_MS = MILESTONES[0]; // M10
 
 function StatusBadge({ status, isDark }: { status: keyof typeof STATUS_META; isDark: boolean }) {
   const meta = STATUS_META[status];
@@ -20,14 +19,13 @@ function StatusBadge({ status, isDark }: { status: keyof typeof STATUS_META; isD
   );
 }
 
-function relevantText(v: boolean | null): string {
-  return v === true ? 'Ja' : v === false ? 'Nein' : 'offen';
+// Themen-Nummerierung A–Z aus der Reihenfolge
+export function themeLetter(index: number): string {
+  return String.fromCharCode(65 + (index % 26));
 }
 
-// ── Hauptansicht ────────────────────────────────────────────────────────────
-
 export default function OnePagerView({ slug, onBack }: { slug: string; onBack: () => void }) {
-  const { isDark, model, loadProject, saveProject, dirHandle } = useStore();
+  const { isDark, model, loadProject, saveProject } = useStore();
   const [proj, setProj] = useState<Project | null>(null);
   const [baseline, setBaseline] = useState('');
   const [lastModified, setLastModified] = useState<number | null>(null);
@@ -38,14 +36,14 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
   const [lastSavedAt, setLastSavedAt] = useState('');
   const [toast, setToast] = useState('');
   const [importData, setImportData] = useState<Ms10Data | null>(null);
-  const [infoDef, setInfoDef] = useState<FactsheetDef | null>(null);
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [docs, setDocs] = useState<Record<string, DocxResult | 'loading'>>({});
-  const [openRemarks, setOpenRemarks] = useState<Set<string>>(new Set()); // "factsheetId:frageId"
+  const [infoTheme, setInfoTheme] = useState<Theme | null>(null);
+  const [showClassInfo, setShowClassInfo] = useState(false);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set()); // "M10:themeId"
+  const [openRemarks, setOpenRemarks] = useState<Set<string>>(new Set()); // "themeId:frageId"
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savingRef = useRef(false);
   const fileRef = useRef<HTMLInputElement>(null);
-  const syncRef = useRef<(p: Project) => Project>(p => p); // zeigt auf syncDerived
+  const syncRef = useRef<(p: Project) => Project>(p => p);
 
   const border = isDark ? 'border-white/8' : 'border-black/8';
   const textMuted = isDark ? 'text-white/30' : 'text-black/30';
@@ -71,7 +69,6 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
 
   const dirty = proj != null && JSON.stringify(proj) !== baseline;
 
-  // Warnung beim Verlassen mit ungespeicherten Änderungen
   useEffect(() => {
     if (!dirty) return;
     const h = (e: BeforeUnloadEvent) => { e.preventDefault(); };
@@ -79,8 +76,6 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
     return () => window.removeEventListener('beforeunload', h);
   }, [dirty]);
 
-  // Beim Zurücknavigieren ausstehende Änderungen noch wegschreiben;
-  // bei Konflikt oder Fehler auf der Seite bleiben (Dialog/Meldung sichtbar).
   const back = async () => {
     if (dirty) {
       const res = await saveRef.current();
@@ -89,13 +84,8 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
     onBack();
   };
 
-  const copyPath = async (path: string) => {
-    try {
-      await navigator.clipboard.writeText(path);
-      setToast('Pfad kopiert – im Finder/Explorer öffnen');
-    } catch {
-      setToast('Kopieren fehlgeschlagen');
-    }
+  const showToast = (msg: string) => {
+    setToast(msg);
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(''), 2500);
   };
@@ -103,78 +93,50 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
   const setField = <K extends keyof Project>(k: K, v: Project[K]) =>
     setProj(p => (p ? { ...p, [k]: v } : p));
 
-  const showToast = (msg: string) => {
-    setToast(msg);
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToast(''), 2500);
+  // ── Stammdaten-Zugriffe ───────────────────────────────────────────────────
+  const themes = model?.themes?.length ? model.themes : DEFAULT_MODEL.themes;
+  const allQuestions = model?.questions?.length ? model.questions : DEFAULT_MODEL.questions;
+
+  // Gilt die Frage für die Prüftiefe des Projekts? (kumulativ: «ab M» usw.;
+  // ohne minDepth oder solange die Prüftiefe offen ist, gilt sie immer)
+  const depthOk = (p: Project, q: Question): boolean => {
+    if (!q.minDepth || !p.reviewDepth || !model) return true;
+    const order = model.reviewDepths.map(d => d.id);
+    return order.indexOf(p.reviewDepth) >= order.indexOf(q.minDepth);
   };
 
-  // MS10-PDF wählen → parsen → Vorschau-Dialog
-  const pickMs10 = async (file: File) => {
-    try {
-      const data = parseMs10Text(await extractPdfText(await file.arrayBuffer()));
-      if (!hasMs10Data(data)) { showToast('Im PDF wurden keine MS10-Felder gefunden.'); return; }
-      setImportData(data);
-    } catch (e) {
-      console.error('[arch-review] pickMs10:', e);
-      showToast('PDF konnte nicht gelesen werden.');
-    }
-  };
+  // Fragen eines Themas in einem Meilenstein, mit automatischer Nummer M10F1 …
+  // Die Nummern werden über den vollen Katalog vergeben und bleiben damit
+  // stabil, auch wenn die Prüftiefe einzelne Fragen ausblendet (Lücken).
+  const questionsAt = (themeId: string, ms: string, p: Project | null = proj): { q: Question; number: string }[] =>
+    allQuestions
+      .filter(q => q.themeId === themeId && q.milestone === ms)
+      .map((q, i) => ({ q, number: `${ms}F${i + 1}` }))
+      .filter(({ q }) => q.enabled !== false && (!p || depthOk(p, q)));
 
-  const applyImport = () => {
-    if (!importData || !proj || !model) return;
-    setProj(applyMs10(proj, importData, model));
-    setImportData(null);
-    showToast('MS10-Felder übernommen.');
-  };
-
-  const foundationMs = model?.factsheets.find(f => f.id === 'foundation')?.milestone
-    ?? model?.milestones[0] ?? 'MS10';
-
-  // Prüffragen des Factsheets: aus model.json; fehlen sie dort, aus dem
-  // Standard-Katalog (Fallback für ältere model.json-Dateien).
-  const effectiveQuestionSrc = (def: FactsheetDef) =>
-    def.questions?.length ? def : DEFAULT_MODEL.factsheets.find(f => f.id === def.id);
-
-  // Fragen eines Themas für einen Meilenstein (Default-Meilenstein: der des Factsheets)
-  const questionsAt = (def: FactsheetDef, ms: string) => {
-    const src = effectiveQuestionSrc(def);
-    return (src?.questions ?? []).filter(q => (q.milestone ?? def.milestone) === ms);
-  };
-
-  // Fragen fürs Zeilen-Panel: alles ausser den MS10-Relevanzfragen
-  const laterQuestions = (def: FactsheetDef) => {
-    const src = effectiveQuestionSrc(def);
-    return (src?.questions ?? []).filter(q => (q.milestone ?? def.milestone) !== foundationMs);
-  };
-
-  const questionsTitleOf = (def: FactsheetDef) => effectiveQuestionSrc(def)?.questionsTitle;
-
-  // Thema relevant, abgeleitet aus den MS10-Fragen:
+  // Thema relevant, abgeleitet aus den M10-Fragen:
   // eine Frage offen → Offen; eine mit Ja → Ja; sonst Nein.
-  // undefined = keine MS10-Fragen vorhanden → Relevanz bleibt manuell.
-  const derivedRelevant = (p: Project, def: FactsheetDef): boolean | null | undefined => {
-    const qs = questionsAt(def, foundationMs).filter(q => q.kind !== 'text');
+  // undefined = keine M10-Fragen vorhanden.
+  const deriveTheme = (p: Project, themeId: string, ms: string): boolean | null | undefined => {
+    const qs = questionsAt(themeId, ms, p).filter(({ q }) => (q.kind ?? 'yesNo') === 'yesNo');
     if (!qs.length) return undefined;
-    const answers = getReview(p, def).answers ?? {};
-    const vals = qs.map(q => answers[q.id]?.value ?? null);
+    const answers = getThemeReview(p, themeId).answers ?? {};
+    const vals = qs.map(({ q }) => answers[q.id]?.value ?? null);
     if (vals.some(v => v === null)) return null;
     return vals.some(v => v === true);
   };
 
+  const derivedRelevant = (p: Project, themeId: string) => deriveTheme(p, themeId, FOUNDATION_MS);
+
   // Abgeleitete Werte in den Projektzustand übernehmen (Thema-Relevanz und
-  // «Projekt architekturrelevant»); so bleiben Datei und Statusableitung konsistent.
+  // «Architekturrelevant»); so bleiben Datei und Statusableitung konsistent.
   const syncDerived = (p: Project): Project => {
-    if (!model) return p;
     const reviews = { ...p.reviews };
     const rels: (boolean | null)[] = [];
-    for (const def of model.factsheets) {
-      if (def.id === 'foundation') continue;
-      const rel = derivedRelevant(p, def);
-      // Themen ohne MS10-Fragen (spätere Meilensteine) zählen nicht für die
-      // Architekturrelevanz; ihre Relevanz bleibt manuell.
+    for (const theme of themes) {
+      const rel = deriveTheme(p, theme.id, FOUNDATION_MS);
       if (rel === undefined) continue;
-      reviews[def.id] = { ...defaultReview(def), ...(reviews[def.id] ?? {}), relevant: rel };
+      reviews[theme.id] = { ...emptyReview(), ...(reviews[theme.id] ?? {}), relevant: rel };
       rels.push(rel);
     }
     const arch = rels.length === 0
@@ -184,43 +146,22 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
   };
   syncRef.current = syncDerived;
 
-  // Factsheet-Panel auf-/zuklappen; ohne Fragen wird das Word-Dokument geladen
-  const toggleExpand = (def: FactsheetDef) => {
-    const willExpand = !expanded.has(def.id);
-    setExpanded(prev => {
-      const next = new Set(prev);
-      if (next.has(def.id)) next.delete(def.id);
-      else next.add(def.id);
-      return next;
-    });
-    if (willExpand && laterQuestions(def).length === 0 && !docs[def.id]) {
-      if (!dirHandle) {
-        setDocs(d => ({ ...d, [def.id]: { status: 'notFound' } }));
-        return;
-      }
-      setDocs(d => ({ ...d, [def.id]: 'loading' }));
-      loadDocxHtml(dirHandle, def.factsheetDoc).then(res =>
-        setDocs(d => ({ ...d, [def.id]: res })));
-    }
-  };
-
-  const updateReview = (def: FactsheetDef, patch: Partial<Review>) =>
+  // ── Änderungen ────────────────────────────────────────────────────────────
+  const updateAnswer = (themeId: string, questionId: string, patch: Partial<QuestionAnswer>) =>
     setProj(p => {
       if (!p) return p;
-      const merged = { ...defaultReview(def), ...(p.reviews?.[def.id] ?? {}), ...patch };
-      return { ...p, reviews: { ...p.reviews, [def.id]: merged } };
-    });
-
-  // Antwort auf eine Prüffrage nachführen; abgeleitete Relevanz und
-  // Architekturrelevanz gleich mitziehen (wird via Autosave gespeichert)
-  const updateAnswer = (def: FactsheetDef, questionId: string, patch: Partial<QuestionAnswer>) =>
-    setProj(p => {
-      if (!p) return p;
-      const review = { ...defaultReview(def), ...(p.reviews?.[def.id] ?? {}) };
+      const review = getThemeReview(p, themeId);
       const answers = { ...(review.answers ?? {}) };
       const existing: QuestionAnswer = answers[questionId] ?? { value: null, remarks: '' };
       answers[questionId] = { ...existing, ...patch };
-      return syncDerived({ ...p, reviews: { ...p.reviews, [def.id]: { ...review, answers } } });
+      return syncDerived({ ...p, reviews: { ...p.reviews, [themeId]: { ...review, answers } } });
+    });
+
+  const updateMilestoneReview = (ms: string, patch: Partial<Review>) =>
+    setProj(p => {
+      if (!p) return p;
+      const merged = { ...getMilestoneReview(p, ms), ...patch };
+      return { ...p, reviews: { ...p.reviews, [ms.toLowerCase()]: merged } };
     });
 
   const toggleRemarks = (key: string, open: boolean) =>
@@ -230,6 +171,7 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
       return next;
     });
 
+  // ── Speichern (Autosave) ──────────────────────────────────────────────────
   const save = async (force = false): Promise<'saved' | 'conflict' | 'error' | 'skipped'> => {
     if (!proj || savingRef.current) return 'skipped';
     savingRef.current = true;
@@ -258,17 +200,30 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
   const saveRef = useRef(save);
   saveRef.current = save;
 
-  // Autosave: kurz nach der letzten Änderung automatisch speichern.
-  // Bei Konflikt oder Fehler pausieren, bis der Benutzer entschieden hat.
   useEffect(() => {
     if (!dirty || conflict || saveError || saving) return;
     const t = setTimeout(() => { saveRef.current(); }, 1200);
     return () => clearTimeout(t);
   }, [proj, dirty, conflict, saveError, saving]);
 
-  const factsheets = useMemo(() => model?.factsheets ?? [], [model]);
-  const foundationDef = factsheets.find(f => f.id === 'foundation') ?? null;
-  const otherDefs = factsheets.filter(f => f.id !== 'foundation');
+  // ── MS10-Import ───────────────────────────────────────────────────────────
+  const pickMs10 = async (file: File) => {
+    try {
+      const data = parseMs10Text(await extractPdfText(await file.arrayBuffer()));
+      if (!hasMs10Data(data)) { showToast('Im PDF wurden keine MS10-Felder gefunden.'); return; }
+      setImportData(data);
+    } catch (e) {
+      console.error('[arch-review] pickMs10:', e);
+      showToast('PDF konnte nicht gelesen werden.');
+    }
+  };
+
+  const applyImport = () => {
+    if (!importData || !proj || !model) return;
+    setProj(applyMs10(proj, importData, model));
+    setImportData(null);
+    showToast('MS10-Felder übernommen.');
+  };
 
   if (notFound) {
     return (
@@ -284,11 +239,9 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
     return <div className={`p-6 text-xs ${textMuted}`}>Lade Projekt …</div>;
   }
 
-  const status = deriveStatus(proj, factsheets);
-  const gateClosed = proj.architectureRelevant === false;
-  const evidencePath = (def: FactsheetDef) => def.evidenceDoc.replaceAll('{slug}', proj.slug);
+  const status = deriveStatus(proj);
 
-  // Abgeleiteter Wert als schreibgeschützte Anzeige (Ja / Nein / Offen)
+  // ── Bausteine ─────────────────────────────────────────────────────────────
   const derivedChip = (value: boolean | null) => {
     const label = value === true ? 'Ja' : value === false ? 'Nein' : 'Offen';
     const cls = value === true
@@ -299,33 +252,41 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
     return <span className={`inline-block text-[10px] px-2 py-0.5 rounded-full border whitespace-nowrap ${cls}`}>{label}</span>;
   };
 
-  // Eine Prüffrage mit Ja/Nein-Checkboxen und aufklappbaren Bemerkungen
-  const questionBlock = (def: FactsheetDef, question: NonNullable<FactsheetDef['questions']>[number], disabled: boolean) => {
-    const r = getReview(proj, def);
+  // Eine Prüffrage mit automatischer Nummer, Ja/Nein-Checkboxen und Bemerkungen
+  const questionBlock = (themeId: string, question: Question, number: string, disabled: boolean) => {
+    const r = getThemeReview(proj, themeId);
     const answer: QuestionAnswer = { value: null, remarks: '', ...r.answers?.[question.id] };
-    const remarksKey = `${def.id}:${question.id}`;
+    const remarksKey = `${themeId}:${question.id}`;
     const remarksOpen = answer.remarks.trim() !== '' || openRemarks.has(remarksKey);
     return (
       <div key={question.id}>
         <p className={`text-[11px] font-semibold ${isDark ? 'text-white/80' : 'text-black/80'}`}>
-          {question.id} {question.text}
+          {number} {question.text}
         </p>
         <div className={`text-[11px] mt-1 flex items-start gap-5 flex-wrap ${textMuted}`}>
-          {question.kind !== 'text' && (
+          {(question.kind ?? 'yesNo') === 'yesNo' && (
             <>
               <label className={`flex items-center gap-1.5 ${disabled ? '' : 'cursor-pointer'}`}>
                 <input type="checkbox" disabled={disabled} checked={answer.value === true}
-                  onChange={() => updateAnswer(def, question.id, { value: answer.value === true ? null : true })}
+                  onChange={() => updateAnswer(themeId, question.id, { value: answer.value === true ? null : true })}
                   className="accent-blue-500" />
                 Ja
               </label>
               <label className={`flex items-center gap-1.5 ${disabled ? '' : 'cursor-pointer'}`}>
                 <input type="checkbox" disabled={disabled} checked={answer.value === false}
-                  onChange={() => updateAnswer(def, question.id, { value: answer.value === false ? null : false })}
+                  onChange={() => updateAnswer(themeId, question.id, { value: answer.value === false ? null : false })}
                   className="accent-blue-500" />
                 Nein
               </label>
             </>
+          )}
+          {question.kind === 'choice' && (
+            <select value={answer.choice ?? ''} disabled={disabled}
+              onChange={e => updateAnswer(themeId, question.id, { choice: e.target.value || undefined })}
+              className={`text-[11px] px-2 py-1.5 rounded border outline-none transition-colors disabled:opacity-50 ${inputCls}`}>
+              <option value="">– wählen –</option>
+              {(question.options ?? []).filter(Boolean).map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
           )}
           {!remarksOpen ? (
             <button type="button" disabled={disabled}
@@ -336,7 +297,7 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
           ) : (
             <div className="flex-1 min-w-[220px]">
               <textarea value={answer.remarks} rows={2} autoFocus={!answer.remarks} disabled={disabled}
-                onChange={e => updateAnswer(def, question.id, { remarks: e.target.value })}
+                onChange={e => updateAnswer(themeId, question.id, { remarks: e.target.value })}
                 onBlur={() => { if (!answer.remarks.trim()) toggleRemarks(remarksKey, false); }}
                 placeholder={question.kind === 'text' ? 'Antwort / Bemerkungen' : 'Bemerkungen'}
                 className={`w-full text-[11px] px-2 py-1.5 rounded border outline-none resize-y transition-colors disabled:opacity-50 ${inputCls}`} />
@@ -346,145 +307,117 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
         {question.hint && (
           <p className={`text-[10px] italic mt-0.5 ${textMuted}`}>{question.hint}</p>
         )}
+        {question.source && (
+          <p className={`text-[10px] mt-0.5 ${textMuted}`}>Quelle: {question.source}</p>
+        )}
       </div>
     );
   };
 
-  // Zeile einer Prüfungstabelle (auch für Foundation verwendet)
-  const reviewRow = (def: FactsheetDef, opts: { fixedRelevant?: boolean } = {}) => {
-    const r = getReview(proj, def);
-    const disabled = !opts.fixedRelevant && r.relevant === false;
-    const rowMuted = disabled ? 'opacity-40' : '';
-    const unconfirmed = !r.reviewed && r.result != null;
-    const isExpanded = expanded.has(def.id);
-    const doc = docs[def.id];
-    return (
-      <div key={def.id} className={`border-t ${border}`}>
-      <div className={`grid grid-cols-[minmax(180px,1.6fr)_64px_60px_150px_92px_minmax(150px,1.4fr)] gap-3 items-start px-4 py-3 ${rowMuted}`}>
-        {/* Factsheet (+/− = Panel, Link = Pfad kopieren, Info-Icon = Dialog) */}
-        <div className="min-w-0">
-          <div className="flex items-center gap-1">
-            <button onClick={() => toggleExpand(def)} title={isExpanded ? 'Factsheet zuklappen' : 'Factsheet anzeigen'}
-              className={`p-0.5 rounded flex-shrink-0 border transition-colors ${isDark ? 'border-white/15 text-white/40 hover:text-white/80 hover:border-white/30' : 'border-black/15 text-black/40 hover:text-black/80 hover:border-black/30'}`}>
-              {isExpanded ? <Minus size={10} /> : <Plus size={10} />}
-            </button>
-            <button onClick={() => copyPath(def.factsheetDoc)} title={`${def.factsheetDoc}\nKlick: Pfad kopieren`}
-              className={`flex items-center gap-1.5 text-xs text-left min-w-0 hover:underline underline-offset-2 ${isDark ? 'text-white' : 'text-black'}`}>
-              <FileText size={12} className="flex-shrink-0" />
-              <span className="truncate">{def.name}</span>
-            </button>
-            <button onClick={() => setInfoDef(def)} title={`Details zu «${def.name}»`}
-              className={`p-0.5 rounded flex-shrink-0 transition-colors ${isDark ? 'text-white/25 hover:text-white/70' : 'text-black/25 hover:text-black/70'}`}>
-              <Info size={11} />
-            </button>
-          </div>
-          <div className={`text-[10px] mt-0.5 flex items-center gap-1.5 flex-wrap ${textMuted}`}>
-            {def.external && (
-              <span className={`px-1.5 rounded-full border ${isDark ? 'border-white/15' : 'border-black/15'}`} title="Erstellung/Prüfung durch zuständige Stelle">extern</span>
-            )}
-            {def.hint && <span>{def.hint}</span>}
-          </div>
-        </div>
-
-        {/* relevant: abgeleitet aus der Foundation-Prüfung (Anzeige);
-            Themen ohne MS10-Fragen bleiben manuell schaltbar */}
-        <div className={`text-[11px] pt-0.5 ${textMuted}`}>
-          {opts.fixedRelevant
-            ? 'immer'
-            : derivedRelevant(proj, def) !== undefined
-              ? relevantText(r.relevant)
-              : (
-                <select value={r.relevant === null ? '' : String(r.relevant)}
-                  onChange={e => updateReview(def, { relevant: e.target.value === '' ? null : e.target.value === 'true' })}
-                  title="Relevanz (manuell — keine MS10-Fragen vorhanden)"
-                  className={`w-full text-[10px] px-1 py-1 rounded border outline-none transition-colors ${inputCls}`}>
-                  <option value="">offen</option>
-                  <option value="true">Ja</option>
-                  <option value="false">Nein</option>
-                </select>
+  // Fragenliste eines Meilensteins, je Thema aufklappbar. Ab M20 sind Themen,
+  // die laut Foundation keinen Review brauchen (relevant = Nein), readonly.
+  const questionSection = (ms: string) => (
+    <div className="space-y-1">
+      {themes.map((theme, ti) => {
+        const qs = questionsAt(theme.id, ms);
+        if (qs.length === 0) return null;
+        const isFoundation = ms === FOUNDATION_MS;
+        const notRelevant = !isFoundation && derivedRelevant(proj, theme.id) === false;
+        const key = `${ms}:${theme.id}`;
+        const isOpen = expanded.has(key);
+        const answers = getThemeReview(proj, theme.id).answers ?? {};
+        const yesNoQs = qs.filter(({ q }) => (q.kind ?? 'yesNo') === 'yesNo');
+        const answered = yesNoQs.filter(({ q }) => (answers[q.id]?.value ?? null) !== null).length;
+        const chip = notRelevant ? false : (deriveTheme(proj, theme.id, ms) ?? null);
+        return (
+          <div key={theme.id} className={notRelevant ? 'opacity-40' : ''}>
+            <div className={`flex items-center gap-2 py-1 ${isDark ? 'text-white/70' : 'text-black/70'}`}>
+              {notRelevant ? (
+                <span className="w-[19px] flex-shrink-0" />
+              ) : (
+                <button type="button"
+                  onClick={() => setExpanded(prev => {
+                    const next = new Set(prev);
+                    if (next.has(key)) next.delete(key); else next.add(key);
+                    return next;
+                  })}
+                  title={isOpen ? 'Fragen zuklappen' : 'Fragen anzeigen'}
+                  className={`p-0.5 rounded border flex-shrink-0 transition-colors ${isDark ? 'border-white/15 text-white/40 hover:text-white/80 hover:border-white/30' : 'border-black/15 text-black/40 hover:text-black/80 hover:border-black/30'}`}>
+                  {isOpen ? <Minus size={10} /> : <Plus size={10} />}
+                </button>
               )}
-        </div>
-
-        {/* geprüft */}
-        <div className="pt-0.5">
-          <input type="checkbox" checked={r.reviewed} disabled={disabled}
-            onChange={e => updateReview(def, { reviewed: e.target.checked })}
-            className="accent-blue-500 cursor-pointer disabled:cursor-default" />
-        </div>
-
-        {/* Ergebnis — nur editierbar, wenn geprüft */}
-        <div>
-          <select value={r.reviewed ? (r.result ?? '') : ''} disabled={disabled || !r.reviewed}
-            onChange={e => updateReview(def, { result: (e.target.value || null) as ReviewResult | null })}
-            className={`w-full text-[11px] px-2 py-1.5 rounded border outline-none transition-colors disabled:opacity-50 ${inputCls}`}>
-            <option value="">–</option>
-            {(Object.keys(RESULT_LABELS) as ReviewResult[]).map(k => (
-              <option key={k} value={k}>{RESULT_LABELS[k]}</option>
-            ))}
-          </select>
-          {unconfirmed && (
-            <div className={`text-[10px] mt-1 ${textMuted}`} title="Ergebnis bleibt gespeichert, zählt aber erst wieder mit «geprüft»">
-              «{RESULT_LABELS[r.result as ReviewResult]}» noch nicht bestätigt
+              <span className="text-xs font-semibold truncate">
+                <span className={textMuted}>{themeLetter(ti)}</span> · {theme.title}
+              </span>
+              <button onClick={() => setInfoTheme(theme)} title={`Info zu «${theme.title}»`}
+                className={`p-0.5 rounded flex-shrink-0 transition-colors ${isDark ? 'text-white/25 hover:text-white/70' : 'text-black/25 hover:text-black/70'}`}>
+                <Info size={11} />
+              </button>
+              <span className={`text-[10px] ml-auto flex-shrink-0 ${textMuted}`}>
+                {notRelevant ? 'kein Review nötig' : `${answered}/${yesNoQs.length} beantwortet`}
+              </span>
+              {derivedChip(chip)}
             </div>
-          )}
-        </div>
-
-        {/* Nachweis (Link = Pfad kopieren) */}
-        <div className="min-w-0">
-          <button onClick={() => copyPath(evidencePath(def))} disabled={disabled}
-            title={`${evidencePath(def)}\nKlick: Pfad kopieren`}
-            className={`flex items-center gap-1 text-[10px] max-w-full hover:underline underline-offset-2 ${textMuted}`}>
-            <ClipboardCopy size={10} className="flex-shrink-0" />
-            <span className="truncate">{basename(evidencePath(def))}</span>
-          </button>
-        </div>
-
-        {/* Risiken, Conditions, offene Punkte */}
-        <textarea value={r.notes} disabled={disabled} rows={2}
-          onChange={e => updateReview(def, { notes: e.target.value })}
-          placeholder="Risiken, Conditions, offene Punkte"
-          className={`w-full text-[11px] px-2 py-1.5 rounded border outline-none resize-y transition-colors disabled:opacity-50 ${inputCls}`} />
-      </div>
-
-      {/* Ausklapp-Panel: Prüffragen zur Erklärung; ohne Fragen das Word-Dokument */}
-      {isExpanded && (
-        <div className="px-4 pb-4">
-          <div className={`rounded-lg border px-4 py-3 max-h-96 overflow-y-auto ${isDark ? 'border-white/10 bg-white/3 text-white/75' : 'border-black/10 bg-white text-black/75'}`}>
-            {(() => {
-              // Fragen der weiteren Meilensteine (MS10-Relevanzfragen stehen im Foundation-Block)
-              const qs = laterQuestions(def);
-              if (qs.length) {
-                return (
-                  <div className="space-y-3">
-                    {qs.map(question => questionBlock(def, question, disabled))}
-                  </div>
-                );
-              }
-              if (!doc || doc === 'loading') return <p className={`text-[11px] ${textMuted}`}>Lade Factsheet …</p>;
-              if (doc.status === 'ok') return <div className="docx-content" dangerouslySetInnerHTML={{ __html: doc.html }} />;
-              if (doc.status === 'notFound') {
-                return <p className={`text-[11px] ${textMuted}`}>Dokument nicht gefunden: {def.factsheetDoc}</p>;
-              }
-              return (
-                <p className={`text-[11px] ${isDark ? 'text-rose-400' : 'text-rose-600'}`}>
-                  Dokument konnte nicht gelesen werden.
-                </p>
-              );
-            })()}
+            {isOpen && !notRelevant && (
+              <div className={`ml-6 mb-3 rounded-lg border px-4 py-3 space-y-3 ${isDark ? 'border-white/10 bg-white/3' : 'border-black/10 bg-white'}`}>
+                {qs.map(({ q, number }) => questionBlock(theme.id, q, number, false))}
+              </div>
+            )}
           </div>
-        </div>
-      )}
-      </div>
-    );
-  };
-
-  const tableHeader = (
-    <div className={`grid grid-cols-[minmax(180px,1.6fr)_64px_60px_150px_92px_minmax(150px,1.4fr)] gap-3 px-4 pt-3 pb-2 text-[10px] uppercase tracking-wider ${labelCls}`}>
-      <span>Factsheet</span><span>Relevant</span><span>Geprüft</span><span>Ergebnis</span><span>Nachweis</span><span>Risiken / Conditions</span>
+        );
+      })}
     </div>
   );
 
-  const milestoneOf = (def: FactsheetDef) => getReview(proj, def).milestone || def.milestone;
+  // Gesamtstand eines Meilensteins über die relevanten Themen
+  const milestoneOutcome = (ms: string): boolean | null => {
+    const vals = themes
+      .filter(t => questionsAt(t.id, ms).length > 0 && derivedRelevant(proj, t.id) !== false)
+      .map(t => deriveTheme(proj, t.id, ms) ?? null);
+    if (!vals.length || vals.some(v => v === null)) return null;
+    return vals.some(v => v === true);
+  };
+
+  // Kopfbereich eines Meilenstein-Blocks
+  const milestoneHeader = (opts: {
+    chipLabel: string;
+    chipValue: boolean | null;
+    review: Review;
+    update: (patch: Partial<Review>) => void;
+  }) => {
+    const notesEmpty = String(opts.review.notes ?? '').trim() === '';
+    return (
+      <div className="px-4 py-3 grid grid-cols-1 md:grid-cols-[minmax(280px,auto)_1fr] gap-x-6 gap-y-3 items-stretch">
+        <div className="space-y-3">
+          <div className={`flex items-center gap-2 text-xs ${isDark ? 'text-white/70' : 'text-black/70'}`}>
+            {opts.chipLabel} {derivedChip(opts.chipValue)}
+          </div>
+          <div className="flex items-center gap-4 flex-wrap">
+            <label className={`flex items-center gap-1.5 text-xs cursor-pointer ${isDark ? 'text-white/70' : 'text-black/70'}`}>
+              <input type="checkbox" checked={opts.review.approved === true}
+                onChange={e => opts.update({ reviewed: e.target.checked, approved: e.target.checked })}
+                className="accent-blue-500 cursor-pointer" />
+              Geprüft und freigegeben
+            </label>
+            <input value={String(opts.review.approvedBy ?? '')} placeholder="Prüfer/in"
+              onChange={e => opts.update({ approvedBy: e.target.value })}
+              className={`text-[11px] px-2 py-1.5 rounded border outline-none transition-colors ${inputCls}`} />
+          </div>
+        </div>
+        <textarea value={opts.review.notes} required rows={3}
+          onChange={e => opts.update({ notes: e.target.value })}
+          onInput={e => {
+            const t = e.currentTarget;
+            t.style.height = 'auto';
+            t.style.height = `${t.scrollHeight}px`;
+          }}
+          placeholder="Bemerkungen (erforderlich)"
+          className={`w-full h-full min-h-[76px] text-[11px] px-2 py-1.5 rounded border outline-none resize-none overflow-hidden transition-colors ${inputCls} ${
+            notesEmpty ? (isDark ? 'border-rose-500/40' : 'border-rose-300') : ''
+          }`} />
+      </div>
+    );
+  };
 
   return (
     <div className="p-6 max-w-5xl mx-auto pb-24">
@@ -528,7 +461,7 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
             placeholder="Ausgangslage / Motivation — z. B. per MS10-Import übernehmen"
             className={`w-full text-xs px-3 py-2 rounded border outline-none resize-y transition-colors ${inputCls}`} />
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div>
             <label className={`block text-[10px] uppercase tracking-wider mb-1 ${labelCls}`}>Verantwortlich Projekt</label>
             <input value={proj.responsibleProject} onChange={e => setField('responsibleProject', e.target.value)}
@@ -540,108 +473,102 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
               className={`w-full text-xs px-3 py-2 rounded border outline-none transition-colors ${inputCls}`} />
           </div>
           <div>
-            <label className={`block text-[10px] uppercase tracking-wider mb-1 ${labelCls}`}>Klassifikation</label>
-            <select value={proj.classification ?? ''} onChange={e => setField('classification', e.target.value || null)}
+            <label className={`flex items-center gap-1 text-[10px] uppercase tracking-wider mb-1 ${labelCls}`}>
+              Klassifikation & Prüftiefe
+              <button onClick={() => setShowClassInfo(true)} title="Was bedeutet die Klassifikation?"
+                className={`p-0.5 rounded transition-colors ${isDark ? 'text-white/25 hover:text-white/70' : 'text-black/25 hover:text-black/70'}`}>
+                <Info size={11} />
+              </button>
+            </label>
+            <select value={proj.classification ?? ''}
+              onChange={e => {
+                // Klassifikation setzt die zugeordnete Prüftiefe gleich mit;
+                // die Prüftiefe filtert den Fragenkatalog → Ableitungen nachziehen
+                const id = e.target.value || null;
+                const cls = model.classifications.find(c => c.id === id);
+                setProj(p => (p ? syncDerived({
+                  ...p,
+                  classification: id,
+                  reviewDepth: id ? (cls?.reviewDepth ?? p.reviewDepth) : null,
+                }) : p));
+              }}
               className={`w-full text-xs px-2 py-2 rounded border outline-none transition-colors ${inputCls}`}>
               <option value="">– noch offen –</option>
-              {model.classifications.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className={`block text-[10px] uppercase tracking-wider mb-1 ${labelCls}`}>Prüftiefe</label>
-            <select value={proj.reviewDepth ?? ''} onChange={e => setField('reviewDepth', e.target.value || null)}
-              className={`w-full text-xs px-2 py-2 rounded border outline-none transition-colors ${inputCls}`}>
-              <option value="">– noch offen –</option>
-              {model.reviewDepths.map(d => <option key={d.id} value={d.id}>{d.label} · {d.personDays} PT</option>)}
-            </select>
-          </div>
-        </div>
-      </div>
-
-      {/* Foundation-Block (MS10) */}
-      <div className={`${cardCls} mb-4`}>
-        <div className="px-4 pt-3 flex items-center justify-between">
-          <h3 className={`text-[11px] font-semibold uppercase tracking-widest ${isDark ? 'text-white/50' : 'text-black/50'}`}>
-            {foundationDef?.milestone ?? 'MS10'} · Foundation-Prüfung
-          </h3>
-        </div>
-
-        {foundationDef && (
-          <div className="mt-1">
-            {tableHeader}
-            {reviewRow(foundationDef, { fixedRelevant: true })}
-          </div>
-        )}
-
-        {/* Fragen je Thema — editierbar, bestimmen die Relevanz.
-            Nur Themen mit Fragen zum Foundation-Meilenstein; Titelzeile zeigt
-            den abgeleiteten Relevanz-Chip direkt an. */}
-        {otherDefs.length > 0 && (
-          <div className={`px-4 py-3 border-t ${border}`}>
-            <p className={`text-[10px] uppercase tracking-wider mb-2 ${labelCls}`}>
-              Fragen zur Relevanz ({foundationMs}) — je Thema
-            </p>
-            <div className="space-y-4">
-              {otherDefs.map(def => {
-                const qs = questionsAt(def, foundationMs);
-                if (qs.length === 0) return null;
-                const answers = getReview(proj, def).answers ?? {};
-                const yesNoQs = qs.filter(q => q.kind !== 'text');
-                const answered = yesNoQs.filter(q => (answers[q.id]?.value ?? null) !== null).length;
+              {model.classifications.map(c => {
+                const d = model.reviewDepths.find(x => x.id === c.reviewDepth);
                 return (
-                  <div key={def.id}>
-                    <div className={`flex items-center gap-2 py-1 ${isDark ? 'text-white/70' : 'text-black/70'}`}>
-                      <span className="text-xs font-semibold truncate">{def.name}</span>
-                      {def.external && <span className={`text-[10px] flex-shrink-0 ${textMuted}`}>(extern)</span>}
-                      <button onClick={() => setInfoDef(def)} title={`Details zu «${def.name}»`}
-                        className={`p-0.5 rounded flex-shrink-0 transition-colors ${isDark ? 'text-white/25 hover:text-white/70' : 'text-black/25 hover:text-black/70'}`}>
-                        <Info size={11} />
-                      </button>
-                      <span className={`text-[10px] ml-auto flex-shrink-0 ${textMuted}`}>
-                        {answered}/{yesNoQs.length} beantwortet
-                      </span>
-                      {derivedChip(derivedRelevant(proj, def) ?? null)}
-                    </div>
-                    <div className={`rounded-lg border px-4 py-3 space-y-3 ${isDark ? 'border-white/10 bg-white/3' : 'border-black/10 bg-white'}`}>
-                      {questionsTitleOf(def) && (
-                        <p className={`text-[11px] font-bold ${isDark ? 'text-white/80' : 'text-black/80'}`}>{questionsTitleOf(def)}</p>
-                      )}
-                      {qs.map(question => questionBlock(def, question, false))}
-                    </div>
-                  </div>
+                  <option key={c.id} value={c.id}>
+                    {c.label}{d ? ` → Prüftiefe ${d.label} · ${d.personDays} PT` : ''}
+                  </option>
                 );
               })}
-            </div>
+            </select>
+            {proj.reviewDepth && (
+              <p className={`text-[10px] mt-1 ${textMuted}`}>
+                Prüftiefe: {(() => {
+                  const d = model.reviewDepths.find(x => x.id === proj.reviewDepth);
+                  return d ? `${d.label} · ${d.personDays} PT` : proj.reviewDepth;
+                })()} — Fragen mit höherer Mindest-Prüftiefe sind ausgeblendet
+              </p>
+            )}
           </div>
-        )}
-
-        {/* 1. Projekt architekturrelevant — abgeleitet, letzte Zeile */}
-        <div className={`px-4 py-3 border-t ${border} flex items-center gap-3 flex-wrap`}>
-          <span className={`text-xs ${isDark ? 'text-white/70' : 'text-black/70'}`}>Projekt architekturrelevant?</span>
-          {derivedChip(proj.architectureRelevant)}
-          <span className={`text-[10px] ${textMuted}`}>
-            abgeleitet: ein Thema offen → Offen, ein Thema relevant → Ja, sonst Nein
-          </span>
-          {gateClosed && (
-            <span className={`text-[11px] ${textMuted}`}>Prüfung abgeschlossen — MS-Abschnitte ausgeblendet, erfasste Daten bleiben erhalten.</span>
-          )}
         </div>
       </div>
 
-      {/* MS-Abschnitte — bei «nicht architekturrelevant» ausgeblendet (MS10-Gate) */}
-      {!gateClosed && model.milestones.filter(ms => ms !== (foundationDef?.milestone ?? 'MS10')).map(ms => {
-        const defs = otherDefs.filter(def => milestoneOf(def) === ms);
-        if (defs.length === 0) return null;
-        return (
-          <div key={ms} className={`${cardCls} mb-4`}>
-            <div className="px-4 pt-3">
-              <h3 className={`text-[11px] font-semibold uppercase tracking-widest ${isDark ? 'text-white/50' : 'text-black/50'}`}>{ms}</h3>
+      {/* M10 · Foundation-Prüfung */}
+      <div className={`${cardCls} mb-4`}>
+        <div className="px-4 pt-3">
+          <h3 className={`text-[11px] font-semibold uppercase tracking-widest ${isDark ? 'text-white/50' : 'text-black/50'}`}>
+            {FOUNDATION_MS} · {MILESTONE_TITLES[FOUNDATION_MS] ?? 'Prüfung'}
+          </h3>
+        </div>
+        {milestoneHeader({
+          chipLabel: 'Architekturrelevant',
+          chipValue: proj.architectureRelevant,
+          review: getMilestoneReview(proj, FOUNDATION_MS),
+          update: patch => updateMilestoneReview(FOUNDATION_MS, patch),
+        })}
+        <div className={`px-4 py-3 border-t ${border}`}>
+          <p className={`text-[10px] uppercase tracking-wider mb-2 ${labelCls}`}>
+            Fragen zur Relevanz ({FOUNDATION_MS}) — je Thema
+          </p>
+          {questionSection(FOUNDATION_MS)}
+        </div>
+      </div>
+
+      {/* Meilensteine nach der Foundation: jeder Block erscheint, sobald der
+          vorherige freigegeben ist — und nur solange die Architekturrelevanz
+          nicht Nein ist. */}
+      {proj.architectureRelevant !== false && (() => {
+        const panels: React.ReactNode[] = [];
+        let prevApproved = getMilestoneReview(proj, FOUNDATION_MS).approved === true;
+        for (const ms of MILESTONES.slice(1)) {
+          if (!prevApproved) break;
+          panels.push(
+            <div key={ms} className={`${cardCls} mb-4`}>
+              <div className="px-4 pt-3">
+                <h3 className={`text-[11px] font-semibold uppercase tracking-widest ${isDark ? 'text-white/50' : 'text-black/50'}`}>
+                  {ms} · {MILESTONE_TITLES[ms] ?? 'Prüfung'}
+                </h3>
+              </div>
+              {milestoneHeader({
+                chipLabel: 'Ergebnis',
+                chipValue: milestoneOutcome(ms),
+                review: getMilestoneReview(proj, ms),
+                update: patch => updateMilestoneReview(ms, patch),
+              })}
+              <div className={`px-4 py-3 border-t ${border}`}>
+                <p className={`text-[10px] uppercase tracking-wider mb-2 ${labelCls}`}>
+                  Fragen ({ms}) — je Thema
+                </p>
+                {questionSection(ms)}
+              </div>
             </div>
-            {tableHeader}
-            {defs.map(def => reviewRow(def))}
-          </div>
-        );
-      })}
+          );
+          prevApproved = getMilestoneReview(proj, ms).approved === true;
+        }
+        return panels;
+      })()}
 
       {/* Speicherleiste */}
       <div className={`fixed bottom-0 left-0 right-0 border-t ${border} ${isDark ? 'bg-[#0c0d0f]/95' : 'bg-[#eae9e5]/95'} backdrop-blur px-6 py-3`}>
@@ -664,102 +591,58 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
         </div>
       </div>
 
-      {/* Konfliktdialog */}
-      {conflict && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-6">
-          <div className={`max-w-md w-full rounded-xl border p-6 ${isDark ? 'border-white/15 bg-[#16171a]' : 'border-black/15 bg-white'}`}>
-            <p className={`text-xs leading-relaxed mb-5 ${isDark ? 'text-white/80' : 'text-black/80'}`}>
-              Die Projektdatei wurde inzwischen geändert (z. B. in einem anderen Fenster oder von einem Teammitglied).
-              Überschreiben — oder neu laden und die eigenen Änderungen verwerfen?
-            </p>
-            <div className="flex gap-2">
-              <button onClick={() => reload()}
-                className={`flex-1 text-xs py-2 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
-                Neu laden
+      {/* Info: Klassifikation & Prüftiefe (Markdown) */}
+      {showClassInfo && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-6" onClick={() => setShowClassInfo(false)}>
+          <div className={`max-w-2xl w-full max-h-[85vh] flex flex-col rounded-xl border p-6 ${isDark ? 'border-white/15 bg-[#16171a]' : 'border-black/15 bg-white'}`}
+            onClick={e => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <h3 className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-black'}`}>Klassifikation & Prüftiefe</h3>
+              <button onClick={() => setShowClassInfo(false)}
+                className={`p-1 rounded flex-shrink-0 transition-colors ${isDark ? 'text-white/25 hover:text-white/70' : 'text-black/25 hover:text-black/70'}`}>
+                <X size={14} />
               </button>
-              <button onClick={() => save(true)}
-                className={`flex-1 text-xs py-2 rounded font-semibold transition-colors ${isDark ? 'bg-rose-500/80 text-white hover:bg-rose-500' : 'bg-rose-600 text-white hover:bg-rose-700'}`}>
-                Überschreiben
-              </button>
+            </div>
+            <div className="overflow-y-auto min-h-0">
+              {(() => {
+                const md = model.classificationInfoMd ?? DEFAULT_MODEL.classificationInfoMd;
+                if (md) {
+                  return (
+                    <div className={`docx-content ${isDark ? 'text-white/75' : 'text-black/75'}`}
+                      dangerouslySetInnerHTML={{ __html: marked.parse(md, { async: false }) }} />
+                  );
+                }
+                return <p className={`text-[11px] ${textMuted}`}>Keine Info hinterlegt — im Admin-Modus ergänzen.</p>;
+              })()}
             </div>
           </div>
         </div>
       )}
 
-      {/* Factsheet-Info */}
-      {infoDef && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-6" onClick={() => setInfoDef(null)}>
+      {/* Themen-Info (Markdown) */}
+      {infoTheme && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-6" onClick={() => setInfoTheme(null)}>
           <div className={`max-w-2xl w-full max-h-[85vh] flex flex-col rounded-xl border p-6 ${isDark ? 'border-white/15 bg-[#16171a]' : 'border-black/15 bg-white'}`}
             onClick={e => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-4 mb-4">
-              <h3 className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-black'}`}>
-                {infoDef.name}
-                {infoDef.external && (
-                  <span className={`ml-2 text-[10px] font-normal px-1.5 py-0.5 rounded-full border ${isDark ? 'border-white/15 text-white/50' : 'border-black/15 text-black/50'}`}>
-                    extern
-                  </span>
-                )}
-              </h3>
-              <button onClick={() => setInfoDef(null)}
+              <h3 className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-black'}`}>{infoTheme.title}</h3>
+              <button onClick={() => setInfoTheme(null)}
                 className={`p-1 rounded flex-shrink-0 transition-colors ${isDark ? 'text-white/25 hover:text-white/70' : 'text-black/25 hover:text-black/70'}`}>
                 <X size={14} />
               </button>
             </div>
-            <div className="space-y-3 text-[11px] overflow-y-auto min-h-0">
-              <div className="flex gap-3">
-                <span className={`w-28 flex-shrink-0 ${textMuted}`}>Meilenstein</span>
-                <span className={isDark ? 'text-white/80' : 'text-black/80'}>
-                  {infoDef.milestone}
-                  {milestoneOf(infoDef) !== infoDef.milestone && ` — in diesem Projekt: ${milestoneOf(infoDef)}`}
-                </span>
-              </div>
-              {infoDef.external && (
-                <div className="flex gap-3">
-                  <span className={`w-28 flex-shrink-0 ${textMuted}`}>Zuständigkeit</span>
-                  <span className={isDark ? 'text-white/80' : 'text-black/80'}>Erstellung/Prüfung durch die zuständige Stelle</span>
-                </div>
-              )}
+            <div className="overflow-y-auto min-h-0">
               {(() => {
-                // Statische Information als Markdown; Fallback: Standard-Katalog, dann Kurztexte
-                const md = infoDef.infoMd ?? DEFAULT_MODEL.factsheets.find(f => f.id === infoDef.id)?.infoMd;
+                const md = infoTheme.infoMd
+                  ?? DEFAULT_MODEL.themes.find(t => t.id === infoTheme.id)?.infoMd;
                 if (md) {
                   return (
-                    <div className={`docx-content pt-1 ${isDark ? 'text-white/75' : 'text-black/75'}`}
+                    <div className={`docx-content ${isDark ? 'text-white/75' : 'text-black/75'}`}
                       dangerouslySetInnerHTML={{ __html: marked.parse(md, { async: false }) }} />
                   );
                 }
-                return (
-                  <>
-                    {infoDef.hint && (
-                      <div className="flex gap-3">
-                        <span className={`w-28 flex-shrink-0 ${textMuted}`}>Hinweis</span>
-                        <span className={isDark ? 'text-white/80' : 'text-black/80'}>{infoDef.hint}</span>
-                      </div>
-                    )}
-                    {infoDef.description && (
-                      <p className={`leading-relaxed pt-1 ${isDark ? 'text-white/70' : 'text-black/70'}`}>{infoDef.description}</p>
-                    )}
-                  </>
-                );
+                return <p className={`text-[11px] ${textMuted}`}>Keine Info hinterlegt — im Admin-Modus ergänzen.</p>;
               })()}
-              <div className={`pt-2 border-t space-y-2 ${border}`}>
-                <div className="flex gap-3 items-start">
-                  <span className={`w-28 flex-shrink-0 ${textMuted}`}>Prüfvorgabe</span>
-                  <button onClick={() => copyPath(infoDef.factsheetDoc)} title="Klick: Pfad kopieren"
-                    className={`flex items-center gap-1.5 min-w-0 text-left hover:underline underline-offset-2 ${isDark ? 'text-white/80' : 'text-black/80'}`}>
-                    <ClipboardCopy size={10} className="flex-shrink-0" />
-                    <span className="break-all">{infoDef.factsheetDoc}</span>
-                  </button>
-                </div>
-                <div className="flex gap-3 items-start">
-                  <span className={`w-28 flex-shrink-0 ${textMuted}`}>Nachweis</span>
-                  <button onClick={() => copyPath(evidencePath(infoDef))} title="Klick: Pfad kopieren"
-                    className={`flex items-center gap-1.5 min-w-0 text-left hover:underline underline-offset-2 ${isDark ? 'text-white/80' : 'text-black/80'}`}>
-                    <ClipboardCopy size={10} className="flex-shrink-0" />
-                    <span className="break-all">{evidencePath(infoDef)}</span>
-                  </button>
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -787,8 +670,7 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
             </div>
             <p className={`text-[10px] leading-relaxed mb-4 ${textMuted}`}>
               Übernimmt Titel, Beschrieb (Ausgangslage), Projektleiter/in, Prüftiefe (aus Projektklasse),
-              Architektur-Relevanz (falls angekreuzt) und eine Zusammenfassung in die Foundation-Notizen.
-              Gespeichert wird erst mit «Speichern».
+              Architektur-Relevanz (falls angekreuzt) und eine Zusammenfassung in die M10-Bemerkungen.
             </p>
             <div className="flex gap-2">
               <button onClick={() => setImportData(null)}
@@ -804,10 +686,32 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
         </div>
       )}
 
+      {/* Konfliktdialog */}
+      {conflict && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-6">
+          <div className={`max-w-md w-full rounded-xl border p-6 ${isDark ? 'border-white/15 bg-[#16171a]' : 'border-black/15 bg-white'}`}>
+            <p className={`text-xs leading-relaxed mb-5 ${isDark ? 'text-white/80' : 'text-black/80'}`}>
+              Die Projektdatei wurde inzwischen geändert (z. B. in einem anderen Fenster oder von einem Teammitglied).
+              Überschreiben — oder neu laden und die eigenen Änderungen verwerfen?
+            </p>
+            <div className="flex gap-2">
+              <button onClick={() => reload()}
+                className={`flex-1 text-xs py-2 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
+                Neu laden
+              </button>
+              <button onClick={() => save(true)}
+                className={`flex-1 text-xs py-2 rounded font-semibold transition-colors ${isDark ? 'bg-rose-500/80 text-white hover:bg-rose-500' : 'bg-rose-600 text-white hover:bg-rose-700'}`}>
+                Überschreiben
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Toast */}
       {toast && (
         <div className={`fixed bottom-16 left-1/2 -translate-x-1/2 z-50 text-[11px] px-3 py-2 rounded border shadow-lg ${isDark ? 'bg-[#16171a] border-white/15 text-white/80' : 'bg-white border-black/15 text-black/80'}`}>
-          <span className="flex items-center gap-1.5"><ExternalLink size={11} /> {toast}</span>
+          {toast}
         </div>
       )}
     </div>

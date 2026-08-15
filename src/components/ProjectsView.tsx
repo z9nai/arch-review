@@ -129,12 +129,12 @@ export default function ProjectsView({ onOpen }: { onOpen: (slug: string) => voi
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={`block text-[10px] uppercase tracking-wider mb-1 ${labelCls}`}>Name</label>
-              <input value={name} onChange={e => setName(e.target.value)} placeholder="Demo Alpha" autoFocus
+              <input value={name} onChange={e => setName(e.target.value)} placeholder="Core Datenbank Migration" autoFocus
                 className={`w-full text-xs px-3 py-2 rounded border outline-none transition-colors ${inputCls}`} />
             </div>
             <div>
               <label className={`block text-[10px] uppercase tracking-wider mb-1 ${labelCls}`}>Slug (Dateiname)</label>
-              <input value={effectiveSlug} onChange={e => { setSlug(e.target.value); setSlugTouched(true); }} placeholder="demo-alpha"
+              <input value={effectiveSlug} onChange={e => { setSlug(e.target.value); setSlugTouched(true); }} placeholder="core-datenbank-migration"
                 className={`w-full text-xs px-3 py-2 rounded border outline-none transition-colors ${inputCls}`} />
             </div>
           </div>
@@ -158,7 +158,7 @@ export default function ProjectsView({ onOpen }: { onOpen: (slug: string) => voi
 
       <div className="space-y-3">
         {projects.map(p => {
-          const status = model ? deriveStatus(p.data, model.factsheets) : 'open';
+          const status = deriveStatus(p.data);
           return (
             <button key={p.slug} onClick={() => onOpen(p.slug)}
               className={`w-full text-left rounded-xl border transition-colors ${border} ${isDark ? 'bg-white/2 hover:bg-white/5' : 'bg-black/2 hover:bg-black/5'}`}>
