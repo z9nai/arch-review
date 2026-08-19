@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ClipboardPaste, Copy, FileUp, Info, Mail, Minus, Plus, Save, X } from 'lucide-react';
+import { ArrowLeft, ClipboardPaste, Copy, FileDown, FileUp, Info, Mail, Minus, Plus, Save, X } from 'lucide-react';
 import { marked } from 'marked';
 import { useStore } from '../store';
 import { MILESTONES, MILESTONE_TITLES, Project, Question, QuestionAnswer, Review, Theme } from '../types';
@@ -42,6 +42,8 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
   const [exportCopied, setExportCopied] = useState(false);
   const [answersMs, setAnswersMs] = useState<string | null>(null);
   const [answersText, setAnswersText] = useState('');
+  const [answersPdfItems, setAnswersPdfItems] = useState<ImportItem[] | null>(null);
+  const [pdfBusy, setPdfBusy] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set()); // "M10:themeId"
   const [openRemarks, setOpenRemarks] = useState<Set<string>>(new Set()); // "themeId:frageId"
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -101,22 +103,26 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
   const themes = model?.themes?.length ? model.themes : DEFAULT_MODEL.themes;
   const allQuestions = model?.questions?.length ? model.questions : DEFAULT_MODEL.questions;
 
-  // Gilt die Frage für die Prüftiefe des Projekts? (kumulativ: «ab M» usw.;
-  // ohne minDepth oder solange die Prüftiefe offen ist, gilt sie immer)
-  const depthOk = (p: Project, q: Question): boolean => {
-    if (!q.minDepth || !p.reviewDepth || !model) return true;
-    const order = model.reviewDepths.map(d => d.id);
-    return order.indexOf(p.reviewDepth) >= order.indexOf(q.minDepth);
+  // Gilt die Frage für die Klassifikation des Projekts? (kumulativ nach
+  // Reihenfolge, z. B. «ab wegweisend»; ohne minClassification oder solange
+  // keine Klassifikation gewählt ist, gilt sie immer). M10-Fragen werden nie
+  // gefiltert — die müssen alle ausfüllen, die Klassifikation ist ja gerade
+  // deren Ergebnis.
+  const classOk = (p: Project, q: Question): boolean => {
+    if (q.milestone === FOUNDATION_MS) return true;
+    if (!q.minClassification || !p.classification || !model) return true;
+    const order = model.classifications.map(c => c.id);
+    return order.indexOf(p.classification) >= order.indexOf(q.minClassification);
   };
 
   // Fragen eines Themas in einem Meilenstein, mit automatischer Nummer M10F1 …
   // Die Nummern werden über den vollen Katalog vergeben und bleiben damit
-  // stabil, auch wenn die Prüftiefe einzelne Fragen ausblendet (Lücken).
+  // stabil, auch wenn die Klassifikation einzelne Fragen ausblendet (Lücken).
   const questionsAt = (themeId: string, ms: string, p: Project | null = proj): { q: Question; number: string }[] =>
     allQuestions
       .filter(q => q.themeId === themeId && q.milestone === ms)
       .map((q, i) => ({ q, number: `${ms}F${i + 1}` }))
-      .filter(({ q }) => q.enabled !== false && (!p || depthOk(p, q)));
+      .filter(({ q }) => q.enabled !== false && (!p || classOk(p, q)));
 
   // Thema relevant, abgeleitet aus den M10-Fragen:
   // eine Frage offen → Offen; eine mit Ja → Ja; sonst Nein.
@@ -146,7 +152,14 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
     const arch = rels.length === 0
       ? p.architectureRelevant
       : rels.some(v => v === null) ? null : rels.some(v => v === true);
-    return { ...p, reviews, architectureRelevant: arch };
+    // Klassifikation: «alles Nein» setzt automatisch die erste Stufe
+    // (nicht relevant); sonst bleibt die Wahl des Architekten bestehen,
+    // der Auto-Wert wird aber zurückgenommen.
+    const firstClass = model?.classifications[0]?.id ?? null;
+    let classification = p.classification ?? null;
+    if (arch === false) classification = firstClass;
+    else if (classification !== null && classification === firstClass) classification = null;
+    return { ...p, reviews, architectureRelevant: arch, classification };
   };
   syncRef.current = syncDerived;
 
@@ -224,7 +237,7 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
 
   const applyImport = () => {
     if (!importData || !proj || !model) return;
-    setProj(applyMs10(proj, importData, model));
+    setProj(applyMs10(proj, importData));
     setImportData(null);
     showToast('MS10-Felder übernommen.');
   };
@@ -429,6 +442,79 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
     return { text: lines.join('\n'), count };
   };
 
+  // Gleiche offenen Fragen als ausfüllbares PDF-Formular (pdf-lib, lazy)
+  const downloadPdf = async (ms: string) => {
+    const title = `${ms} · ${MILESTONE_TITLES[ms] ?? 'Prüfung'}`;
+    const sections: { heading: string; questions: { fieldKey: string; number: string; text: string; hint?: string; kind: 'yesNo' | 'text' | 'choice'; options?: string[] }[] }[] = [];
+    themes.forEach((theme, ti) => {
+      if (ms !== FOUNDATION_MS && derivedRelevant(proj, theme.id) === false) return;
+      const qs = questionsAt(theme.id, ms).filter(({ q }) => isQuestionOpen(theme.id, q));
+      if (!qs.length) return;
+      sections.push({
+        heading: `${themeLetter(ti)} · ${theme.title}`,
+        questions: qs.map(({ q, number }) => ({
+          fieldKey: `${theme.id}::${q.id}`,
+          number,
+          text: q.text,
+          hint: q.hint,
+          kind: (q.kind ?? 'yesNo') as 'yesNo' | 'text' | 'choice',
+          options: q.options,
+        })),
+      });
+    });
+    setPdfBusy(true);
+    try {
+      const { buildOpenQuestionsPdf } = await import('../pdfExport');
+      const bytes = await buildOpenQuestionsPdf({
+        projectName: proj.name || proj.slug,
+        milestoneTitle: title,
+        intro: [
+          `Für die Architekturprüfung sind im Meilenstein ${title} die folgenden Fragen noch offen.`,
+          'Bitte die Felder direkt im PDF ausfüllen und die Datei zurücksenden.',
+        ],
+        sections,
+      });
+      const blob = new Blob([bytes as BlobPart], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `offene-fragen-${proj.slug}-${ms.toLowerCase()}.pdf`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+    } catch {
+      showToast('PDF konnte nicht erzeugt werden.');
+    } finally {
+      setPdfBusy(false);
+    }
+  };
+
+  // Ausgefülltes Formular-PDF einlesen → ImportItems (gleicher Weg wie Text)
+  const importPdfAnswers = async (ms: string, file: File) => {
+    try {
+      const { readAnswersPdf } = await import('../pdfExport');
+      const raw = await readAnswersPdf(await file.arrayBuffer());
+      const items: ImportItem[] = [];
+      for (const r of raw) {
+        const q = allQuestions.find(x => x.id === r.questionId && x.themeId === r.themeId && x.milestone === ms);
+        if (!q) continue;
+        const idx = allQuestions.filter(x => x.themeId === q.themeId && x.milestone === ms).findIndex(x => x.id === q.id);
+        const patch: Partial<QuestionAnswer> = {};
+        if ((r.ja ?? false) !== (r.nein ?? false)) patch.value = r.ja === true;
+        if (r.choice) patch.choice = r.choice;
+        if (r.remarks) patch.remarks = r.remarks;
+        if (!Object.keys(patch).length) continue;
+        const parts: string[] = [];
+        if (patch.value !== undefined) parts.push(patch.value ? 'Ja' : 'Nein');
+        if (patch.choice) parts.push(patch.choice);
+        if (patch.remarks) parts.push(`«${patch.remarks.length > 40 ? patch.remarks.slice(0, 40) + '…' : patch.remarks}»`);
+        items.push({ themeId: q.themeId, q, number: `${ms}F${idx + 1}`, patch, summary: parts.join(' · ') });
+      }
+      setAnswersPdfItems(items);
+    } catch {
+      showToast('PDF konnte nicht gelesen werden — ist es das exportierte Formular?');
+    }
+  };
+
   // Ausgefüllten Export-Text wieder einlesen: erkennt Themen-Header,
   // Fragenummern (M20F3 …), angekreuzte [X] Ja/[X] Nein, Auswahl-Antworten
   // und Bemerkungen (auch mehrzeilig).
@@ -552,6 +638,7 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
     showToast(`${items.length} ${items.length === 1 ? 'Antwort' : 'Antworten'} übernommen.`);
     setAnswersMs(null);
     setAnswersText('');
+    setAnswersPdfItems(null);
   };
 
   // Kopfbereich eines Meilenstein-Blocks
@@ -560,13 +647,15 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
     chipValue: boolean | null;
     review: Review;
     update: (patch: Partial<Review>) => void;
+    extra?: React.ReactNode;
   }) => {
     const notesEmpty = String(opts.review.notes ?? '').trim() === '';
     return (
       <div className="px-4 py-3 grid grid-cols-1 md:grid-cols-[minmax(280px,auto)_1fr] gap-x-6 gap-y-3 items-stretch">
         <div className="space-y-3">
-          <div className={`flex items-center gap-2 text-xs ${isDark ? 'text-white/70' : 'text-black/70'}`}>
+          <div className={`flex items-center gap-2 text-xs flex-wrap ${isDark ? 'text-white/70' : 'text-black/70'}`}>
             {opts.chipLabel} {derivedChip(opts.chipValue)}
+            {opts.extra}
           </div>
           <div className="flex items-center gap-4 flex-wrap">
             <label className={`flex items-center gap-1.5 text-xs cursor-pointer ${isDark ? 'text-white/70' : 'text-black/70'}`}>
@@ -637,7 +726,7 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
             placeholder="Ausgangslage / Motivation — z. B. per MS10-Import übernehmen"
             className={`w-full text-xs px-3 py-2 rounded border outline-none resize-y transition-colors ${inputCls}`} />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
             <label className={`block text-[10px] uppercase tracking-wider mb-1 ${labelCls}`}>Verantwortlich Projekt</label>
             <input value={proj.responsibleProject} onChange={e => setField('responsibleProject', e.target.value)}
@@ -647,46 +736,6 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
             <label className={`block text-[10px] uppercase tracking-wider mb-1 ${labelCls}`}>Verantwortlich Architektur</label>
             <input value={proj.responsibleArchitecture} onChange={e => setField('responsibleArchitecture', e.target.value)}
               className={`w-full text-xs px-3 py-2 rounded border outline-none transition-colors ${inputCls}`} />
-          </div>
-          <div>
-            <label className={`flex items-center gap-1 text-[10px] uppercase tracking-wider mb-1 ${labelCls}`}>
-              Klassifikation & Prüftiefe
-              <button onClick={() => setShowClassInfo(true)} title="Was bedeutet die Klassifikation?"
-                className={`p-0.5 rounded transition-colors ${isDark ? 'text-white/25 hover:text-white/70' : 'text-black/25 hover:text-black/70'}`}>
-                <Info size={11} />
-              </button>
-            </label>
-            <select value={proj.classification ?? ''}
-              onChange={e => {
-                // Klassifikation setzt die zugeordnete Prüftiefe gleich mit;
-                // die Prüftiefe filtert den Fragenkatalog → Ableitungen nachziehen
-                const id = e.target.value || null;
-                const cls = model.classifications.find(c => c.id === id);
-                setProj(p => (p ? syncDerived({
-                  ...p,
-                  classification: id,
-                  reviewDepth: id ? (cls?.reviewDepth ?? p.reviewDepth) : null,
-                }) : p));
-              }}
-              className={`w-full text-xs px-2 py-2 rounded border outline-none transition-colors ${inputCls}`}>
-              <option value="">– noch offen –</option>
-              {model.classifications.map(c => {
-                const d = model.reviewDepths.find(x => x.id === c.reviewDepth);
-                return (
-                  <option key={c.id} value={c.id}>
-                    {c.label}{d ? ` → Prüftiefe ${d.label} · ${d.personDays} PT` : ''}
-                  </option>
-                );
-              })}
-            </select>
-            {proj.reviewDepth && (
-              <p className={`text-[10px] mt-1 ${textMuted}`}>
-                Prüftiefe: {(() => {
-                  const d = model.reviewDepths.find(x => x.id === proj.reviewDepth);
-                  return d ? `${d.label} · ${d.personDays} PT` : proj.reviewDepth;
-                })()} — Fragen mit höherer Mindest-Prüftiefe sind ausgeblendet
-              </p>
-            )}
           </div>
         </div>
       </div>
@@ -703,7 +752,7 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
               className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
               <Mail size={11} /> Offene Fragen
             </button>
-            <button onClick={() => { setAnswersMs(FOUNDATION_MS); setAnswersText(''); }}
+            <button onClick={() => { setAnswersMs(FOUNDATION_MS); setAnswersText(''); setAnswersPdfItems(null); }}
               title="Ausgefüllten E-Mail-Text einlesen und Antworten übernehmen"
               className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
               <ClipboardPaste size={11} /> Antworten importieren
@@ -715,6 +764,37 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
           chipValue: proj.architectureRelevant,
           review: getMilestoneReview(proj, FOUNDATION_MS),
           update: patch => updateMilestoneReview(FOUNDATION_MS, patch),
+          extra: (
+            <span className="flex items-center gap-1.5 ml-3">
+              <span className={`text-[10px] uppercase tracking-wider ${labelCls}`}>Klassifikation</span>
+              <button onClick={() => setShowClassInfo(true)} title="Was bedeutet die Klassifikation?"
+                className={`p-0.5 rounded transition-colors ${isDark ? 'text-white/25 hover:text-white/70' : 'text-black/25 hover:text-black/70'}`}>
+                <Info size={11} />
+              </button>
+              {proj.architectureRelevant === false ? (
+                // «alles Nein» → automatisch die erste Stufe (nicht relevant)
+                <span className={`text-[11px] px-2 py-1 rounded border ${isDark ? 'border-white/10 text-white/40' : 'border-black/10 text-black/40'}`}>
+                  {model.classifications[0]?.label ?? 'nicht relevant'}
+                </span>
+              ) : (
+                <select value={proj.classification ?? ''}
+                  disabled={proj.architectureRelevant !== true}
+                  onChange={e => {
+                    const id = e.target.value || null;
+                    setProj(p => (p ? syncDerived({ ...p, classification: id }) : p));
+                  }}
+                  className={`text-[11px] px-2 py-1 rounded border outline-none transition-colors disabled:opacity-50 ${inputCls} ${
+                    proj.architectureRelevant === true && !proj.classification
+                      ? (isDark ? 'border-rose-500/40' : 'border-rose-300') : ''
+                  }`}>
+                  <option value="">{proj.architectureRelevant === null ? '– offen –' : '– wählen –'}</option>
+                  {model.classifications.slice(1).map(c => (
+                    <option key={c.id} value={c.id}>{c.label}</option>
+                  ))}
+                </select>
+              )}
+            </span>
+          ),
         })}
         <div className={`px-4 py-3 border-t ${border}`}>
           <p className={`text-[10px] uppercase tracking-wider mb-2 ${labelCls}`}>
@@ -725,9 +805,9 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
       </div>
 
       {/* Meilensteine nach der Foundation: jeder Block erscheint, sobald der
-          vorherige freigegeben ist — und nur solange die Architekturrelevanz
-          nicht Nein ist. */}
-      {proj.architectureRelevant !== false && (() => {
+          vorherige freigegeben ist — und nur wenn die Klassifikation auf
+          relevant oder höher steht (nicht relevant → kein M20/M40). */}
+      {model.classifications.findIndex(c => c.id === proj.classification) >= 1 && (() => {
         const panels: React.ReactNode[] = [];
         let prevApproved = getMilestoneReview(proj, FOUNDATION_MS).approved === true;
         for (const ms of MILESTONES.slice(1)) {
@@ -744,7 +824,7 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
                     className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
                     <Mail size={11} /> Offene Fragen
                   </button>
-                  <button onClick={() => { setAnswersMs(ms); setAnswersText(''); }}
+                  <button onClick={() => { setAnswersMs(ms); setAnswersText(''); setAnswersPdfItems(null); }}
                     title="Ausgefüllten E-Mail-Text einlesen und Antworten übernehmen"
                     className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
                     <ClipboardPaste size={11} /> Antworten importieren
@@ -793,7 +873,7 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
 
       {/* Import: ausgefüllte Antworten aus E-Mail-Text übernehmen */}
       {answersMs && (() => {
-        const items = parseAnswersImport(answersMs, answersText);
+        const items = answersPdfItems ?? parseAnswersImport(answersMs, answersText);
         return (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-6" onClick={() => setAnswersMs(null)}>
             <div className={`max-w-2xl w-full max-h-[85vh] flex flex-col rounded-xl border p-6 ${isDark ? 'border-white/15 bg-[#16171a]' : 'border-black/15 bg-white'}`}
@@ -809,18 +889,31 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
               </div>
               <p className={`text-[11px] mb-2 ${textMuted}`}>
                 Ausgefüllten E-Mail-Text hier einfügen — erkannt werden angekreuzte [X] Ja/Nein,
-                Auswahl-Antworten und Bemerkungen.
+                Auswahl-Antworten und Bemerkungen. Oder das ausgefüllte PDF-Formular wählen.
               </p>
+              <label className={`mb-2 inline-flex w-fit items-center gap-1.5 text-[11px] px-2.5 py-1.5 rounded border cursor-pointer transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
+                <FileUp size={12} /> Ausgefülltes PDF wählen
+                <input type="file" accept="application/pdf,.pdf" className="hidden"
+                  onChange={e => {
+                    const f = e.target.files?.[0];
+                    e.target.value = '';
+                    if (f && answersMs) importPdfAnswers(answersMs, f);
+                  }} />
+              </label>
               <textarea value={answersText} autoFocus rows={10}
-                onChange={e => setAnswersText(e.target.value)}
+                onChange={e => { setAnswersText(e.target.value); setAnswersPdfItems(null); }}
                 placeholder={'M20F2 Bleiben die Daten dort liegen (nicht nur Anzeige)?\n[X] Ja    [ ] Nein\nBemerkung: bleibt in der neuen Core-DB'}
                 className={`w-full text-[11px] leading-relaxed px-3 py-2 rounded border outline-none resize-y font-mono ${inputCls}`} />
               <div className={`mt-3 text-[11px] ${textMuted}`}>
-                {answersText.trim() === ''
-                  ? 'Noch kein Text eingefügt.'
-                  : items.length === 0
-                    ? 'Keine Antworten erkannt — stimmt der Meilenstein? Themen-Titel und Fragenummern müssen erhalten bleiben.'
-                    : `${items.length} ${items.length === 1 ? 'Antwort' : 'Antworten'} erkannt:`}
+                {answersPdfItems
+                  ? (items.length === 0
+                    ? 'Keine ausgefüllten Felder im PDF gefunden — stimmt der Meilenstein?'
+                    : `${items.length} ${items.length === 1 ? 'Antwort' : 'Antworten'} aus dem PDF erkannt:`)
+                  : answersText.trim() === ''
+                    ? 'Noch kein Text eingefügt.'
+                    : items.length === 0
+                      ? 'Keine Antworten erkannt — stimmt der Meilenstein? Themen-Titel und Fragenummern müssen erhalten bleiben.'
+                      : `${items.length} ${items.length === 1 ? 'Antwort' : 'Antworten'} erkannt:`}
               </div>
               {items.length > 0 && (
                 <div className={`mt-2 max-h-40 overflow-y-auto rounded border px-3 py-2 space-y-1 ${isDark ? 'border-white/10' : 'border-black/10'}`}>
@@ -849,7 +942,6 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
       {/* Export: offene Fragen als E-Mail-Text */}
       {exportMs && (() => {
         const { text, count } = buildExport(exportMs);
-        const subject = `Architekturprüfung «${proj.name || proj.slug}» — offene Fragen ${exportMs}`;
         return (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-6" onClick={() => setExportMs(null)}>
             <div className={`max-w-2xl w-full max-h-[85vh] flex flex-col rounded-xl border p-6 ${isDark ? 'border-white/15 bg-[#16171a]' : 'border-black/15 bg-white'}`}
@@ -905,10 +997,10 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
                       className={`flex-1 flex items-center justify-center gap-1.5 text-xs py-2 rounded font-semibold transition-colors ${isDark ? 'bg-white text-black hover:bg-white/90' : 'bg-black text-white hover:bg-black/80'}`}>
                       <Copy size={12} /> {exportCopied ? '✓ Kopiert' : 'Kopieren'}
                     </button>
-                    <a href={`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`}
-                      className={`flex-1 flex items-center justify-center gap-1.5 text-xs py-2 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
-                      <Mail size={12} /> E-Mail-Entwurf öffnen
-                    </a>
+                    <button onClick={() => downloadPdf(exportMs)} disabled={pdfBusy}
+                      className={`flex-1 flex items-center justify-center gap-1.5 text-xs py-2 rounded border transition-colors disabled:opacity-40 ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
+                      <FileDown size={12} /> {pdfBusy ? 'Erzeuge PDF …' : 'PDF-Formular'}
+                    </button>
                   </div>
                 </>
               )}
@@ -917,13 +1009,13 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
         );
       })()}
 
-      {/* Info: Klassifikation & Prüftiefe (Markdown) */}
+      {/* Info: Klassifikation (Markdown) */}
       {showClassInfo && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-6" onClick={() => setShowClassInfo(false)}>
           <div className={`max-w-2xl w-full max-h-[85vh] flex flex-col rounded-xl border p-6 ${isDark ? 'border-white/15 bg-[#16171a]' : 'border-black/15 bg-white'}`}
             onClick={e => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-4 mb-4">
-              <h3 className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-black'}`}>Klassifikation & Prüftiefe</h3>
+              <h3 className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-black'}`}>Klassifikation</h3>
               <button onClick={() => setShowClassInfo(false)}
                 className={`p-1 rounded flex-shrink-0 transition-colors ${isDark ? 'text-white/25 hover:text-white/70' : 'text-black/25 hover:text-black/70'}`}>
                 <X size={14} />

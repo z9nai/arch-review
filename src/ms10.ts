@@ -13,7 +13,7 @@ export interface Ms10Data {
   client?: string;             // Auftraggeber/in
   serviceType?: string;        // Leistungstyp
   projectType?: string;        // Projekttyp
-  projectClass?: string;       // Projektklasse S | M | L → Prüftiefe
+  projectClass?: string;       // Projektklasse S | M | L (nur informativ)
   requestDate?: string;        // Antragsdatum dd.mm.yyyy
   startDate?: string;          // Startdatum Projekt
   endDate?: string;            // Enddatum Projekt
@@ -108,15 +108,12 @@ export function ms10Summary(d: Ms10Data): string {
 }
 
 // Übernimmt die gefundenen Felder in ein Projekt (Kopie, Original unverändert).
-export function applyMs10(project: Project, d: Ms10Data, model: Model): Project {
+export function applyMs10(project: Project, d: Ms10Data): Project {
   const p: Project = { ...project, reviews: { ...project.reviews } };
   if (d.name) p.name = d.name;
   if (d.description) p.description = d.description;
   if (d.projectNumber) p.projectNumber = d.projectNumber;
   if (d.projectLead) p.responsibleProject = d.projectLead;
-  if (d.projectClass && model.reviewDepths.some(x => x.id === d.projectClass)) {
-    p.reviewDepth = d.projectClass;
-  }
   if (d.architectureRelevant !== undefined) p.architectureRelevant = d.architectureRelevant;
 
   const summary = ms10Summary(d);
@@ -142,7 +139,7 @@ export const MS10_FIELD_LABELS: [keyof Ms10Data, string][] = [
   ['client', 'Auftraggeber/in'],
   ['serviceType', 'Leistungstyp'],
   ['projectType', 'Projekttyp'],
-  ['projectClass', 'Projektklasse → Prüftiefe'],
+  ['projectClass', 'Projektklasse'],
   ['requestDate', 'Antragsdatum'],
   ['startDate', 'Projektstart'],
   ['endDate', 'Projektende'],

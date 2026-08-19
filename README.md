@@ -38,9 +38,14 @@ Zum Ausprobieren kann `sample-data/` als geteilter Ordner gewählt werden
 
 ## Fachregeln (V1)
 
-- **M10 · Foundation-Prüfung**: Kopf mit abgeleitetem Tag **Architekturrelevant**
-  (ein Thema offen → Offen, ein Thema relevant → Ja, sonst Nein; nicht
-  editierbar), Checkbox **«Geprüft und freigegeben»** mit Feld «Prüfer/in»
+- **M10 · Foundation-Prüfung**: müssen alle Projekte ausfüllen. Kopf mit
+  abgeleitetem Tag **Architekturrelevant** (ein Thema offen → Offen, ein
+  Thema relevant → Ja, sonst Nein; nicht editierbar) und der
+  **Klassifikation** als Teil der Freigabe: Sind alle Fragen mit Nein
+  beantwortet, steht sie automatisch auf der ersten Stufe («nicht
+  relevant»); sonst wählt der/die Architekt/in eine der weiteren Stufen
+  (Standard: **relevant** oder **wegweisend**; das ⓘ öffnet die Erklärung).
+  Dazu Checkbox **«Geprüft und freigegeben»** mit Feld «Prüfer/in»
   und Pflicht-Bemerkungen (Textarea wächst mit dem Text). Darunter je Thema
   ein aufklappbarer Fragenblock (+/−) mit Zähler und abgeleitetem
   Relevanz-Chip (eine Frage offen → Offen, eine mit Ja → Ja, sonst Nein;
@@ -48,8 +53,8 @@ Zum Ausprobieren kann `sample-data/` als geteilter Ordner gewählt werden
   Projektdatei geschrieben (`reviews.<themeId>.relevant`,
   `architectureRelevant`).
 - **Meilenstein-Kaskade (M20 → M40)**: Jeder Block erscheint, sobald der
-  vorherige freigegeben ist — und nur solange die Architekturrelevanz nicht
-  Nein ist. Aufbau analog M10 (Status-Tag «Ergebnis», Freigabe, Prüfer/in,
+  vorherige freigegeben ist — und nur wenn die Klassifikation auf
+  **relevant** oder höher steht («nicht relevant» → kein M20/M40). Aufbau analog M10 (Status-Tag «Ergebnis», Freigabe, Prüfer/in,
   Pflicht-Bemerkungen; gespeichert unter `reviews.m20` / `reviews.m40`).
   Themen, die laut Foundation keinen Review brauchen (relevant = Nein), sind
   ausgegraut, readonly und auf Nein gesetzt («kein Review nötig»).
@@ -85,25 +90,30 @@ Zum Ausprobieren kann `sample-data/` als geteilter Ordner gewählt werden
   Meilenstein, z. B. **M10F1**); intern hängt jede Frage an einem stabilen
   Schlüssel, damit Antworten beim Umsortieren erhalten bleiben. Optional
   trägt eine Frage eine **Quelle** (wird unter der Frage angezeigt, z. B.
-  «Prüfformular Datenhaltung, Schritt 2») und eine **Mindest-Prüftiefe**
-  («ab M», «ab L», kumulativ): Solche Fragen erscheinen nur, wenn die
-  Prüftiefe des Projekts hoch genug ist; die Nummern bleiben dabei stabil
-  (ausgeblendete Fragen hinterlassen Lücken). Ohne Angabe gilt die Frage
-  für alle Prüftiefen. Die Klassifikation bleibt bewusst auf Projektebene —
-  sie soll später die Prüftiefe ableiten (Regel folgt), nicht einzelne
-  Fragen filtern.
-- Alte `model.json`-Dateien (Factsheet-Format mit MSxx-Nummern) werden beim
-  Laden automatisch in die neue Struktur überführt; MS60-Zuordnungen landen
-  in M40.
+  «Prüfformular Datenhaltung, Schritt 2») und eine **Mindest-Klassifikation**
+  («ab wegweisend», kumulativ nach Reihenfolge): Solche Fragen erscheinen
+  nur, wenn die Klassifikation des Projekts hoch genug ist; die Nummern
+  bleiben dabei stabil (ausgeblendete Fragen hinterlassen Lücken). Ohne
+  Angabe gilt die Frage für alle Klassifikationen; M10-Fragen werden nie
+  gefiltert (die Klassifikation ist ja gerade deren Ergebnis).
+- **Klassifikation** (`classifications` in `model.json`): geordnete,
+  editierbare Stufen — Standard **nicht relevant / relevant / wegweisend**.
+  Die erste Stufe wird automatisch gesetzt, wenn alle M10-Fragen Nein sind;
+  ab der zweiten Stufe werden M20/M40 geprüft.
+- Alte `model.json`-Dateien werden beim Laden automatisch überführt: das
+  Factsheet-Format (MSxx-Nummern) in die Themen/Fragen-Struktur, das
+  v2-Format mit Prüftiefen in die dreistufige Klassifikation (alte
+  «ab L»-Fragen werden zu «ab wegweisend», «ab M» entfällt); MS60-Zuordnungen
+  landen in M40.
 
 ## Admin-Modus
 
 Der Button **Admin** in der Kopfleiste öffnet die Pflege der Stammdaten.
-**Klassifikationen** (hinzufügen/löschen, Label, Zuordnung zur Prüftiefe)
-und **Prüftiefen** (hinzufügen/löschen, Label, PT-Aufwand, Reihenfolge per
-↑/↓ — die Reihenfolge definiert die aufsteigende Tiefe für «ab …»-Fragen)
-sind vollständig editierbar; beim Löschen einer Prüftiefe werden Verweise
-in Klassifikationen und Fragen bereinigt. Je Meilenstein-Gruppe gibt es eine
+**Klassifikationen** sind vollständig editierbar (hinzufügen/löschen, Label,
+Reihenfolge per ↑/↓ — die Reihenfolge definiert die aufsteigenden Stufen
+für «ab …»-Fragen; die erste Stufe gilt als «nicht relevant»); beim Löschen
+einer Klassifikation werden «ab …»-Verweise in Fragen bereinigt. Dazu die
+Erklärung als Markdown (hinter dem ⓘ bei der Klassifikation im M10). Je Meilenstein-Gruppe gibt es eine
 **Katalogsuche**: Tippen filtert live über Fragetext, Thema und Quelle durch
 den eingebauten Fragenkatalog (Standard-Fragen plus kuratierte Fragen aus
 AWS Well-Architected, OWASP ASVS, BSI IT-Grundschutz, TOGAF, arc42/aim42 und
@@ -131,7 +141,12 @@ Meilensteins (nur relevante Themen; Ja/Nein-Fragen im Ankreuzformat
 Text-Fragen mit «Antwort / Bemerkung:», Hinweise in Klammern). Der Dialog
 zeigt die Anzahl, den Text zum Prüfen sowie **Kopieren** (Zwischenablage,
 mit «✓ Kopiert»-Feedback und Fallback für restriktive Umgebungen) und
-**E-Mail-Entwurf öffnen** (mailto mit Betreff und Text).
+**PDF-Formular**:
+ein ausfüllbares PDF (AcroForm) mit denselben offenen Fragen — Ja/Nein als
+Checkboxen, Auswahl-Fragen als Dropdown, Bemerkungen als mehrzeilige
+Textfelder. Erzeugt wird es lokal über ein mitgebundeltes pdf-lib (eigener
+Lazy-Chunk, keine Netzwerkzugriffe); die Formularfelder tragen stabile Namen,
+damit das ausgefüllte PDF wieder importiert werden kann.
 
 Der Rückweg: **«Antworten importieren»** (daneben) nimmt den ausgefüllten
 E-Mail-Text entgegen. Erkannt werden angekreuzte Ja/Nein-Checkboxen
@@ -144,6 +159,12 @@ Zitatzeichen («> ») aus E-Mail-Antworten werden entfernt. Die Zuordnung läuft
 die erkannten Antworten, «Übernehmen» schreibt sie ins Projekt (Autosave,
 Relevanz-Ableitung inklusive). Beide Ankreuzungen oder keine → die Frage
 bleibt unangetastet.
+
+Alternativ nimmt derselbe Dialog über **«Ausgefülltes PDF wählen»** das
+ausgefüllte PDF-Formular entgegen: Die Antworten werden aus den
+Formularfeldern gelesen (gleiche Regeln — Ja und Nein zugleich angekreuzt →
+Frage bleibt unangetastet, leere Felder werden ignoriert) und über dieselbe
+Vorschau übernommen.
 
 ## MS10-Import
 
@@ -158,10 +179,10 @@ Aus einem MS10-Antrags-PDF (Vorlage «MS10 Antrag - Light») lassen sich Felder
 
 Übernommen werden: Projektname und KP-Nummer (aus dem Titel),
 Ausgangslage/Motivation → Beschrieb (volle Breite im Titel-Panel),
-Projektleiter/in → Verantwortlich Projekt, Projektklasse S/M/L → Prüftiefe,
+Projektleiter/in → Verantwortlich Projekt,
 Architektur-Checkboxen → architekturrelevant (nur wenn angekreuzt) sowie eine
-Zusammenfassung (PL Stv, Auftraggeber, Leistungstyp, Projekttyp, Laufzeit) in
-die Notizen der Foundation-Prüfung. Der Import ist best-effort: Was im PDF
+Zusammenfassung (PL Stv, Auftraggeber, Leistungstyp, Projekttyp,
+Projektklasse, Laufzeit) in die Notizen der Foundation-Prüfung. Der Import ist best-effort: Was im PDF
 nicht gefunden wird, bleibt leer; ein erneuter Import derselben Datei erzeugt
 keine Duplikate. PDF-Parsing läuft lokal über ein mitgebundeltes pdf.js
 (eigener Lazy-Chunk, keine Netzwerkzugriffe).

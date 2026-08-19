@@ -13,6 +13,7 @@
     "lucide-react": "^0.546.0",
     "mammoth": "^1.12.1",
     "marked": "^18.0.9",
+    "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^6.2.108",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

@@ -73,18 +73,13 @@ export default function ProjectsView({ onOpen }: { onOpen: (slug: string) => voi
     [
       d.projectNumber,
       d.projectLead && `PL ${d.projectLead}`,
-      d.projectClass && `Klasse ${d.projectClass} → Prüftiefe`,
+      d.projectClass && `Klasse ${d.projectClass}`,
       d.architectureRelevant !== undefined && `architekturrelevant: ${d.architectureRelevant ? 'ja' : 'nein'}`,
       d.requestDate && `Antrag ${d.requestDate}`,
     ].filter(Boolean).join(' · ');
 
   const classificationLabel = (id: string | null) =>
     id == null ? '–' : (model?.classifications.find(c => c.id === id)?.label ?? id);
-  const depthLabel = (id: string | null) => {
-    if (id == null) return '–';
-    const d = model?.reviewDepths.find(x => x.id === id);
-    return d ? `${d.label} · ${d.personDays} PT` : id;
-  };
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
@@ -171,7 +166,6 @@ export default function ProjectsView({ onOpen }: { onOpen: (slug: string) => voi
                   <div className={`text-[11px] mt-1 ${textMuted}`}>
                     <span className="mr-3">{p.slug}</span>
                     <span className="mr-3">Klassifikation: {classificationLabel(p.data.classification)}</span>
-                    <span className="mr-3">Prüftiefe: {depthLabel(p.data.reviewDepth)}</span>
                     {p.data.updatedAt && <span>Stand: {fmtTimestamp(p.data.updatedAt)}</span>}
                   </div>
                 </div>

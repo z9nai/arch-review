@@ -3,41 +3,22 @@ import { Model } from './types';
 // Standard-Katalog: wird als model.json angelegt, wenn die Datei im
 // gewählten Ordner fehlt. Dient auch als Fallback, wenn eine bestehende
 // model.json (noch) keine Fragen enthält.
+// GENERIERT aus sample-data/model.json — dort ändern und neu generieren.
 export const DEFAULT_MODEL: Model = {
-  "version": 2,
+  "version": 3,
   "company": "Eigene Firma",
   "classifications": [
     {
-      "id": "A",
-      "label": "Klasse A (Platzhalter)",
-      "reviewDepth": "L"
+      "id": "nicht-relevant",
+      "label": "nicht relevant"
     },
     {
-      "id": "B",
-      "label": "Klasse B (Platzhalter)",
-      "reviewDepth": "M"
+      "id": "relevant",
+      "label": "relevant"
     },
     {
-      "id": "C",
-      "label": "Klasse C (Platzhalter)",
-      "reviewDepth": "S"
-    }
-  ],
-  "reviewDepths": [
-    {
-      "id": "S",
-      "label": "S",
-      "personDays": 5
-    },
-    {
-      "id": "M",
-      "label": "M",
-      "personDays": 10
-    },
-    {
-      "id": "L",
-      "label": "L",
-      "personDays": 15
+      "id": "wegweisend",
+      "label": "wegweisend"
     }
   ],
   "themes": [
@@ -94,8 +75,7 @@ export const DEFAULT_MODEL: Model = {
       "milestone": "M10",
       "themeId": "data-classification",
       "hint": "Dummy-Frage — massgeblich ist die Schutzbedarfsanalyse (SCHUBAN).",
-      "source": "Dummy — Fachinhalt folgt",
-      "minDepth": "M"
+      "source": "Dummy — Fachinhalt folgt"
     },
     {
       "id": "D2",
@@ -116,8 +96,7 @@ export const DEFAULT_MODEL: Model = {
         "B",
         "C"
       ],
-      "source": "Dummy — Fachinhalt folgt",
-      "minDepth": "L"
+      "source": "Dummy — Fachinhalt folgt"
     },
     {
       "id": "K1",
@@ -309,8 +288,7 @@ export const DEFAULT_MODEL: Model = {
       "text": "Liegen Betriebshandbuch und Supportprozesse vor?",
       "milestone": "M40",
       "themeId": "operations",
-      "source": "Dummy — Fachinhalt folgt",
-      "minDepth": "M"
+      "source": "Dummy — Fachinhalt folgt"
     },
     {
       "id": "B3",
@@ -318,7 +296,7 @@ export const DEFAULT_MODEL: Model = {
       "milestone": "M40",
       "themeId": "operations",
       "source": "Dummy — Fachinhalt folgt",
-      "minDepth": "L"
+      "minClassification": "wegweisend"
     },
     {
       "id": "DO1",
@@ -560,7 +538,28 @@ export const DEFAULT_MODEL: Model = {
       "milestone": "M20",
       "text": "Ist ein Prozess für den Umgang mit Security-Incidents definiert?",
       "source": "AWS Well-Architected, Security / FINMA-RS 2023/1"
+    },
+    {
+      "id": "cat-dc1",
+      "themeId": "data-classification",
+      "milestone": "M20",
+      "text": "Sind alle Datenkategorien des Vorhabens inventarisiert und klassifiziert?",
+      "source": "BSI IT-Grundschutz, CON.2 / Datenschutz"
+    },
+    {
+      "id": "qoa6a8zcfrq",
+      "text": "sdfsdf?",
+      "milestone": "M10",
+      "themeId": "data-classification",
+      "hint": "asdfdddd"
+    },
+    {
+      "id": "cat-ds1",
+      "themeId": "data-storage",
+      "milestone": "M40",
+      "text": "Werden Backups regelmässig durch Restore-Tests verifiziert?",
+      "source": "BSI IT-Grundschutz, CON.3 Datensicherungskonzept"
     }
   ],
-  "classificationInfoMd": "# Klassifikation & Prüftiefe\n\n*Dummy — die echten Kriterien für die Architekturklassifikation folgen.*\n\nDie Klassifikation des Projekts bestimmt die **Prüftiefe** — und damit den\nAufwand der Begleitung und wie viele Fragen im Review gestellt werden\n(Fragen können eine Mindest-Prüftiefe haben, z. B. «ab M»).\n\n| Klassifikation | Prüftiefe | Aufwand |\n|---|---|---|\n| Klasse A (Platzhalter) | L | 15 PT |\n| Klasse B (Platzhalter) | M | 10 PT |\n| Klasse C (Platzhalter) | S | 5 PT |\n\nDie Zuordnung Klassifikation → Prüftiefe ist im Admin-Modus konfigurierbar.\nNach welchen Kriterien ein Projekt seine Klasse erhält (Bezug: Community IT\nStrategie), wird von der Architektur ausgearbeitet.\n"
+  "classificationInfoMd": "# Klassifikation\n\n*Dummy — die echten Kriterien folgen.*\n\nDie Klassifikation ist das Ergebnis der Foundation-Prüfung (M10) und Teil\nder Freigabe:\n\n- **nicht relevant** — alle Relevanz-Fragen sind mit Nein beantwortet.\n  Es findet keine weitere Architekturprüfung statt (kein M20/M40).\n- **relevant** — das Projekt berührt die Architektur; die Fragenkataloge\n  M20 und M40 werden geprüft.\n- **wegweisend** — das Projekt prägt die Architektur; zusätzlich werden\n  die als «ab wegweisend» markierten Fragen gestellt.\n\nOb ein Projekt architekturrelevant ist, ergibt sich automatisch aus den\nJa/Nein-Fragen im M10 (mindestens eine Frage mit Ja → relevant; alle Nein\n→ nicht relevant). Ob es **relevant** oder **wegweisend** ist, entscheidet\nder/die Architekt/in.\n"
 };

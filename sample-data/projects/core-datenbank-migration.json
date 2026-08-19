@@ -5,39 +5,50 @@
   "description": "Die bestehende Core-Datenbank wird auf eine neue Plattform migriert. Im Rahmen der Migration werden Datenbestände verschoben, die Backup-Strategie erneuert und die Reporting-Anbindung angepasst. Dieses Beispielprojekt zeigt den Ablauf der Architekturprüfung.",
   "responsibleProject": "Peter Müller",
   "responsibleArchitecture": "Max Muster",
-  "classification": "B",
-  "reviewDepth": "M",
+  "classification": null,
   "architectureRelevant": true,
   "createdAt": "2026-08-15",
-  "updatedAt": "2026-08-15T18:11:54+02:00",
+  "updatedAt": "2026-08-19T14:51:43+02:00",
   "reviews": {
     "data-storage": {
-      "relevant": true,
+      "relevant": false,
       "reviewed": false,
       "result": null,
       "milestone": "",
       "notes": "",
       "answers": {
         "S1": {
-          "value": true,
+          "value": false,
           "remarks": "Kundendaten wandern in die neue Core-Datenbank"
         },
         "S2": {
-          "value": true,
+          "value": false,
           "remarks": ""
         },
         "S3": {
-          "value": true,
+          "value": false,
           "remarks": ""
         },
         "S4": {
+          "value": false,
+          "remarks": ""
+        },
+        "E1": {
+          "value": null,
+          "remarks": "datenbank du pinsel"
+        },
+        "E2": {
+          "value": false,
+          "remarks": ""
+        },
+        "E3": {
           "value": true,
           "remarks": ""
         }
       }
     },
     "data-classification": {
-      "relevant": false,
+      "relevant": true,
       "reviewed": false,
       "result": null,
       "milestone": "",
@@ -49,7 +60,7 @@
           "choice": "B"
         },
         "D1": {
-          "value": false,
+          "value": true,
           "remarks": ""
         },
         "D2": {
@@ -63,7 +74,7 @@
       }
     },
     "integration-application": {
-      "relevant": true,
+      "relevant": false,
       "reviewed": false,
       "result": null,
       "milestone": "",
@@ -78,13 +89,13 @@
           "remarks": ""
         },
         "I3": {
-          "value": true,
+          "value": false,
           "remarks": ""
         }
       }
     },
     "cloud-infrastructure": {
-      "relevant": true,
+      "relevant": false,
       "reviewed": false,
       "result": null,
       "milestone": "",
@@ -95,24 +106,24 @@
           "remarks": ""
         },
         "C3": {
-          "value": true,
+          "value": false,
           "remarks": "ok wir haben alles im griff"
         },
         "C2": {
-          "value": true,
+          "value": false,
           "remarks": ""
         }
       }
     },
     "security-compliance": {
-      "relevant": true,
+      "relevant": false,
       "reviewed": false,
       "result": null,
       "milestone": "",
       "notes": "",
       "answers": {
         "SC1": {
-          "value": true,
+          "value": false,
           "remarks": ""
         },
         "SC2": {
@@ -122,18 +133,18 @@
       }
     },
     "idm-iam": {
-      "relevant": true,
+      "relevant": false,
       "reviewed": false,
       "result": null,
       "milestone": "",
       "notes": "",
       "answers": {
         "A1": {
-          "value": true,
+          "value": false,
           "remarks": ""
         },
         "A2": {
-          "value": true,
+          "value": false,
           "remarks": ""
         },
         "A3": {

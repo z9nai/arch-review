@@ -7,13 +7,14 @@ export const MILESTONE_TITLES: Record<string, string> = {
   M40: 'Betriebsnahe Prüfung',
 };
 
-// Stammdaten aus model.json
+// Stammdaten aus model.json.
+// Klassifikationen: Reihenfolge = aufsteigend; die erste Stufe gilt als
+// «nicht architekturrelevant» (wird bei «alle M10-Fragen Nein» automatisch
+// gesetzt), die weiteren wählt der/die Architekt/in im M10.
 export interface Classification {
   id: string;
   label: string;
-  reviewDepth?: string; // zugeordnete Prüftiefe (id aus reviewDepths)
 }
-export interface ReviewDepth { id: string; label: string; personDays: number }
 
 // Thema: Titel und Info (Markdown, hinter dem Info-Icon).
 // Die Nummerierung A–Z ergibt sich automatisch aus der Reihenfolge.
@@ -36,8 +37,9 @@ export interface Question {
   options?: string[];      // Auswahlmöglichkeiten für kind 'choice'
   hint?: string;           // Erläuterung unterhalb der Frage
   source?: string;         // Quelle, z. B. «Prüfformular Datenhaltung, Schritt 2»
-  minDepth?: string;       // Mindest-Prüftiefe (id aus reviewDepths, kumulativ);
-                           // nicht gesetzt = gilt für alle Prüftiefen
+  minClassification?: string; // Mindest-Klassifikation (id, kumulativ nach
+                           // Reihenfolge, z. B. «ab wegweisend»); nicht
+                           // gesetzt = gilt für alle Klassifikationen
   enabled?: boolean;       // false = deaktiviert (bleibt im Katalog, wird aber
                            // im OnePager nicht gestellt); Default aktiv
   [key: string]: unknown;
@@ -47,8 +49,7 @@ export interface Model {
   version: number;
   company?: string; // Firmenname — wird als Quelle bei eigenen Fragen angezeigt
   classifications: Classification[];
-  reviewDepths: ReviewDepth[];
-  classificationInfoMd?: string; // Erklärung Klassifikation → Prüftiefe (Markdown)
+  classificationInfoMd?: string; // Erklärung der Klassifikation (Markdown)
   themes: Theme[];
   questions: Question[];
   [key: string]: unknown;
@@ -88,7 +89,6 @@ export interface Project {
   responsibleProject: string;
   responsibleArchitecture: string;
   classification: string | null;
-  reviewDepth: string | null;
   architectureRelevant: boolean | null;
   createdAt: string;
   updatedAt: string;

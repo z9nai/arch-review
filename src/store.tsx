@@ -73,11 +73,30 @@ async function loadStoredHandle(): Promise<FileSystemDirectoryHandle | null> {
   }
 }
 
-// Altes model.json-Format (factsheets mit eingebetteten Fragen, MSxx-Nummern)
-// beim Lesen in die neue Struktur (themes + questions, Mxx) überführen.
+// Ältere model.json-Formate beim Lesen in die aktuelle Struktur überführen:
+// v1 (factsheets mit eingebetteten Fragen, MSxx-Nummern) → themes + questions;
+// v2 (mit Prüftiefen) → v3: Prüftiefen entfallen, Klassifikation neu
+// dreistufig (nicht relevant / relevant / wegweisend); alte «ab L»-Fragen
+// werden zu «ab wegweisend», «ab M» entfällt (M20/M40 setzen ohnehin
+// mindestens «relevant» voraus).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function normalizeModel(raw: any): Model {
-  if (raw && Array.isArray(raw.themes) && Array.isArray(raw.questions)) return raw as Model;
+  if (raw && Array.isArray(raw.themes) && Array.isArray(raw.questions)) {
+    if (!raw.reviewDepths) return raw as Model; // aktuelles Format (v3)
+    const { reviewDepths: _drop, ...rest } = raw;
+    void _drop;
+    return {
+      ...rest,
+      version: 3,
+      classifications: DEFAULT_MODEL.classifications,
+      classificationInfoMd: DEFAULT_MODEL.classificationInfoMd,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      questions: raw.questions.map((q: any) => {
+        const { minDepth, ...qq } = q;
+        return minDepth === 'L' ? { ...qq, minClassification: 'wegweisend' } : qq;
+      }),
+    } as Model;
+  }
   const msMap: Record<string, string> = { MS10: 'M10', MS20: 'M20', MS40: 'M40', MS60: 'M40' };
   const themes: Model['themes'] = [];
   const questions: Model['questions'] = [];
@@ -95,9 +114,9 @@ function normalizeModel(raw: any): Model {
     }
   }
   return {
-    version: 2,
-    classifications: raw?.classifications ?? DEFAULT_MODEL.classifications,
-    reviewDepths: raw?.reviewDepths ?? DEFAULT_MODEL.reviewDepths,
+    version: 3,
+    classifications: DEFAULT_MODEL.classifications,
+    classificationInfoMd: DEFAULT_MODEL.classificationInfoMd,
     themes, questions,
   };
 }
@@ -299,13 +318,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       responsibleProject: '',
       responsibleArchitecture: '',
       classification: null,
-      reviewDepth: null,
       architectureRelevant: null,
       createdAt: todayIso(),
       updatedAt: nowIsoWithTimezone(),
       reviews: {},
     };
-    if (ms10 && modelRef.current) project = applyMs10(project, ms10, modelRef.current);
+    if (ms10) project = applyMs10(project, ms10);
     const res = await saveProject(project, null);
     if (res.status === 'saved') return { ok: true as const };
     return { ok: false as const, message: res.status === 'error' ? res.message : 'Speichern fehlgeschlagen.' };
