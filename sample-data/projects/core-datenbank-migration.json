@@ -5,10 +5,10 @@
   "description": "Die bestehende Core-Datenbank wird auf eine neue Plattform migriert. Im Rahmen der Migration werden Datenbestände verschoben, die Backup-Strategie erneuert und die Reporting-Anbindung angepasst. Dieses Beispielprojekt zeigt den Ablauf der Architekturprüfung.",
   "responsibleProject": "Peter Müller",
   "responsibleArchitecture": "Max Muster",
-  "classification": null,
+  "classification": "relevant",
   "architectureRelevant": true,
   "createdAt": "2026-08-15",
-  "updatedAt": "2026-08-19T14:51:43+02:00",
+  "updatedAt": "2026-08-19T15:35:34+02:00",
   "reviews": {
     "data-storage": {
       "relevant": false,

@@ -488,6 +488,115 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
     }
   };
 
+  // Architektur-Review als Bericht-PDF: Status zuoberst, Details je
+  // erreichtem Meilenstein; nicht erreichte Meilensteine mit Grund
+  const downloadReviewPdf = async () => {
+    const classRank = model.classifications.findIndex(c => c.id === proj.classification);
+    const classLabel = model.classifications.find(c => c.id === proj.classification)?.label ?? null;
+    const answerOf = (themeId: string, q: Question): { answer: string; open: boolean; remarks?: string } => {
+      const a = getThemeReview(proj, themeId).answers?.[q.id];
+      const open = isQuestionOpen(themeId, q);
+      const kind = q.kind ?? 'yesNo';
+      const answer = kind === 'yesNo'
+        ? (a?.value === true ? 'Ja' : a?.value === false ? 'Nein' : 'offen')
+        : kind === 'choice'
+          ? (a?.choice ?? 'offen')
+          : (String(a?.remarks ?? '').trim() ? 'beantwortet' : 'offen');
+      const remarks = String(a?.remarks ?? '').trim();
+      return { answer, open, ...(remarks ? { remarks } : {}) };
+    };
+
+    type Report = import('../pdfExport').ReviewReport;
+    const milestones: Report['milestones'] = [];
+    const skippedMs: string[] = [];
+    let prevApproved = true;
+    for (const ms of MILESTONES) {
+      const title = `${ms} · ${MILESTONE_TITLES[ms] ?? 'Prüfung'}`;
+      const isFoundation = ms === FOUNDATION_MS;
+      if (!isFoundation && classRank < 1) {
+        skippedMs.push(`${title} — entfällt: ${proj.architectureRelevant === false ? 'nicht architekturrelevant' : 'Klassifikation noch offen'}`);
+        continue;
+      }
+      if (!prevApproved) {
+        skippedMs.push(`${title} — folgt nach Freigabe des vorherigen Meilensteins`);
+        continue;
+      }
+      const review = getMilestoneReview(proj, ms);
+      const approved = review.approved === true;
+      const themeRows: Report['milestones'][number]['themes'] = [];
+      const skippedThemes: string[] = [];
+      let openCount = 0;
+      themes.forEach((theme, ti) => {
+        const heading = `${themeLetter(ti)} · ${theme.title}`;
+        if (!isFoundation && derivedRelevant(proj, theme.id) === false) {
+          skippedThemes.push(heading);
+          return;
+        }
+        const qs = questionsAt(theme.id, ms);
+        if (!qs.length) return;
+        const questions = qs.map(({ q, number }) => {
+          const a = answerOf(theme.id, q);
+          if (a.open) openCount++;
+          return { number, text: q.text, ...a };
+        });
+        themeRows.push({ heading, questions });
+      });
+      const statusParts = [openCount === 0 ? 'keine offenen Fragen' : `${openCount} offene ${openCount === 1 ? 'Frage' : 'Fragen'}`];
+      if (isFoundation) {
+        statusParts.push(
+          proj.architectureRelevant === true ? `architekturrelevant${classLabel ? ` (${classLabel})` : ''}`
+            : proj.architectureRelevant === false ? 'nicht architekturrelevant'
+            : 'Architekturrelevanz offen');
+      }
+      milestones.push({
+        title,
+        approved,
+        statusLine: statusParts.join(' · '),
+        ...(String(review.approvedBy ?? '').trim() ? { approvedBy: String(review.approvedBy).trim() } : {}),
+        ...(String(review.notes ?? '').trim() ? { notes: String(review.notes).trim() } : {}),
+        themes: themeRows,
+        ...(skippedThemes.length ? { skippedThemesNote: `Kein Review nötig: ${skippedThemes.join(', ')}` } : {}),
+      });
+      prevApproved = approved;
+    }
+
+    const metaLines: string[] = [];
+    if (proj.responsibleProject || proj.responsibleArchitecture) {
+      metaLines.push([
+        proj.responsibleProject && `Verantwortlich Projekt: ${proj.responsibleProject}`,
+        proj.responsibleArchitecture && `Verantwortlich Architektur: ${proj.responsibleArchitecture}`,
+      ].filter(Boolean).join(' · '));
+    }
+    metaLines.push(`Klassifikation: ${classLabel ?? (proj.architectureRelevant === null ? 'offen' : '—')} · Projektstatus: ${STATUS_META[status].label}`);
+
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    setPdfBusy(true);
+    try {
+      const { buildReviewReportPdf } = await import('../pdfExport');
+      const bytes = await buildReviewReportPdf({
+        projectName: proj.name || proj.slug,
+        ...(typeof proj.projectNumber === 'string' && proj.projectNumber ? { projectNumber: proj.projectNumber } : {}),
+        generated: `${pad(now.getDate())}.${pad(now.getMonth() + 1)}.${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}`,
+        ...(proj.description?.trim() ? { description: proj.description.trim() } : {}),
+        metaLines,
+        milestones,
+        skipped: skippedMs,
+      });
+      const blob = new Blob([bytes as BlobPart], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `architektur-review-${proj.slug}.pdf`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+    } catch {
+      showToast('PDF konnte nicht erzeugt werden.');
+    } finally {
+      setPdfBusy(false);
+    }
+  };
+
   // Ausgefülltes Formular-PDF einlesen → ImportItems (gleicher Weg wie Text)
   const importPdfAnswers = async (ms: string, file: File) => {
     try {
@@ -704,6 +813,11 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
             )}
           </h2>
           <div className="flex items-center gap-3">
+            <button onClick={downloadReviewPdf} disabled={pdfBusy}
+              title="Architektur-Review als PDF-Bericht exportieren — Status und alle Antworten"
+              className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors disabled:opacity-40 ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
+              <FileDown size={11} /> Review-PDF
+            </button>
             <button onClick={() => fileRef.current?.click()}
               title="Felder aus einem MS10-Antrags-PDF übernehmen"
               className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
@@ -864,10 +978,9 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
                     ? <span className={isDark ? 'text-emerald-400' : 'text-emerald-600'}>Automatisch gespeichert ✓ {lastSavedAt}</span>
                     : 'Keine Änderungen'}
           </div>
-          <button onClick={() => save()} disabled={!dirty || saving}
-            className={`flex items-center gap-1.5 text-xs px-4 py-2 rounded font-semibold transition-colors disabled:opacity-40 ${isDark ? 'bg-white text-black hover:bg-white/90' : 'bg-black text-white hover:bg-black/80'}`}>
-            <Save size={12} /> Speichern
-          </button>
+          <div className={`flex items-center gap-1.5 text-[11px] ${textMuted}`}>
+            <Save size={11} /> schreibt projects/{proj.slug}.json
+          </div>
         </div>
       </div>
 

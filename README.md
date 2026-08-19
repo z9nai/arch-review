@@ -68,7 +68,9 @@ Zum Ausprobieren kann `sample-data/` als geteilter Ordner gewählt werden
 - **Projektstatus** (abgeleitet, nicht gespeichert): nicht
   architekturrelevant / offen / abgeschlossen (M40 freigegeben).
 - **Autosave**: Änderungen werden ca. 1 Sekunde nach der letzten Eingabe
-  automatisch gespeichert (Statuszeile «Automatisch gespeichert ✓ HH:MM»);
+  automatisch gespeichert (Statusleiste unten, analog Admin-Modus:
+  «Automatisch gespeichert ✓ HH:MM» und «schreibt projects/‹slug›.json»;
+  ohne separaten Speichern-Button);
   `updatedAt` wird gesetzt, Konflikte werden über `lastModified` erkannt
   (überschreiben oder neu laden). Beim Zurücknavigieren werden ausstehende
   Änderungen noch weggeschrieben. Unbekannte JSON-Felder überleben den
@@ -166,6 +168,21 @@ Formularfeldern gelesen (gleiche Regeln — Ja und Nein zugleich angekreuzt →
 Frage bleibt unangetastet, leere Felder werden ignoriert) und über dieselbe
 Vorschau übernommen.
 
+## Review-PDF (Bericht)
+
+Der Button **«Review-PDF»** im Projektkopf (neben MS10-Import) erzeugt
+jederzeit einen PDF-Bericht des Architektur-Reviews. Zuoberst steht der
+**Status auf einen Blick** — je erreichter Meilenstein ein Badge
+(**ABGENOMMEN** grün / **OFFEN** orange) mit Anzahl offener Fragen, beim
+M10 zusätzlich die Architekturrelevanz mit Klassifikation. Noch nicht
+erreichte Meilensteine erscheinen grau mit Grund («folgt nach Freigabe des
+vorherigen Meilensteins» bzw. «entfällt: nicht architekturrelevant»).
+Danach folgen die Details je Meilenstein: Freigabe (Prüfer/in,
+Bemerkungen) und alle Themen mit Fragen und Antworten (Antwort
+rechtsbündig, offene Fragen orange; Bemerkungen eingerückt); nicht
+relevante Themen stehen als «Kein Review nötig»-Zeile. Erzeugt lokal über
+pdf-lib, Dateiname `architektur-review-<slug>.pdf`.
+
 ## MS10-Import
 
 Aus einem MS10-Antrags-PDF (Vorlage «MS10 Antrag - Light») lassen sich Felder
@@ -174,8 +191,8 @@ Aus einem MS10-Antrags-PDF (Vorlage «MS10 Antrag - Light») lassen sich Felder
 - **Projektliste → «Import MS10-PDF»**: befüllt das Neues-Projekt-Formular vor
   (Name, Slug) und übernimmt beim Anlegen alle gefundenen Felder.
 - **OnePager → «MS10-Import»**: zeigt die gefundenen Felder in einem
-  Vorschau-Dialog; «Übernehmen» schreibt sie in das Formular (gespeichert wird
-  erst mit «Speichern»).
+  Vorschau-Dialog; «Übernehmen» schreibt sie in das Formular (der Autosave
+  speichert anschliessend).
 
 Übernommen werden: Projektname und KP-Nummer (aus dem Titel),
 Ausgangslage/Motivation → Beschrieb (volle Breite im Titel-Panel),
