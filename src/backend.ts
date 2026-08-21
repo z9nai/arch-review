@@ -21,6 +21,8 @@ export interface StorageBackend {
   /** nur Dateien; leer, wenn der Ordner fehlt */
   list(dir: string): Promise<FileInfo[]>;
   ensureDir(dir: string): Promise<void>;
+  /** Datei löschen; fehlt sie, ist das kein Fehler */
+  delete(path: string, opts?: { keepalive?: boolean }): Promise<void>;
 }
 
 // ── Lokaler Ordner ───────────────────────────────────────────────────────────
@@ -93,5 +95,14 @@ export class LocalBackend implements StorageBackend {
   async ensureDir(dir: string): Promise<void> {
     let d = this.root;
     for (const p of dir.split('/').filter(Boolean)) d = await d.getDirectoryHandle(p, { create: true });
+  }
+
+  async delete(path: string): Promise<void> {
+    try {
+      const { dir, file } = await this.dirOf(path, false);
+      await dir.removeEntry(file);
+    } catch {
+      // fehlt bereits
+    }
   }
 }

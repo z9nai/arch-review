@@ -108,6 +108,11 @@ export class GraphBackend implements StorageBackend {
     return out;
   }
 
+  async delete(path: string, opts: { keepalive?: boolean } = {}): Promise<void> {
+    const res = await this.f(this.itemPath(path), { method: 'DELETE', keepalive: opts.keepalive === true });
+    if (!res.ok && res.status !== 404) throw new Error(`Löschen fehlgeschlagen (HTTP ${res.status}).`);
+  }
+
   async ensureDir(dir: string): Promise<void> {
     const parts = dir.split('/').filter(Boolean);
     let parent = `/drives/${enc(this.folder.driveId)}/items/${enc(this.folder.itemId)}`;

@@ -11,7 +11,26 @@ export interface ProjectListItem {
   slug: string;
   data: Project;
   version: string;
+  lock?: ProjectLock; // gültige Bearbeitungssperre einer anderen Person/Sitzung
 }
+
+// Bearbeitungssperre (Lease): gilt bis «letzte Änderung + LOCK_LEASE_MS»,
+// Sidecar-Datei projects/<slug>.lock.json. Verwaiste Sperren laufen von
+// selbst ab; Übernehmen ist für Bearbeitende jederzeit möglich.
+export interface ProjectLock {
+  user: string;
+  email: string;
+  session: string;     // Browser-Tab — zwei Tabs derselben Person sperren sich gegenseitig
+  since: string;       // ISO
+  lastActivity: string; // ISO
+  until: string;       // ISO
+}
+export const LOCK_LEASE_MS = 5 * 60 * 1000;
+
+export type LockResult =
+  | { status: 'acquired'; lock: ProjectLock; version: string }
+  | { status: 'held'; lock: ProjectLock }
+  | { status: 'error'; message: string };
 
 export type SaveResult =
   | { status: 'saved'; version: string }
@@ -43,6 +62,12 @@ interface StoreCtx {
   loadProject: (slug: string) => Promise<{ data: Project; version: string } | null>;
   saveProject: (data: Project, expectedVersion: string | null) => Promise<SaveResult>;
   createProject: (name: string, slug: string, ms10?: Ms10Data) => Promise<{ ok: true } | { ok: false; message: string }>;
+  // Bearbeitungssperre
+  sessionId: string;
+  readLock: (slug: string) => Promise<ProjectLock | null>;
+  acquireLock: (slug: string, force?: boolean) => Promise<LockResult>;
+  renewLock: (slug: string) => Promise<LockResult>;
+  releaseLock: (slug: string, keepalive?: boolean) => Promise<void>;
 }
 
 const Ctx = createContext<StoreCtx>(null!);
@@ -155,6 +180,29 @@ function normalizeModel(raw: any): Model {
   };
 }
 
+// Sitzungs-ID je Browser-Tab (sessionStorage)
+const SESSION_KEY = 'arch-review.session';
+function sessionId(): string {
+  try {
+    let id = sessionStorage.getItem(SESSION_KEY);
+    if (!id) { id = Math.random().toString(36).slice(2) + Date.now().toString(36); sessionStorage.setItem(SESSION_KEY, id); }
+    return id;
+  } catch {
+    return 'session';
+  }
+}
+
+function parseLock(text: string): ProjectLock | null {
+  try {
+    const l = JSON.parse(text);
+    return l && typeof l.until === 'string' && typeof l.session === 'string' ? l as ProjectLock : null;
+  } catch {
+    return null;
+  }
+}
+export const lockValid = (l: ProjectLock | null | undefined): l is ProjectLock =>
+  !!l && Date.parse(l.until) > Date.now();
+
 function parseProject(text: string, version: string): { data: Project; version: string } | null {
   try {
     return { data: JSON.parse(text) as Project, version };
@@ -219,12 +267,23 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const refreshProjectsIn = useCallback(async (be: StorageBackend) => {
     const items: ProjectListItem[] = [];
     try {
-      for (const f of await be.list('projects')) {
-        if (!f.name.endsWith('.json')) continue;
+      const files = await be.list('projects');
+      const locks = new Map<string, ProjectLock>();
+      for (const f of files) {
+        if (!f.name.endsWith('.lock.json')) continue;
+        const read = await be.read(`projects/${f.name}`);
+        const l = read ? parseLock(read.text) : null;
+        if (lockValid(l) && l.session !== sessionId()) locks.set(f.name.replace(/\.lock\.json$/, ''), l);
+      }
+      for (const f of files) {
+        if (!f.name.endsWith('.json') || f.name.endsWith('.lock.json')) continue;
         const read = await be.read(`projects/${f.name}`);
         if (!read) continue;
         const p = parseProject(read.text, read.version);
-        if (p) items.push({ slug: f.name.replace(/\.json$/, ''), ...p });
+        if (!p) continue;
+        const slug = f.name.replace(/\.json$/, '');
+        const lock = locks.get(slug);
+        items.push({ slug, ...p, ...(lock ? { lock } : {}) });
       }
     } catch (e) {
       console.error('[arch-review] refreshProjects:', e);
@@ -417,6 +476,71 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return { ok: true as const };
   }, []);
 
+  // ── Bearbeitungssperre ────────────────────────────────────────────────────
+  const lockPath = (slug: string) => `projects/${slug}.lock.json`;
+  const userRef = useRef(auth.user);
+  userRef.current = auth.user;
+
+  const readLock = useCallback(async (slug: string): Promise<ProjectLock | null> => {
+    const be = backendRef.current;
+    if (!be) return null;
+    try {
+      const read = await be.read(lockPath(slug));
+      return read ? parseLock(read.text) : null;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  // Sperre holen/verlängern: frei oder abgelaufen oder eigene → schreiben
+  // (mit ETag/createOnly gegen Wettläufe); fremde gültige → 'held', ausser force
+  const acquireLock = useCallback(async (slug: string, force = false): Promise<LockResult> => {
+    const be = backendRef.current;
+    if (!be) return { status: 'error', message: 'Kein Ordner gewählt.' };
+    try {
+      const cur = await be.read(lockPath(slug));
+      const existing = cur ? parseLock(cur.text) : null;
+      if (!force && lockValid(existing) && existing.session !== sessionId()) return { status: 'held', lock: existing };
+      const now = new Date();
+      const lock: ProjectLock = {
+        user: userRef.current?.name ?? 'Unbekannt',
+        email: userRef.current?.email ?? '',
+        session: sessionId(),
+        since: existing && existing.session === sessionId() ? existing.since : now.toISOString(),
+        lastActivity: now.toISOString(),
+        until: new Date(now.getTime() + LOCK_LEASE_MS).toISOString(),
+      };
+      const w = await be.write(lockPath(slug), JSON.stringify(lock, null, 2), cur ? { ifMatch: cur.version } : { createOnly: true });
+      if (w.ok) return { status: 'acquired', lock, version: w.version };
+      if (w.reason === 'conflict' || w.reason === 'exists') {
+        // jemand war schneller → nochmals lesen
+        const again = await be.read(lockPath(slug));
+        const other = again ? parseLock(again.text) : null;
+        if (lockValid(other) && other.session !== sessionId()) return { status: 'held', lock: other };
+        return { status: 'error', message: 'Sperre konnte nicht gesetzt werden — bitte erneut versuchen.' };
+      }
+      return { status: 'error', message: w.message };
+    } catch (e) {
+      return { status: 'error', message: e instanceof Error ? e.message : String(e) };
+    }
+  }, []);
+
+  const renewLock = useCallback((slug: string) => acquireLock(slug, false), [acquireLock]);
+
+  const releaseLock = useCallback(async (slug: string, keepalive = false): Promise<void> => {
+    const be = backendRef.current;
+    if (!be) return;
+    try {
+      // nur die eigene Sperre entfernen
+      const cur = await be.read(lockPath(slug));
+      const l = cur ? parseLock(cur.text) : null;
+      if (l && l.session !== sessionId()) return;
+      await be.delete(lockPath(slug), { keepalive });
+    } catch (e) {
+      console.warn('[arch-review] releaseLock:', e);
+    }
+  }, []);
+
   // Admin-Modus: Stammdaten (Themen/Fragen) zurück in model.json schreiben
   const saveModel = useCallback(async (m: Model): Promise<{ ok: true } | { ok: false; message: string }> => {
     const be = backendRef.current;
@@ -448,6 +572,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       connectSharePoint, savedSharePoint, reconnectSharePoint, forgetSharePoint, disconnect,
       model, modelError, saveModel,
       projects, refreshProjects, loadProject, saveProject, createProject,
+      sessionId: sessionId(), readLock, acquireLock, renewLock, releaseLock,
     }}>
       {children}
     </Ctx.Provider>

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ClipboardPaste, Copy, Eye, FileDown, FileUp, Info, Mail, Minus, Plus, Save, X } from 'lucide-react';
+import { ArrowLeft, ClipboardPaste, Copy, Eye, FileDown, FileUp, Info, Lock, Mail, Minus, Plus, Save, Unlock, X } from 'lucide-react';
 import { marked } from 'marked';
-import { useStore } from '../store';
+import { lockValid, ProjectLock, useStore } from '../store';
 import { useAuth, usePermissions } from '../auth';
 import { MILESTONES, MILESTONE_TITLES, Project, Question, QuestionAnswer, Review, Theme } from '../types';
 import { deriveStatus, emptyReview, getMilestoneReview, getThemeReview, STATUS_META } from '../status';
@@ -26,10 +26,14 @@ export function themeLetter(index: number): string {
 }
 
 export default function OnePagerView({ slug, onBack }: { slug: string; onBack: () => void }) {
-  const { isDark, model, loadProject, saveProject } = useStore();
+  const { isDark, model, loadProject, saveProject, acquireLock, renewLock, releaseLock, readLock, sessionId } = useStore();
   const { user: authUser } = useAuth();
   const { canEdit } = usePermissions();
-  const ro = !canEdit; // Viewer: alles nur lesen, keine Speicherung
+  // Bearbeitungssperre: 'mine' = ich halte sie; 'held' = jemand anderes;
+  // 'free' = war fremd gesperrt, ist jetzt frei (Bearbeiten anbieten)
+  const [lockState, setLockState] = useState<{ kind: 'mine' } | { kind: 'held'; lock: ProjectLock } | { kind: 'free' } | null>(null);
+  const lockedByOther = lockState?.kind === 'held' || lockState?.kind === 'free';
+  const ro = !canEdit || lockedByOther; // Viewer oder fremd gesperrt: nur lesen, keine Speicherung
   const [proj, setProj] = useState<Project | null>(null);
   const [baseline, setBaseline] = useState('');
   const [version, setVersion] = useState<string | null>(null);
@@ -79,6 +83,73 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
 
   const dirty = proj != null && JSON.stringify(proj) !== baseline;
 
+  // ── Bearbeitungssperre ────────────────────────────────────────────────────
+  const lastRenewRef = useRef(0);
+  const tryAcquire = useCallback(async (force = false) => {
+    const r = await acquireLock(slug, force);
+    if (r.status === 'acquired') { setLockState({ kind: 'mine' }); lastRenewRef.current = Date.now(); }
+    else if (r.status === 'held') setLockState({ kind: 'held', lock: r.lock });
+    else setLockState(prev => prev ?? { kind: 'mine' }); // Fehler beim Sperren: nicht blockieren, ETag schützt
+    return r;
+  }, [acquireLock, slug]);
+
+  // Beim Öffnen sperren (nur wer bearbeiten darf)
+  useEffect(() => {
+    if (!canEdit || !proj) return;
+    if (lockState !== null) return;
+    void tryAcquire(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canEdit, proj != null]);
+
+  // Verlängern bei Aktivität (höchstens einmal pro Minute): Sperre gilt bis
+  // letzte Änderung + 5 Minuten
+  useEffect(() => {
+    if (!dirty || lockState?.kind !== 'mine') return;
+    if (Date.now() - lastRenewRef.current < 60_000) return;
+    lastRenewRef.current = Date.now();
+    renewLock(slug).then(r => {
+      if (r.status === 'held') setLockState({ kind: 'held', lock: r.lock }); // jemand hat übernommen
+    });
+  }, [proj, dirty, lockState, renewLock, slug]);
+
+  // Prüfen: fremd gesperrt → alle 15 s Sperre + neueste Version; eigene
+  // Sperre → alle 45 s, ob sie übernommen wurde. Sofort bei Tab-Fokus.
+  const checkRef = useRef<() => Promise<void>>(async () => {});
+  checkRef.current = async () => {
+    if (!lockState) return;
+    const l = await readLock(slug);
+    if (lockState.kind === 'mine') {
+      if (lockValid(l) && l.session !== sessionId) setLockState({ kind: 'held', lock: l });
+      return;
+    }
+    // fremd gesperrt / frei: Sperre aktualisieren und neueste Version laden
+    if (lockValid(l) && l.session !== sessionId) setLockState({ kind: 'held', lock: l });
+    else setLockState({ kind: 'free' });
+    const res = await loadProject(slug);
+    if (res && res.version !== version) {
+      setProj(syncRef.current(res.data));
+      setBaseline(JSON.stringify(res.data));
+      setVersion(res.version);
+    }
+  };
+  useEffect(() => {
+    if (!lockState) return;
+    const every = lockState.kind === 'mine' ? 45_000 : 15_000;
+    const t = setInterval(() => { void checkRef.current(); }, every);
+    const onVis = () => { if (document.visibilityState === 'visible') void checkRef.current(); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', onVis); };
+  }, [lockState?.kind]);
+
+  // Freigabe beim Verlassen (Tab schliessen/neu laden: best effort per keepalive)
+  const lockMineRef = useRef(false);
+  lockMineRef.current = lockState?.kind === 'mine';
+  useEffect(() => {
+    const h = () => { if (lockMineRef.current) void releaseLock(slug, true); };
+    window.addEventListener('pagehide', h);
+    return () => window.removeEventListener('pagehide', h);
+  }, [releaseLock, slug]);
+
   useEffect(() => {
     if (!dirty || ro) return;
     const h = (e: BeforeUnloadEvent) => { e.preventDefault(); };
@@ -91,6 +162,7 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
       const res = await saveRef.current();
       if (res !== 'saved') return;
     }
+    if (lockState?.kind === 'mine') await releaseLock(slug);
     onBack();
   };
 
@@ -815,6 +887,37 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
         <div className={`text-[11px] ${textMuted}`}>Stand: {fmtTimestamp(proj.updatedAt)}</div>
       </div>
 
+      {/* Bearbeitungssperre */}
+      {lockState?.kind === 'held' && (
+        <div className={`mb-4 px-4 py-3 rounded-xl border flex items-center gap-3 flex-wrap text-xs ${isDark ? 'border-amber-500/30 bg-amber-500/10 text-amber-200' : 'border-amber-300 bg-amber-50 text-amber-900'}`}>
+          <Lock size={14} className="flex-shrink-0" />
+          <span>
+            <span className="font-semibold">In Bearbeitung durch {lockState.lock.user}</span>
+            {' '}· letzte Änderung {fmtTimestamp(lockState.lock.lastActivity)} · Sperre läuft bis {fmtTimestamp(lockState.lock.until)} — du siehst den aktuellen Stand nur lesend.
+          </span>
+          {canEdit && (
+            <button onClick={() => {
+              if (window.confirm(`Sperre von ${lockState.lock.user} übernehmen?\nDeren noch nicht gespeicherte Eingaben (max. wenige Sekunden) können verloren gehen.`)) void tryAcquire(true);
+            }}
+              className={`ml-auto flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors ${isDark ? 'border-amber-400/40 hover:border-amber-300' : 'border-amber-400 hover:border-amber-600'}`}>
+              <Unlock size={11} /> Übernehmen
+            </button>
+          )}
+        </div>
+      )}
+      {lockState?.kind === 'free' && (
+        <div className={`mb-4 px-4 py-3 rounded-xl border flex items-center gap-3 flex-wrap text-xs ${isDark ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200' : 'border-emerald-300 bg-emerald-50 text-emerald-900'}`}>
+          <Unlock size={14} className="flex-shrink-0" />
+          <span>Das Projekt ist jetzt frei — du siehst den neuesten Stand.</span>
+          {canEdit && (
+            <button onClick={() => void tryAcquire(false)}
+              className={`ml-auto text-[11px] px-2.5 py-1 rounded font-semibold transition-colors ${isDark ? 'bg-white text-black hover:bg-white/90' : 'bg-black text-white hover:bg-black/80'}`}>
+              Bearbeiten
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Kopf: Projektangaben */}
       <div className={`${cardCls} p-4 mb-4`}>
         <div className="flex items-center justify-between gap-4 mb-4">
@@ -980,7 +1083,7 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
       <div className={`fixed bottom-0 left-0 right-0 border-t ${border} ${isDark ? 'bg-[#0c0d0f]/95' : 'bg-[#eae9e5]/95'} backdrop-blur px-6 py-3`}>
         <div className="max-w-5xl mx-auto flex items-center justify-between gap-4">
           <div className={`text-[11px] ${textMuted}`}>
-            {ro ? 'Nur lesen (Viewer) — Änderungen werden nicht gespeichert' : saveError
+            {lockedByOther ? 'Nur lesen — Projekt ist durch eine andere Person gesperrt' : ro ? 'Nur lesen (Viewer) — Änderungen werden nicht gespeichert' : saveError
               ? <span className={isDark ? 'text-rose-400' : 'text-rose-600'}>{saveError}</span>
               : saving
                 ? 'Speichert …'

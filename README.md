@@ -113,6 +113,19 @@ Zum Ausprobieren kann `sample-data/` als geteilter Ordner gewählt werden
   (überschreiben oder neu laden). Beim Zurücknavigieren werden ausstehende
   Änderungen noch weggeschrieben. Unbekannte JSON-Felder überleben den
   Roundtrip.
+- **Bearbeitungssperre**: Wer ein Projekt öffnet und bearbeiten darf, hält
+  eine Sperre (Sidecar `projects/<slug>.lock.json`: wer, seit wann, gültig
+  bis). Sie gilt bis **letzte Änderung + 5 Minuten** und wird nur bei
+  Aktivität verlängert (höchstens einmal pro Minute geschrieben) — wer nur
+  liest, gibt sie nach 5 Minuten automatisch frei; beim Zurücknavigieren
+  oder Schliessen sofort. Andere sehen das Projekt nur lesend mit Banner
+  («In Bearbeitung durch …», Tag in der Projektliste) und aktualisieren alle
+  15 s auf den neuesten Stand (nur ETag-Abfrage, Download bei Änderung); wird
+  es frei, erscheint «Bearbeiten». Reviewer/Admins können eine Sperre
+  **übernehmen**; der bisherige Halter merkt das spätestens nach 45 s bzw.
+  sofort beim Tab-Fokus und wird auf Nur-Lesen geschaltet. Zwei Tabs
+  derselben Person gelten als zwei Sitzungen. Die ETag-Prüfung beim
+  Speichern bleibt als zweites Netz bestehen.
 - **Ordner-Persistenz**: Der gewählte Ordner wird in IndexedDB gemerkt; beim
   nächsten Öffnen verbindet die App automatisch oder bietet «Wieder
   verbinden» an.

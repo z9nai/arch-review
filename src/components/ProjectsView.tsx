@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react';
-import { Plus, RefreshCw, ChevronRight, FileUp } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Plus, RefreshCw, ChevronRight, FileUp, Lock } from 'lucide-react';
 import { useStore } from '../store';
 import { deriveStatus, openMilestone, STATUS_META } from '../status';
 import { extractPdfText, hasMs10Data, Ms10Data, parseMs10Text } from '../ms10';
@@ -18,6 +18,14 @@ function StatusBadge({ status, isDark }: { status: keyof typeof STATUS_META; isD
 export default function ProjectsView({ onOpen }: { onOpen: (slug: string) => void }) {
   const { isDark, model, projects, refreshProjects, createProject } = useStore();
   const { canEdit } = usePermissions();
+
+  // Liste aktuell halten (Sperren, fremde Änderungen): bei Tab-Fokus und jede Minute
+  useEffect(() => {
+    const t = setInterval(() => { void refreshProjects(); }, 60_000);
+    const onVis = () => { if (document.visibilityState === 'visible') void refreshProjects(); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', onVis); };
+  }, [refreshProjects]);
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
@@ -168,6 +176,12 @@ export default function ProjectsView({ onOpen }: { onOpen: (slug: string) => voi
                     {ms && (
                       <span className={`inline-block text-[10px] px-2 py-0.5 rounded-full border whitespace-nowrap ${isDark ? 'bg-amber-500/15 text-amber-300 border-amber-500/30' : 'bg-amber-50 text-amber-700 border-amber-300'}`}>
                         {ms} offen
+                      </span>
+                    )}
+                    {p.lock && (
+                      <span title={`In Bearbeitung durch ${p.lock.user} · letzte Änderung ${fmtTimestamp(p.lock.lastActivity)}`}
+                        className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border whitespace-nowrap ${isDark ? 'bg-white/8 text-white/60 border-white/15' : 'bg-black/5 text-black/60 border-black/15'}`}>
+                        <Lock size={9} /> {p.lock.user}
                       </span>
                     )}
                   </div>
