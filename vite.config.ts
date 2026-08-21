@@ -18,7 +18,7 @@ export default defineConfig({
     rollupOptions: {
       output: {
         // grosse, nur bei Bedarf genutzte Bibliotheken als eigene Chunks
-        manualChunks: { pdfjs: ['pdfjs-dist'], pdflib: ['pdf-lib'] },
+        manualChunks: { pdfjs: ['pdfjs-dist'], pdflib: ['pdf-lib'], msal: ['@azure/msal-browser'] },
       },
     },
   },

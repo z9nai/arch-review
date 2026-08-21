@@ -3,39 +3,52 @@ import { Model, Project } from './types';
 import { DEFAULT_MODEL } from './defaultModel';
 import { applyMs10, Ms10Data } from './ms10';
 import { nowIsoWithTimezone, todayIso } from './util';
+import { LocalBackend, StorageBackend } from './backend';
+import { GRAPH_SCOPES, GraphBackend, resolveFolderLink, SharePointFolder } from './graph';
+import { PENDING_FOLDER_KEY, useAuth } from './auth';
 
 export interface ProjectListItem {
   slug: string;
   data: Project;
-  lastModified: number;
+  version: string;
 }
 
 export type SaveResult =
-  | { status: 'saved'; lastModified: number }
-  | { status: 'conflict'; currentLastModified: number }
+  | { status: 'saved'; version: string }
+  | { status: 'conflict'; currentVersion: string }
   | { status: 'error'; message: string };
+
+export interface StorageInfo { kind: 'local' | 'sharepoint'; name: string; webUrl?: string }
 
 interface StoreCtx {
   isDark: boolean;
   toggleTheme: () => void;
-  dirHandle: FileSystemDirectoryHandle | null;
+  storage: StorageInfo | null;
+  // lokaler Ordner
   pickDirectory: () => Promise<void>;
   savedHandleName: string | null;
   reconnectDirectory: () => Promise<void>;
+  // SharePoint-Ordner
+  connectSharePoint: (link: string) => Promise<{ ok: true } | { ok: false; message: string }>;
+  savedSharePoint: SharePointFolder | null;
+  reconnectSharePoint: () => Promise<void>;
+  forgetSharePoint: () => void;
+  disconnect: () => void;
+  // Daten
   model: Model | null;
   modelError: string | null;
   saveModel: (m: Model) => Promise<{ ok: true } | { ok: false; message: string }>;
   projects: ProjectListItem[];
   refreshProjects: () => Promise<void>;
-  loadProject: (slug: string) => Promise<{ data: Project; lastModified: number } | null>;
-  saveProject: (data: Project, expectedLastModified: number | null) => Promise<SaveResult>;
+  loadProject: (slug: string) => Promise<{ data: Project; version: string } | null>;
+  saveProject: (data: Project, expectedVersion: string | null) => Promise<SaveResult>;
   createProject: (name: string, slug: string, ms10?: Ms10Data) => Promise<{ ok: true } | { ok: false; message: string }>;
 }
 
 const Ctx = createContext<StoreCtx>(null!);
 export const useStore = () => useContext(Ctx);
 
-// ── IndexedDB: gewählten Ordner über die Sitzung hinaus merken ──────────────
+// ── IndexedDB: gewählten lokalen Ordner über die Sitzung hinaus merken ──────
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open('arch-review', 1);
@@ -72,6 +85,27 @@ async function loadStoredHandle(): Promise<FileSystemDirectoryHandle | null> {
     return null;
   }
 }
+
+// ── localStorage: gemerkter SharePoint-Ordner + gewählter Modus ─────────────
+const SP_KEY = 'arch-review.sharepoint';
+const MODE_KEY = 'arch-review.mode';
+
+function loadSharePoint(): SharePointFolder | null {
+  try {
+    const raw = JSON.parse(localStorage.getItem(SP_KEY) ?? 'null');
+    return raw && raw.driveId && raw.itemId ? raw as SharePointFolder : null;
+  } catch { return null; }
+}
+function storeSharePoint(f: SharePointFolder | null) {
+  try {
+    if (f) { localStorage.setItem(SP_KEY, JSON.stringify(f)); localStorage.setItem(MODE_KEY, 'sharepoint'); }
+    else { localStorage.removeItem(SP_KEY); localStorage.removeItem(MODE_KEY); }
+  } catch { /* ignore */ }
+}
+
+// Entwicklung: ?graph=http://localhost:3999/v1.0 leitet Graph auf einen Mock um
+const graphBase = (): string | undefined =>
+  import.meta.env.DEV ? (new URLSearchParams(location.search).get('graph') ?? undefined) : undefined;
 
 // Ältere model.json-Formate beim Lesen in die aktuelle Struktur überführen:
 // v1 (factsheets mit eingebetteten Fragen, MSxx-Nummern) → themes + questions;
@@ -121,92 +155,99 @@ function normalizeModel(raw: any): Model {
   };
 }
 
-async function readProjectFile(handle: FileSystemFileHandle): Promise<{ data: Project; lastModified: number } | null> {
-  const file = await handle.getFile();
+function parseProject(text: string, version: string): { data: Project; version: string } | null {
   try {
-    return { data: JSON.parse(await file.text()) as Project, lastModified: file.lastModified };
+    return { data: JSON.parse(text) as Project, version };
   } catch {
     return null; // unlesbare Datei überspringen
   }
 }
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
+  const auth = useAuth();
   const [isDark, setIsDark] = useState(false);
-  const [dirHandle, setDirHandle] = useState<FileSystemDirectoryHandle | null>(null);
+  const [storage, setStorage] = useState<StorageInfo | null>(null);
   const [model, setModel] = useState<Model | null>(null);
   const [modelError, setModelError] = useState<string | null>(null);
   const [projects, setProjects] = useState<ProjectListItem[]>([]);
   const [savedHandleName, setSavedHandleName] = useState<string | null>(null);
-  const dirRef = useRef<FileSystemDirectoryHandle | null>(null);
+  const [savedSharePoint, setSavedSharePoint] = useState<SharePointFolder | null>(() => loadSharePoint());
+  const backendRef = useRef<StorageBackend | null>(null);
   const modelRef = useRef<Model | null>(null);
   const savedHandleRef = useRef<FileSystemDirectoryHandle | null>(null);
+  const getTokenRef = useRef(auth.getToken);
+  getTokenRef.current = auth.getToken;
+  const idsRef = useRef(auth.ids);
+  idsRef.current = auth.ids;
 
-  const loadModel = useCallback(async (dir: FileSystemDirectoryHandle) => {
-    let fh: FileSystemFileHandle;
+  const loadModel = useCallback(async (be: StorageBackend) => {
     try {
-      fh = await dir.getFileHandle('model.json');
-    } catch {
-      // model.json fehlt → mit dem Standard-Katalog anlegen
-      try {
-        fh = await dir.getFileHandle('model.json', { create: true });
-        const w = await fh.createWritable();
-        await w.write(JSON.stringify(DEFAULT_MODEL, null, 2));
-        await w.close();
-        setModel(DEFAULT_MODEL);
-        modelRef.current = DEFAULT_MODEL;
-        setModelError(null);
-      } catch {
-        setModel(null);
-        modelRef.current = null;
-        setModelError('model.json fehlt und konnte nicht angelegt werden.');
+      const read = await be.read('model.json');
+      if (!read) {
+        // model.json fehlt → mit dem Standard-Katalog anlegen; Anmelde-IDs
+        // und Standardrollen gleich eintragen, wenn bekannt (SharePoint-Modus)
+        const ids = idsRef.current;
+        const fresh: Model = ids
+          ? { ...DEFAULT_MODEL, auth: { enabled: false, tenantId: ids.tenantId, clientId: ids.clientId, adminRole: 'ArchReview.Admin', reviewerRole: 'ArchReview.Reviewer', viewerRole: 'ArchReview.Viewer' } }
+          : DEFAULT_MODEL;
+        const w = await be.write('model.json', JSON.stringify(fresh, null, 2), { createOnly: true });
+        if (!w.ok && w.reason !== 'exists') {
+          setModel(null); modelRef.current = null;
+          setModelError(w.reason === 'forbidden'
+            ? 'model.json fehlt und kann nicht angelegt werden (keine Schreibberechtigung).'
+            : 'model.json fehlt und konnte nicht angelegt werden.');
+          return;
+        }
+        setModel(fresh); modelRef.current = fresh; setModelError(null);
+        return;
       }
-      return;
-    }
-    try {
-      const file = await fh.getFile();
-      const m = normalizeModel(JSON.parse(await file.text()));
-      setModel(m);
-      modelRef.current = m;
-      setModelError(null);
-    } catch {
-      // vorhandene, aber defekte Datei NICHT überschreiben
-      setModel(null);
-      modelRef.current = null;
-      setModelError('model.json ist unlesbar (kein gültiges JSON).');
+      try {
+        const m = normalizeModel(JSON.parse(read.text));
+        setModel(m); modelRef.current = m; setModelError(null);
+      } catch {
+        // vorhandene, aber defekte Datei NICHT überschreiben
+        setModel(null); modelRef.current = null;
+        setModelError('model.json ist unlesbar (kein gültiges JSON).');
+      }
+    } catch (e) {
+      console.error('[arch-review] loadModel:', e);
+      setModel(null); modelRef.current = null;
+      setModelError(`model.json konnte nicht gelesen werden: ${e instanceof Error ? e.message : String(e)}`);
     }
   }, []);
 
-  const refreshProjectsIn = useCallback(async (dir: FileSystemDirectoryHandle) => {
+  const refreshProjectsIn = useCallback(async (be: StorageBackend) => {
     const items: ProjectListItem[] = [];
     try {
-      const pd = await dir.getDirectoryHandle('projects');
-      for await (const [name, handle] of pd.entries()) {
-        if (handle.kind !== 'file' || !name.endsWith('.json')) continue;
-        const read = await readProjectFile(handle as FileSystemFileHandle);
-        if (read) items.push({ slug: name.replace(/\.json$/, ''), ...read });
+      for (const f of await be.list('projects')) {
+        if (!f.name.endsWith('.json')) continue;
+        const read = await be.read(`projects/${f.name}`);
+        if (!read) continue;
+        const p = parseProject(read.text, read.version);
+        if (p) items.push({ slug: f.name.replace(/\.json$/, ''), ...p });
       }
-    } catch {
-      // kein projects-Ordner vorhanden → leere Liste
+    } catch (e) {
+      console.error('[arch-review] refreshProjects:', e);
     }
     items.sort((a, b) => (a.data.name || a.slug).localeCompare(b.data.name || b.slug, 'de'));
     setProjects(items);
   }, []);
 
   const refreshProjects = useCallback(async () => {
-    if (dirRef.current) await refreshProjectsIn(dirRef.current);
+    if (backendRef.current) await refreshProjectsIn(backendRef.current);
   }, [refreshProjectsIn]);
 
-  const activateDir = useCallback(async (dir: FileSystemDirectoryHandle) => {
-    dirRef.current = dir;
-    setDirHandle(dir);
+  const activate = useCallback(async (be: StorageBackend, info: StorageInfo) => {
+    backendRef.current = be;
+    setStorage(info);
     setSavedHandleName(null);
     savedHandleRef.current = null;
-    await loadModel(dir);
-    // projects-Ordner anlegen, falls er fehlt
-    try { await dir.getDirectoryHandle('projects', { create: true }); } catch { /* readonly? Liste bleibt leer */ }
-    await refreshProjectsIn(dir);
+    await loadModel(be);
+    try { await be.ensureDir('projects'); } catch { /* readonly? Liste bleibt leer */ }
+    await refreshProjectsIn(be);
   }, [loadModel, refreshProjectsIn]);
 
+  // ── lokaler Ordner ────────────────────────────────────────────────────────
   const pickDirectory = useCallback(async () => {
     try {
       // ?opfs = Testmodus: Origin Private File System statt Dateidialog (Entwicklung/Tests)
@@ -214,22 +255,90 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         ? await navigator.storage.getDirectory()
         : await window.showDirectoryPicker({ mode: 'readwrite' });
       await persistHandle(dir);
-      await activateDir(dir);
+      storeSharePoint(null); setSavedSharePoint(null);
+      await activate(new LocalBackend(dir), { kind: 'local', name: dir.name || 'Ordner' });
     } catch (e: unknown) {
       if (e instanceof Error && e.name !== 'AbortError') console.error('[arch-review] pickDirectory:', e);
     }
-  }, [activateDir]);
+  }, [activate]);
 
-  // Beim Start: gemerkten Ordner wiederherstellen. Ist die Berechtigung noch
-  // gültig, direkt verbinden; sonst «Wieder verbinden» anbieten (braucht Geste).
+  const reconnectDirectory = useCallback(async () => {
+    const handle = savedHandleRef.current;
+    if (!handle) return;
+    try {
+      const perm = await handle.requestPermission({ mode: 'readwrite' });
+      if (perm === 'granted') await activate(new LocalBackend(handle), { kind: 'local', name: handle.name || 'Ordner' });
+    } catch (e) {
+      console.error('[arch-review] reconnectDirectory:', e);
+    }
+  }, [activate]);
+
+  // ── SharePoint-Ordner ─────────────────────────────────────────────────────
+  const tokenProvider = useCallback(() => getTokenRef.current(GRAPH_SCOPES), []);
+
+  const activateSharePoint = useCallback(async (folder: SharePointFolder) => {
+    const be = new GraphBackend(folder, tokenProvider, graphBase());
+    await activate(be, { kind: 'sharepoint', name: folder.name, webUrl: folder.webUrl });
+  }, [activate, tokenProvider]);
+
+  const connectSharePoint = useCallback(async (link: string) => {
+    try {
+      const folder = await resolveFolderLink(tokenProvider, link, graphBase());
+      storeSharePoint(folder); setSavedSharePoint(folder);
+      await activateSharePoint(folder);
+      return { ok: true as const };
+    } catch (e) {
+      console.error('[arch-review] connectSharePoint:', e);
+      return { ok: false as const, message: e instanceof Error ? e.message : String(e) };
+    }
+  }, [activateSharePoint, tokenProvider]);
+
+  const reconnectSharePoint = useCallback(async () => {
+    const f = loadSharePoint();
+    if (f) await activateSharePoint(f);
+  }, [activateSharePoint]);
+
+  const forgetSharePoint = useCallback(() => {
+    storeSharePoint(null); setSavedSharePoint(null);
+  }, []);
+
+  const disconnect = useCallback(() => {
+    backendRef.current = null;
+    setStorage(null); setModel(null); modelRef.current = null; setProjects([]);
+  }, []);
+
+  // Beim Start: gemerkten Ordner wiederherstellen. SharePoint sobald die
+  // Anmeldung steht; lokal direkt, wenn die Berechtigung noch gilt, sonst
+  // «Wieder verbinden» anbieten (braucht Geste).
+  const autoRef = useRef(false);
   useEffect(() => {
+    // Ordner aus dem Einrichtungs-Link: sobald angemeldet, verbinden (unabhängig
+    // vom übrigen Auto-Reconnect — der Link wird erst im Auth-Effekt ausgewertet)
+    const pending = (() => { try { return localStorage.getItem(PENDING_FOLDER_KEY); } catch { return null; } })();
+    if (pending && !loadSharePoint()) {
+      if (auth.status === 'signedIn' || (auth.status === 'disabled' && graphBase())) {
+        try { localStorage.removeItem(PENDING_FOLDER_KEY); } catch { /* ignore */ }
+        connectSharePoint(pending).then(r => { if (!r.ok) console.error('[arch-review] Einrichtungs-Link Ordner:', r.message); });
+      }
+      return;
+    }
+    if (autoRef.current) return;
+    const sp = loadSharePoint();
+    if (sp) {
+      if (auth.status === 'signedIn' || (auth.status === 'disabled' && graphBase())) {
+        autoRef.current = true;
+        activateSharePoint(sp).catch(e => console.error('[arch-review] SharePoint reconnect:', e));
+      }
+      return;
+    }
+    autoRef.current = true;
     (async () => {
       try {
         const handle = await loadStoredHandle();
         if (!handle) return;
         const perm = await handle.queryPermission({ mode: 'readwrite' });
         if (perm === 'granted') {
-          await activateDir(handle);
+          await activate(new LocalBackend(handle), { kind: 'local', name: handle.name || 'Ordner' });
         } else {
           savedHandleRef.current = handle;
           setSavedHandleName(handle.name || 'gemerkter Ordner');
@@ -238,78 +347,49 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         // IndexedDB nicht verfügbar oder Handle ungültig
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [auth.status, activate, activateSharePoint, connectSharePoint]);
 
-  const reconnectDirectory = useCallback(async () => {
-    const handle = savedHandleRef.current;
-    if (!handle) return;
-    try {
-      const perm = await handle.requestPermission({ mode: 'readwrite' });
-      if (perm === 'granted') await activateDir(handle);
-    } catch (e) {
-      console.error('[arch-review] reconnectDirectory:', e);
-    }
-  }, [activateDir]);
-
+  // ── Projekte ──────────────────────────────────────────────────────────────
   const loadProject = useCallback(async (slug: string) => {
-    if (!dirRef.current) return null;
+    const be = backendRef.current;
+    if (!be) return null;
     try {
-      const pd = await dirRef.current.getDirectoryHandle('projects');
-      const fh = await pd.getFileHandle(`${slug}.json`);
-      return await readProjectFile(fh);
+      const read = await be.read(`projects/${slug}.json`);
+      return read ? parseProject(read.text, read.version) : null;
     } catch {
       return null;
     }
   }, []);
 
-  // Schreibt projects/<slug>.json. Mit expectedLastModified wird vor dem
-  // Schreiben geprüft, ob die Datei inzwischen extern geändert wurde (Konflikt).
+  // Schreibt projects/<slug>.json. Mit expectedVersion wird vor dem Schreiben
+  // geprüft, ob die Datei inzwischen extern geändert wurde (Konflikt).
   // null = bewusst überschreiben.
-  const saveProject = useCallback(async (data: Project, expectedLastModified: number | null): Promise<SaveResult> => {
-    if (!dirRef.current) return { status: 'error', message: 'Kein Ordner gewählt.' };
+  const saveProject = useCallback(async (data: Project, expectedVersion: string | null): Promise<SaveResult> => {
+    const be = backendRef.current;
+    if (!be) return { status: 'error', message: 'Kein Ordner gewählt.' };
     let json: string;
     try {
       json = JSON.stringify(data, null, 2); // erst serialisieren, dann schreiben
     } catch {
       return { status: 'error', message: 'Projektdaten konnten nicht serialisiert werden.' };
     }
-    try {
-      const pd = await dirRef.current.getDirectoryHandle('projects', { create: true });
-      const fh = await pd.getFileHandle(`${data.slug}.json`, { create: true });
-      if (expectedLastModified != null) {
-        const cur = await fh.getFile();
-        if (cur.lastModified > expectedLastModified) {
-          return { status: 'conflict', currentLastModified: cur.lastModified };
-        }
-      }
-      const w = await fh.createWritable();
-      await w.write(json);
-      await w.close();
-      const f = await fh.getFile();
-      setProjects(prev => {
-        const rest = prev.filter(p => p.slug !== data.slug);
-        const next = [...rest, { slug: data.slug, data, lastModified: f.lastModified }];
-        next.sort((a, b) => (a.data.name || a.slug).localeCompare(b.data.name || b.slug, 'de'));
-        return next;
-      });
-      return { status: 'saved', lastModified: f.lastModified };
-    } catch (e) {
-      console.error('[arch-review] saveProject:', e);
-      return { status: 'error', message: 'Schreiben fehlgeschlagen — die Datei wurde NICHT gespeichert.' };
+    const w = await be.write(`projects/${data.slug}.json`, json, expectedVersion != null ? { ifMatch: expectedVersion } : {});
+    if (!w.ok) {
+      if (w.reason === 'conflict') return { status: 'conflict', currentVersion: w.currentVersion ?? '' };
+      return { status: 'error', message: w.reason === 'forbidden' ? w.message : 'Schreiben fehlgeschlagen — die Datei wurde NICHT gespeichert.' };
     }
+    setProjects(prev => {
+      const rest = prev.filter(p => p.slug !== data.slug);
+      const next = [...rest, { slug: data.slug, data, version: w.version }];
+      next.sort((a, b) => (a.data.name || a.slug).localeCompare(b.data.name || b.slug, 'de'));
+      return next;
+    });
+    return { status: 'saved', version: w.version };
   }, []);
 
   const createProject = useCallback(async (name: string, slug: string, ms10?: Ms10Data) => {
-    if (!dirRef.current) return { ok: false as const, message: 'Kein Ordner gewählt.' };
-    try {
-      const pd = await dirRef.current.getDirectoryHandle('projects', { create: true });
-      let exists = true;
-      try { await pd.getFileHandle(`${slug}.json`); } catch { exists = false; }
-      if (exists) return { ok: false as const, message: 'Ein Projekt mit diesem Slug existiert bereits.' };
-    } catch {
-      return { ok: false as const, message: 'projects-Ordner konnte nicht angelegt werden.' };
-    }
+    const be = backendRef.current;
+    if (!be) return { ok: false as const, message: 'Kein Ordner gewählt.' };
     let project: Project = {
       version: 1,
       slug,
@@ -324,32 +404,34 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       reviews: {},
     };
     if (ms10) project = applyMs10(project, ms10);
-    const res = await saveProject(project, null);
-    if (res.status === 'saved') return { ok: true as const };
-    return { ok: false as const, message: res.status === 'error' ? res.message : 'Speichern fehlgeschlagen.' };
-  }, [saveProject]);
+    let json: string;
+    try { json = JSON.stringify(project, null, 2); } catch { return { ok: false as const, message: 'Projektdaten konnten nicht serialisiert werden.' }; }
+    try { await be.ensureDir('projects'); } catch { /* write meldet es */ }
+    const w = await be.write(`projects/${slug}.json`, json, { createOnly: true });
+    if (!w.ok) {
+      if (w.reason === 'exists') return { ok: false as const, message: 'Ein Projekt mit diesem Slug existiert bereits.' };
+      return { ok: false as const, message: w.message };
+    }
+    setProjects(prev => [...prev, { slug, data: project, version: w.version }]
+      .sort((a, b) => (a.data.name || a.slug).localeCompare(b.data.name || b.slug, 'de')));
+    return { ok: true as const };
+  }, []);
 
   // Admin-Modus: Stammdaten (Themen/Fragen) zurück in model.json schreiben
   const saveModel = useCallback(async (m: Model): Promise<{ ok: true } | { ok: false; message: string }> => {
-    if (!dirRef.current) return { ok: false, message: 'Kein Ordner gewählt.' };
+    const be = backendRef.current;
+    if (!be) return { ok: false, message: 'Kein Ordner gewählt.' };
     let json: string;
     try {
       json = JSON.stringify(m, null, 2);
     } catch {
       return { ok: false, message: 'Stammdaten konnten nicht serialisiert werden.' };
     }
-    try {
-      const fh = await dirRef.current.getFileHandle('model.json', { create: true });
-      const w = await fh.createWritable();
-      await w.write(json);
-      await w.close();
-      setModel(m);
-      modelRef.current = m;
-      return { ok: true };
-    } catch (e) {
-      console.error('[arch-review] saveModel:', e);
-      return { ok: false, message: 'model.json konnte nicht geschrieben werden.' };
-    }
+    const w = await be.write('model.json', json);
+    if (!w.ok) return { ok: false, message: w.reason === 'forbidden' || w.reason === 'error' ? `model.json konnte nicht geschrieben werden: ${w.message}` : 'model.json konnte nicht geschrieben werden.' };
+    setModel(m);
+    modelRef.current = m;
+    return { ok: true };
   }, []);
 
   const toggleTheme = () => setIsDark(d => !d);
@@ -361,7 +443,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <Ctx.Provider value={{
-      isDark, toggleTheme, dirHandle, pickDirectory, savedHandleName, reconnectDirectory, model, modelError, saveModel,
+      isDark, toggleTheme, storage,
+      pickDirectory, savedHandleName, reconnectDirectory,
+      connectSharePoint, savedSharePoint, reconnectSharePoint, forgetSharePoint, disconnect,
+      model, modelError, saveModel,
       projects, refreshProjects, loadProject, saveProject, createProject,
     }}>
       {children}

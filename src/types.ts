@@ -45,9 +45,25 @@ export interface Question {
   [key: string]: unknown;
 }
 
+// Anmeldung über Microsoft Entra ID — im Admin gepflegt, gilt für alle
+// Benutzer des geteilten Ordners (Client-/Tenant-ID sind keine Geheimnisse)
+// Rollen = Werte der Entra-App-Rollen. Höchste passende Rolle gewinnt:
+// Admin (alles) > Reviewer (arbeiten, kein Admin-Modus) > Viewer (nur lesen,
+// PDFs exportieren). Ohne konfigurierte Rollen gilt jede angemeldete Person
+// als Admin; ist eine Reviewer-Rolle konfiguriert, brauchen alle eine Rolle.
+export interface AuthSettings {
+  enabled: boolean;
+  tenantId: string;
+  clientId: string;
+  adminRole?: string;
+  reviewerRole?: string;
+  viewerRole?: string;
+}
+
 export interface Model {
   version: number;
   company?: string; // Firmenname — wird als Quelle bei eigenen Fragen angezeigt
+  auth?: AuthSettings;
   classifications: Classification[];
   classificationInfoMd?: string; // Erklärung der Klassifikation (Markdown)
   themes: Theme[];

@@ -1,9 +1,10 @@
 import { useRef, useState } from 'react';
 import { Plus, RefreshCw, ChevronRight, FileUp } from 'lucide-react';
 import { useStore } from '../store';
-import { deriveStatus, STATUS_META } from '../status';
+import { deriveStatus, openMilestone, STATUS_META } from '../status';
 import { extractPdfText, hasMs10Data, Ms10Data, parseMs10Text } from '../ms10';
 import { fmtTimestamp, slugify, SLUG_RE } from '../util';
+import { usePermissions } from '../auth';
 
 function StatusBadge({ status, isDark }: { status: keyof typeof STATUS_META; isDark: boolean }) {
   const meta = STATUS_META[status];
@@ -16,6 +17,7 @@ function StatusBadge({ status, isDark }: { status: keyof typeof STATUS_META; isD
 
 export default function ProjectsView({ onOpen }: { onOpen: (slug: string) => void }) {
   const { isDark, model, projects, refreshProjects, createProject } = useStore();
+  const { canEdit } = usePermissions();
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
@@ -90,7 +92,7 @@ export default function ProjectsView({ onOpen }: { onOpen: (slug: string) => voi
             className={`p-1.5 rounded transition-colors ${isDark ? 'text-white/25 hover:text-white/70' : 'text-black/25 hover:text-black/70'}`}>
             <RefreshCw size={12} />
           </button>
-          {!adding && (
+          {!adding && canEdit && (
             <>
               <button onClick={() => fileRef.current?.click()}
                 title="Neues Projekt aus einem MS10-Antrags-PDF vorbefüllen"
@@ -154,6 +156,7 @@ export default function ProjectsView({ onOpen }: { onOpen: (slug: string) => voi
       <div className="space-y-3">
         {projects.map(p => {
           const status = deriveStatus(p.data);
+          const ms = status === 'open' ? openMilestone(p.data) : null;
           return (
             <button key={p.slug} onClick={() => onOpen(p.slug)}
               className={`w-full text-left rounded-xl border transition-colors ${border} ${isDark ? 'bg-white/2 hover:bg-white/5' : 'bg-black/2 hover:bg-black/5'}`}>
@@ -162,6 +165,11 @@ export default function ProjectsView({ onOpen }: { onOpen: (slug: string) => voi
                   <div className="flex items-center gap-3">
                     <span className={`text-sm font-semibold truncate ${isDark ? 'text-white' : 'text-black'}`}>{p.data.name || p.slug}</span>
                     <StatusBadge status={status} isDark={isDark} />
+                    {ms && (
+                      <span className={`inline-block text-[10px] px-2 py-0.5 rounded-full border whitespace-nowrap ${isDark ? 'bg-amber-500/15 text-amber-300 border-amber-500/30' : 'bg-amber-50 text-amber-700 border-amber-300'}`}>
+                        {ms} offen
+                      </span>
+                    )}
                   </div>
                   <div className={`text-[11px] mt-1 ${textMuted}`}>
                     <span className="mr-3">{p.slug}</span>

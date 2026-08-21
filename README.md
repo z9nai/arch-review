@@ -1,10 +1,12 @@
 # Z9nAI Arch Review
 
 Client-App für die Architekturprüfung (OnePager-Ersatz). Reine Client-Applikation
-ohne Backend — die Daten liegen als JSON-Dateien in einem geteilten Ordner
-(z. B. Google Drive), den die App über die File System Access API wählt
-(Chrome/Edge). Die App liest `model.json` (Stammdaten, nur lesend) und
-schreibt ausschliesslich `projects/*.json`.
+ohne Backend — die Daten liegen als JSON-Dateien in einem geteilten Ordner:
+entweder in **SharePoint** (direkt über Microsoft Graph mit der
+Entra-Anmeldung, jeder Browser) oder in einem **lokalen Ordner** (File System
+Access API, Chrome/Edge; auch OneDrive-/Drive-Sync-Ordner). Die App liest
+`model.json` (Stammdaten) und schreibt `projects/*.json`; Admins schreiben
+auch `model.json`.
 
 Gleiche Technologie und gleiches Design wie
 [z9nai-hours](https://github.com/z9nai/z9nai-hours):
@@ -18,7 +20,40 @@ npm run dev        # http://localhost:3001
 npm run build      # tsc --noEmit && vite build
 ```
 
+## Anmeldung (Microsoft Entra ID)
+
+Optional meldet die App Benutzer über **Microsoft Entra ID** an (MSAL im
+Browser, Authorization Code Flow + PKCE, kein eigener Server). Konfiguriert
+wird im **Admin → Anmeldung** (Tenant-ID, Client-ID, Rollen, aktiv);
+die Einstellung liegt als `auth` in der `model.json` und gilt für alle
+Benutzer des Ordners. Für den SharePoint-Modus müssen Tenant-/Client-ID
+schon vor dem Ordner bekannt sein — sie werden einmalig pro Browser
+hinterlegt: per **Einrichtungs-Link** (`?tenant=…&client=…&folder=…`,
+verbindet nach dem Login auch gleich den SharePoint-Ordner; Admin →
+Anmeldung → Für Benutzer) oder manuell im Einrichtungsdialog. Nichts davon
+liegt im Repo oder Deployment. Ist sie aktiv, erscheint ein Login-Gate (nach dem
+Laden der model.json bzw. — dank lokal gemerkter Konfiguration — direkt
+beim Start); die angemeldete Person steht oben rechts
+(Abmelden daneben), «Prüfer/in» wird bei der Freigabe vorbelegt. Drei Zugriffsstufen über
+Entra-App-Rollen: **Admin** (alles), **Reviewer** (Reviews bearbeiten, kein
+Admin-Modus), **Viewer** (alles nur lesen, PDFs exportieren); die höchste
+passende Rolle gewinnt. Wichtig: Die Anmeldung ist ein Zugangs-Gate für die
+Oberfläche — die Daten schützt die Berechtigung des geteilten Ordners.
+Einrichtung Schritt für Schritt: [docs/ENTRA-SETUP.md](docs/ENTRA-SETUP.md).
+Entwicklung ohne Login: `?noauth` (nur Dev-Server), Stufen simulieren mit `&as=viewer` / `&as=reviewer`.
+
 ## Datenablage im geteilten Ordner
+
+Beim Start wählt man **SharePoint-Ordner verbinden** (Link zum Ordner
+einfügen; Anmeldung mit dem Microsoft-Konto; SharePoint setzt die
+Berechtigungen serverseitig durch — Viewer mit «Lesen» können nichts
+schreiben) oder **Lokalen Ordner wählen**. Beides wird gemerkt und beim
+nächsten Start automatisch verbunden. Technisch steckt dahinter eine
+Backend-Schnittstelle (`src/backend.ts`: `LocalBackend`, `src/graph.ts`:
+`GraphBackend`) mit Versionen für die Konflikterkennung (lastModified bzw.
+ETag; Graph: `If-Match` → 412, Anlegen mit `conflictBehavior=fail`).
+Einrichtung: [docs/SHAREPOINT-SETUP.md](docs/SHAREPOINT-SETUP.md).
+Entwicklung: `?graph=http://localhost:3999/v1.0` leitet Graph auf einen Mock um.
 
 ```
 <geteilter Ordner>/
@@ -66,7 +101,10 @@ Zum Ausprobieren kann `sample-data/` als geteilter Ordner gewählt werden
   gerendertes Markdown (`infoMd`; für Datenhaltung der Inhalt des Factsheets
   Datenhaltung, ehemals «Leitlinie Datenhaltungsvorgaben»).
 - **Projektstatus** (abgeleitet, nicht gespeichert): nicht
-  architekturrelevant / offen / abgeschlossen (M40 freigegeben).
+  architekturrelevant / offen / abgeschlossen (M40 freigegeben). Offene
+  Projekte zeigen in der Projektliste zusätzlich ein Tag mit dem
+  Meilenstein, an dem sie gerade stehen (erster nicht freigegebener,
+  z. B. «M20 offen»).
 - **Autosave**: Änderungen werden ca. 1 Sekunde nach der letzten Eingabe
   automatisch gespeichert (Statusleiste unten, analog Admin-Modus:
   «Automatisch gespeichert ✓ HH:MM» und «schreibt projects/‹slug›.json»;

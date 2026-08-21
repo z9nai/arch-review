@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ChevronDown, ChevronUp, Minus, Plus, Save, Trash2 } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ChevronUp, Copy, ExternalLink, Minus, Plus, Save, ShieldCheck, Trash2 } from 'lucide-react';
 import { useStore } from '../store';
 import { MILESTONES, MILESTONE_TITLES, Model, Question } from '../types';
 import { DEFAULT_MODEL } from '../defaultModel';
 import { CATALOG_QUESTIONS } from '../catalog';
 import { slugify } from '../util';
+import { GUID_RE, LEVEL_LABELS, setupLink, useAuth } from '../auth';
 
 function genId(): string {
   return 'q' + Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-4);
@@ -18,12 +19,14 @@ function themeLetter(index: number): string {
 // (Text, Meilenstein- und Themen-Zuordnung, Nummer automatisch z. B. M10F1).
 // Schreibt in model.json im geteilten Ordner (Autosave).
 export default function AdminView({ onBack }: { onBack: () => void }) {
-  const { isDark, model, saveModel } = useStore();
+  const { isDark, model, saveModel, storage } = useStore();
   const [draft, setDraft] = useState<Model | null>(null);
   const [baseline, setBaseline] = useState('');
   const [openInfo, setOpenInfo] = useState<Set<string>>(new Set());
   const [newTitle, setNewTitle] = useState('');
   const [newClassLabel, setNewClassLabel] = useState('');
+  const { user: authUser, status: authStatus, ids: knownIds } = useAuth();
+  const [setupCopied, setSetupCopied] = useState(false);
   const [pickQuery, setPickQuery] = useState<Record<string, string>>({});
   const [pickOpen, setPickOpen] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -83,7 +86,20 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
     }
     setDraft(mat);
     setBaseline(JSON.stringify(mat));
-  }, [model, draft]);
+    // Kennt dieser Browser die Anmelde-IDs, die model.json aber nicht (z. B.
+    // Datei vor der Vorbefüllung angelegt): übernehmen → Autosave schreibt sie
+    if (knownIds && !(GUID_RE.test(mat.auth?.tenantId ?? '') && GUID_RE.test(mat.auth?.clientId ?? ''))) {
+      setDraft({
+        ...mat,
+        auth: {
+          enabled: mat.auth?.enabled === true,
+          adminRole: 'ArchReview.Admin', reviewerRole: 'ArchReview.Reviewer', viewerRole: 'ArchReview.Viewer',
+          ...(mat.auth ?? {}),
+          tenantId: knownIds.tenantId, clientId: knownIds.clientId,
+        },
+      });
+    }
+  }, [model, draft, knownIds]);
 
   const dirty = draft != null && JSON.stringify(draft) !== baseline;
 
@@ -240,6 +256,123 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
           className={`w-64 text-xs px-3 py-1.5 rounded border outline-none transition-colors ${inputCls}`} />
         <span className={`text-[10px] ${textMuted}`}>wird als «Quelle» bei eigenen Fragen angezeigt</span>
       </div>
+
+      {/* Anmeldung über Microsoft Entra ID */}
+      {(() => {
+        const a = draft.auth ?? { enabled: false, tenantId: '', clientId: '', adminRole: 'ArchReview.Admin', reviewerRole: 'ArchReview.Reviewer', viewerRole: 'ArchReview.Viewer' };
+        const setAuth = (patch: Partial<typeof a>) =>
+          setDraft(d => d ? { ...d, auth: { ...a, ...patch } } : d);
+        const tenantOk = GUID_RE.test(a.tenantId);
+        const clientOk = GUID_RE.test(a.clientId);
+        const canEnable = tenantOk && clientOk;
+        const idCls = (ok: boolean, value: string) =>
+          `w-full text-[11px] px-2 py-1.5 rounded border outline-none font-mono transition-colors ${inputCls} ${
+            value && !ok ? (isDark ? 'border-rose-500/40' : 'border-rose-300') : ''}`;
+        const appUrl = `${window.location.origin}${import.meta.env.BASE_URL}`;
+        return (
+          <>
+            <h2 className={`text-sm font-semibold uppercase tracking-widest mb-4 ${isDark ? 'text-white/50' : 'text-black/50'}`}>
+              Anmeldung (Microsoft Entra ID)
+            </h2>
+            <div className={`${cardCls} mb-8 px-4 py-3 space-y-3`}>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className={`block text-[10px] uppercase tracking-wider mb-1 ${labelCls}`}>Verzeichnis-ID (Tenant)</label>
+                  <input value={a.tenantId} placeholder="00000000-0000-0000-0000-000000000000"
+                    onChange={e => setAuth({ tenantId: e.target.value.trim(), ...(a.enabled && !GUID_RE.test(e.target.value.trim()) ? { enabled: false } : {}) })}
+                    className={idCls(tenantOk, a.tenantId)} />
+                </div>
+                <div>
+                  <label className={`block text-[10px] uppercase tracking-wider mb-1 ${labelCls}`}>Anwendungs-ID (Client)</label>
+                  <input value={a.clientId} placeholder="00000000-0000-0000-0000-000000000000"
+                    onChange={e => setAuth({ clientId: e.target.value.trim(), ...(a.enabled && !GUID_RE.test(e.target.value.trim()) ? { enabled: false } : {}) })}
+                    className={idCls(clientOk, a.clientId)} />
+                </div>
+                {([
+                  ['adminRole', 'Admin-Rolle', 'ArchReview.Admin', 'alles inkl. Admin-Modus'],
+                  ['reviewerRole', 'Reviewer-Rolle', 'ArchReview.Reviewer', 'Reviews bearbeiten, kein Admin-Modus'],
+                  ['viewerRole', 'Viewer-Rolle', 'ArchReview.Viewer', 'nur lesen, PDFs exportieren'],
+                ] as const).map(([key, label, ph, hint]) => (
+                  <div key={key}>
+                    <label className={`block text-[10px] uppercase tracking-wider mb-1 ${labelCls}`}>{label} <span className="normal-case tracking-normal">— {hint}</span></label>
+                    <input value={a[key] ?? ''} placeholder={ph}
+                      onChange={e => setAuth({ [key]: e.target.value.trim() || undefined })}
+                      className={`w-full text-[11px] px-2 py-1.5 rounded border outline-none font-mono transition-colors ${inputCls}`} />
+                  </div>
+                ))}
+              </div>
+              {/* Status + Schalter — unmissverständlich */}
+              <div className={`flex items-center gap-3 flex-wrap rounded-lg border px-3 py-2 ${
+                a.enabled
+                  ? (isDark ? 'border-emerald-500/30 bg-emerald-500/10' : 'border-emerald-300 bg-emerald-50')
+                  : (isDark ? 'border-amber-500/30 bg-amber-500/10' : 'border-amber-300 bg-amber-50')}`}>
+                <span className={`text-[10px] font-bold uppercase tracking-wider ${
+                  a.enabled ? (isDark ? 'text-emerald-300' : 'text-emerald-700') : (isDark ? 'text-amber-300' : 'text-amber-700')}`}>
+                  Anmeldung {a.enabled ? 'aktiv' : 'aus'}
+                </span>
+                <label className={`flex items-center gap-2 text-xs ${canEnable ? 'cursor-pointer' : 'opacity-60'} ${isDark ? 'text-white/80' : 'text-black/80'}`}>
+                  <input type="checkbox" checked={a.enabled} disabled={!canEnable}
+                    onChange={e => setAuth({ enabled: e.target.checked })}
+                    className="accent-blue-500 w-3.5 h-3.5" />
+                  {a.enabled ? 'Login wird für alle Benutzer dieses Ordners verlangt' : 'Anmeldung einschalten'}
+                </label>
+                {!canEnable && (
+                  <span className={`text-[10px] ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>
+                    Einschalten erst möglich, wenn {!tenantOk && !clientOk ? 'beide IDs' : !tenantOk ? 'die Verzeichnis-ID' : 'die Anwendungs-ID'} als
+                    gültige GUID erkannt {(!tenantOk && !clientOk) ? 'sind' : 'ist'} (Format 8-4-4-4-12, nur die ID ohne Beschriftung).
+                  </span>
+                )}
+              </div>
+              {/* Verteilung an die Benutzer: Einrichtungs-Link / Konfigurationsdatei */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={`text-[10px] uppercase tracking-wider ${labelCls}`}>Für Benutzer</span>
+                <button disabled={!canEnable}
+                  onClick={async () => {
+                    const link = setupLink(a.tenantId, a.clientId, storage?.kind === 'sharepoint' ? storage.webUrl : undefined);
+                    try { await navigator.clipboard.writeText(link); setSetupCopied(true); setTimeout(() => setSetupCopied(false), 2000); }
+                    catch { window.prompt('Einrichtungs-Link kopieren:', link); }
+                  }}
+                  title="Link, der Anmeldung und SharePoint-Ordner im Browser des Empfängers einmalig einrichtet"
+                  className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors disabled:opacity-40 ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
+                  <Copy size={11} /> {setupCopied ? '✓ Kopiert' : 'Einrichtungs-Link kopieren'}
+                </button>
+                <span className={`text-[10px] ${textMuted}`}>
+                  {storage?.kind === 'sharepoint'
+                    ? <>Enthält Anmeldung und den SharePoint-Ordner <span className="font-mono">{storage.name}</span> — Empfänger öffnen den Link, melden sich an, fertig.</>
+                    : 'Enthält die Anmeldung; mit verbundenem SharePoint-Ordner zusätzlich den Ordner.'}
+                </span>
+              </div>
+              <div className={`text-[10px] leading-relaxed space-y-1 ${textMuted}`}>
+                <p>
+                  Umleitungs-URIs für die App-Registrierung (Plattform <span className="font-semibold">SPA</span>):
+                  {' '}<span className="font-mono">{appUrl}</span>
+                  {appUrl !== 'https://z9nai.github.io/arch-review/' && <> und <span className="font-mono">https://z9nai.github.io/arch-review/</span></>}
+                </p>
+                <p>
+                  Rollen sind die <span className="font-semibold">Werte</span> der App-Rollen in Entra; die höchste passende gewinnt.
+                  Alle leer = jede angemeldete Person ist Admin. Ist eine Reviewer-Rolle gesetzt, erhalten Personen ohne
+                  passende Rolle keinen Zugriff.
+                </p>
+                <p>
+                  Achtung: Mit falschen IDs sperrt man sich aus — dann <span className="font-mono">auth.enabled</span> in der
+                  model.json von Hand auf <span className="font-mono">false</span> setzen.
+                  {authStatus === 'signedIn' && authUser && (
+                    <> Angemeldet als <span className="font-semibold">{authUser.name}</span> · Stufe:
+                      {' '}<span className="font-semibold">{LEVEL_LABELS[authUser.level]}</span>
+                      {authUser.roles.length ? <> · Token-Rollen: <span className="font-mono">{authUser.roles.join(', ')}</span></> : ' · keine App-Rollen im Token'}
+                      {authUser.isAdmin && a.adminRole && <ShieldCheck size={10} className="inline ml-1" />}
+                    </>
+                  )}
+                </p>
+                <a href="https://github.com/z9nai/arch-review/blob/main/docs/ENTRA-SETUP.md" target="_blank" rel="noopener noreferrer"
+                  className={`inline-flex items-center gap-1 underline-offset-2 hover:underline ${isDark ? 'text-white/50' : 'text-black/50'}`}>
+                  <ExternalLink size={10} /> Anleitung: App-Registrierung in Entra Schritt für Schritt
+                </a>
+              </div>
+            </div>
+          </>
+        );
+      })()}
 
       {/* Klassifikation */}
       <h2 className={`text-sm font-semibold uppercase tracking-widest mb-4 ${isDark ? 'text-white/50' : 'text-black/50'}`}>

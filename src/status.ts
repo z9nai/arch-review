@@ -21,6 +21,16 @@ export function getMilestoneReview(project: Project, ms: string): Review {
   return { ...emptyReview(), milestone: ms, ...(stored ?? {}) };
 }
 
+// Erster nicht freigegebener Meilenstein — das ist der, an dem das Projekt
+// gerade steht (null = nichts offen: nicht relevant oder abgeschlossen).
+export function openMilestone(project: Project): string | null {
+  for (const ms of MILESTONES) {
+    if (getMilestoneReview(project, ms).approved !== true) return ms;
+    if (ms === MILESTONES[0] && project.architectureRelevant === false) return null;
+  }
+  return null;
+}
+
 // Projektstatus (abgeleitet, nicht gespeichert)
 export function deriveStatus(project: Project): ProjectStatus {
   if (project.architectureRelevant === false) return 'notRelevant';

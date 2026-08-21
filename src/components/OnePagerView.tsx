@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ClipboardPaste, Copy, FileDown, FileUp, Info, Mail, Minus, Plus, Save, X } from 'lucide-react';
+import { ArrowLeft, ClipboardPaste, Copy, Eye, FileDown, FileUp, Info, Mail, Minus, Plus, Save, X } from 'lucide-react';
 import { marked } from 'marked';
 import { useStore } from '../store';
+import { useAuth, usePermissions } from '../auth';
 import { MILESTONES, MILESTONE_TITLES, Project, Question, QuestionAnswer, Review, Theme } from '../types';
 import { deriveStatus, emptyReview, getMilestoneReview, getThemeReview, STATUS_META } from '../status';
 import { applyMs10, extractPdfText, hasMs10Data, Ms10Data, MS10_FIELD_LABELS, parseMs10Text } from '../ms10';
@@ -26,9 +27,12 @@ export function themeLetter(index: number): string {
 
 export default function OnePagerView({ slug, onBack }: { slug: string; onBack: () => void }) {
   const { isDark, model, loadProject, saveProject } = useStore();
+  const { user: authUser } = useAuth();
+  const { canEdit } = usePermissions();
+  const ro = !canEdit; // Viewer: alles nur lesen, keine Speicherung
   const [proj, setProj] = useState<Project | null>(null);
   const [baseline, setBaseline] = useState('');
-  const [lastModified, setLastModified] = useState<number | null>(null);
+  const [version, setVersion] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [conflict, setConflict] = useState(false);
   const [saveError, setSaveError] = useState('');
@@ -66,7 +70,7 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
     // schreibt der Autosave die migrierte Fassung
     setProj(syncRef.current(res.data));
     setBaseline(JSON.stringify(res.data));
-    setLastModified(res.lastModified);
+    setVersion(res.version);
     setNotFound(false);
     setConflict(false);
   }, [loadProject, slug]);
@@ -76,14 +80,14 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
   const dirty = proj != null && JSON.stringify(proj) !== baseline;
 
   useEffect(() => {
-    if (!dirty) return;
+    if (!dirty || ro) return;
     const h = (e: BeforeUnloadEvent) => { e.preventDefault(); };
     window.addEventListener('beforeunload', h);
     return () => window.removeEventListener('beforeunload', h);
   }, [dirty]);
 
   const back = async () => {
-    if (dirty) {
+    if (dirty && !ro) {
       const res = await saveRef.current();
       if (res !== 'saved') return;
     }
@@ -190,17 +194,18 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
 
   // ── Speichern (Autosave) ──────────────────────────────────────────────────
   const save = async (force = false): Promise<'saved' | 'conflict' | 'error' | 'skipped'> => {
+    if (ro) return 'skipped';
     if (!proj || savingRef.current) return 'skipped';
     savingRef.current = true;
     setSaving(true);
     setSaveError('');
     try {
       const data: Project = { ...proj, updatedAt: nowIsoWithTimezone() };
-      const res = await saveProject(data, force ? null : lastModified);
+      const res = await saveProject(data, force ? null : version);
       if (res.status === 'saved') {
         setProj(data);
         setBaseline(JSON.stringify(data));
-        setLastModified(res.lastModified);
+        setVersion(res.version);
         setConflict(false);
         const d = new Date();
         setLastSavedAt(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`);
@@ -218,7 +223,7 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
   saveRef.current = save;
 
   useEffect(() => {
-    if (!dirty || conflict || saveError || saving) return;
+    if (!dirty || ro || conflict || saveError || saving) return;
     const t = setTimeout(() => { saveRef.current(); }, 1200);
     return () => clearTimeout(t);
   }, [proj, dirty, conflict, saveError, saving]);
@@ -270,7 +275,8 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
   };
 
   // Eine Prüffrage mit automatischer Nummer, Ja/Nein-Checkboxen und Bemerkungen
-  const questionBlock = (themeId: string, question: Question, number: string, disabled: boolean) => {
+  const questionBlock = (themeId: string, question: Question, number: string, disabledIn: boolean) => {
+    const disabled = disabledIn || ro;
     const r = getThemeReview(proj, themeId);
     const answer: QuestionAnswer = { value: null, remarks: '', ...r.answers?.[question.id] };
     const remarksKey = `${themeId}:${question.id}`;
@@ -768,17 +774,23 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
           </div>
           <div className="flex items-center gap-4 flex-wrap">
             <label className={`flex items-center gap-1.5 text-xs cursor-pointer ${isDark ? 'text-white/70' : 'text-black/70'}`}>
-              <input type="checkbox" checked={opts.review.approved === true}
-                onChange={e => opts.update({ reviewed: e.target.checked, approved: e.target.checked })}
+              <input disabled={ro} type="checkbox" checked={opts.review.approved === true}
+                onChange={e => opts.update({
+                  reviewed: e.target.checked,
+                  approved: e.target.checked,
+                  // Prüfer/in mit der angemeldeten Person vorbelegen
+                  ...(e.target.checked && !String(opts.review.approvedBy ?? '').trim() && authUser?.name
+                    ? { approvedBy: authUser.name } : {}),
+                })}
                 className="accent-blue-500 cursor-pointer" />
               Geprüft und freigegeben
             </label>
-            <input value={String(opts.review.approvedBy ?? '')} placeholder="Prüfer/in"
+            <input disabled={ro} value={String(opts.review.approvedBy ?? '')} placeholder="Prüfer/in"
               onChange={e => opts.update({ approvedBy: e.target.value })}
               className={`text-[11px] px-2 py-1.5 rounded border outline-none transition-colors ${inputCls}`} />
           </div>
         </div>
-        <textarea value={opts.review.notes} required rows={3}
+        <textarea disabled={ro} value={opts.review.notes} required rows={3}
           onChange={e => opts.update({ notes: e.target.value })}
           onInput={e => {
             const t = e.currentTarget;
@@ -818,9 +830,9 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
               className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors disabled:opacity-40 ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
               <FileDown size={11} /> Review-PDF
             </button>
-            <button onClick={() => fileRef.current?.click()}
+            <button onClick={() => fileRef.current?.click()} disabled={ro}
               title="Felder aus einem MS10-Antrags-PDF übernehmen"
-              className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
+              className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors disabled:opacity-40 ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
               <FileUp size={11} /> MS10-Import
             </button>
             <input ref={fileRef} type="file" accept="application/pdf,.pdf" className="hidden"
@@ -835,7 +847,7 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
         {/* Beschrieb über die gesamte Breite */}
         <div className="mb-3">
           <label className={`block text-[10px] uppercase tracking-wider mb-1 ${labelCls}`}>Beschrieb</label>
-          <textarea value={proj.description ?? ''} rows={3}
+          <textarea disabled={ro} value={proj.description ?? ''} rows={3}
             onChange={e => setField('description', e.target.value)}
             placeholder="Ausgangslage / Motivation — z. B. per MS10-Import übernehmen"
             className={`w-full text-xs px-3 py-2 rounded border outline-none resize-y transition-colors ${inputCls}`} />
@@ -843,12 +855,12 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
             <label className={`block text-[10px] uppercase tracking-wider mb-1 ${labelCls}`}>Verantwortlich Projekt</label>
-            <input value={proj.responsibleProject} onChange={e => setField('responsibleProject', e.target.value)}
+            <input disabled={ro} value={proj.responsibleProject} onChange={e => setField('responsibleProject', e.target.value)}
               className={`w-full text-xs px-3 py-2 rounded border outline-none transition-colors ${inputCls}`} />
           </div>
           <div>
             <label className={`block text-[10px] uppercase tracking-wider mb-1 ${labelCls}`}>Verantwortlich Architektur</label>
-            <input value={proj.responsibleArchitecture} onChange={e => setField('responsibleArchitecture', e.target.value)}
+            <input disabled={ro} value={proj.responsibleArchitecture} onChange={e => setField('responsibleArchitecture', e.target.value)}
               className={`w-full text-xs px-3 py-2 rounded border outline-none transition-colors ${inputCls}`} />
           </div>
         </div>
@@ -866,9 +878,9 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
               className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
               <Mail size={11} /> Offene Fragen
             </button>
-            <button onClick={() => { setAnswersMs(FOUNDATION_MS); setAnswersText(''); setAnswersPdfItems(null); }}
+            <button onClick={() => { setAnswersMs(FOUNDATION_MS); setAnswersText(''); setAnswersPdfItems(null); }} disabled={ro}
               title="Ausgefüllten E-Mail-Text einlesen und Antworten übernehmen"
-              className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
+              className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors disabled:opacity-40 ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
               <ClipboardPaste size={11} /> Antworten importieren
             </button>
           </div>
@@ -892,7 +904,7 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
                 </span>
               ) : (
                 <select value={proj.classification ?? ''}
-                  disabled={proj.architectureRelevant !== true}
+                  disabled={ro || proj.architectureRelevant !== true}
                   onChange={e => {
                     const id = e.target.value || null;
                     setProj(p => (p ? syncDerived({ ...p, classification: id }) : p));
@@ -938,9 +950,9 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
                     className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
                     <Mail size={11} /> Offene Fragen
                   </button>
-                  <button onClick={() => { setAnswersMs(ms); setAnswersText(''); setAnswersPdfItems(null); }}
+                  <button onClick={() => { setAnswersMs(ms); setAnswersText(''); setAnswersPdfItems(null); }} disabled={ro}
                     title="Ausgefüllten E-Mail-Text einlesen und Antworten übernehmen"
-                    className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
+                    className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors disabled:opacity-40 ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
                     <ClipboardPaste size={11} /> Antworten importieren
                   </button>
                 </div>
@@ -968,7 +980,7 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
       <div className={`fixed bottom-0 left-0 right-0 border-t ${border} ${isDark ? 'bg-[#0c0d0f]/95' : 'bg-[#eae9e5]/95'} backdrop-blur px-6 py-3`}>
         <div className="max-w-5xl mx-auto flex items-center justify-between gap-4">
           <div className={`text-[11px] ${textMuted}`}>
-            {saveError
+            {ro ? 'Nur lesen (Viewer) — Änderungen werden nicht gespeichert' : saveError
               ? <span className={isDark ? 'text-rose-400' : 'text-rose-600'}>{saveError}</span>
               : saving
                 ? 'Speichert …'
@@ -979,7 +991,7 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
                     : 'Keine Änderungen'}
           </div>
           <div className={`flex items-center gap-1.5 text-[11px] ${textMuted}`}>
-            <Save size={11} /> schreibt projects/{proj.slug}.json
+            {ro ? <><Eye size={11} /> projects/{proj.slug}.json (nur lesen)</> : <><Save size={11} /> schreibt projects/{proj.slug}.json</>}
           </div>
         </div>
       </div>
@@ -1013,7 +1025,7 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
                     if (f && answersMs) importPdfAnswers(answersMs, f);
                   }} />
               </label>
-              <textarea value={answersText} autoFocus rows={10}
+              <textarea disabled={ro} value={answersText} autoFocus rows={10}
                 onChange={e => { setAnswersText(e.target.value); setAnswersPdfItems(null); }}
                 placeholder={'M20F2 Bleiben die Daten dort liegen (nicht nur Anzeige)?\n[X] Ja    [ ] Nein\nBemerkung: bleibt in der neuen Core-DB'}
                 className={`w-full text-[11px] leading-relaxed px-3 py-2 rounded border outline-none resize-y font-mono ${inputCls}`} />
