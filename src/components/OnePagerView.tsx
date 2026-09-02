@@ -7,7 +7,7 @@ import { MILESTONES, MILESTONE_TITLES, Project, Question, QuestionAnswer, Review
 import { deriveStatus, emptyReview, getMilestoneReview, getThemeReview, STATUS_META } from '../status';
 import { applyMs10, extractPdfText, hasMs10Data, Ms10Data, MS10_FIELD_LABELS, parseMs10Text } from '../ms10';
 import { DEFAULT_MODEL } from '../defaultModel';
-import { fmtTimestamp, nowIsoWithTimezone } from '../util';
+import { autoGrow, fmtTimestamp, nowIsoWithTimezone } from '../util';
 
 const FOUNDATION_MS = MILESTONES[0]; // M10
 
@@ -45,6 +45,7 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
   const [toast, setToast] = useState('');
   const [importData, setImportData] = useState<Ms10Data | null>(null);
   const [infoTheme, setInfoTheme] = useState<Theme | null>(null);
+  const [infoQuestion, setInfoQuestion] = useState<Question | null>(null);
   const [showClassInfo, setShowClassInfo] = useState(false);
   const [exportMs, setExportMs] = useState<string | null>(null);
   const [exportCopied, setExportCopied] = useState(false);
@@ -352,11 +353,17 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
     const r = getThemeReview(proj, themeId);
     const answer: QuestionAnswer = { value: null, remarks: '', ...r.answers?.[question.id] };
     const remarksKey = `${themeId}:${question.id}`;
-    const remarksOpen = answer.remarks.trim() !== '' || openRemarks.has(remarksKey);
+    const remarksOpen = answer.remarks.trim() !== '' || openRemarks.has(remarksKey) || question.remarksAlwaysOpen === true;
     return (
       <div key={question.id}>
-        <p className={`text-[11px] font-semibold ${isDark ? 'text-white/80' : 'text-black/80'}`}>
-          {number} {question.text}
+        <p className={`text-[11px] font-semibold flex items-start gap-1 ${isDark ? 'text-white/80' : 'text-black/80'}`}>
+          <span>{number} {question.text}</span>
+          {question.hint && (
+            <button type="button" onClick={() => setInfoQuestion(question)} title="Erläuterung anzeigen"
+              className={`p-0.5 rounded flex-shrink-0 transition-colors ${isDark ? 'text-white/25 hover:text-white/70' : 'text-black/25 hover:text-black/70'}`}>
+              <Info size={11} />
+            </button>
+          )}
         </p>
         <div className={`text-[11px] mt-1 flex items-start gap-5 flex-wrap ${textMuted}`}>
           {(question.kind ?? 'yesNo') === 'yesNo' && (
@@ -391,17 +398,15 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
             </button>
           ) : (
             <div className="flex-1 min-w-[220px]">
-              <textarea value={answer.remarks} rows={2} autoFocus={!answer.remarks} disabled={disabled}
+              <textarea value={answer.remarks} rows={2} autoFocus={!answer.remarks && !question.remarksAlwaysOpen} disabled={disabled}
                 onChange={e => updateAnswer(themeId, question.id, { remarks: e.target.value })}
-                onBlur={() => { if (!answer.remarks.trim()) toggleRemarks(remarksKey, false); }}
+                onFocus={autoGrow} onInput={autoGrow}
+                onBlur={() => { if (!answer.remarks.trim() && !question.remarksAlwaysOpen) toggleRemarks(remarksKey, false); }}
                 placeholder={question.kind === 'text' ? 'Antwort / Bemerkungen' : 'Bemerkungen'}
                 className={`w-full text-[11px] px-2 py-1.5 rounded border outline-none resize-y transition-colors disabled:opacity-50 ${inputCls}`} />
             </div>
           )}
         </div>
-        {question.hint && (
-          <p className={`text-[10px] italic mt-0.5 ${textMuted}`}>{question.hint}</p>
-        )}
         <p className={`text-[10px] mt-0.5 ${textMuted}`}>
           Quelle: {question.source ?? (model?.company ?? DEFAULT_MODEL.company ?? 'Eigene Firma')}
         </p>
@@ -864,11 +869,7 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
         </div>
         <textarea disabled={ro} value={opts.review.notes} required rows={3}
           onChange={e => opts.update({ notes: e.target.value })}
-          onInput={e => {
-            const t = e.currentTarget;
-            t.style.height = 'auto';
-            t.style.height = `${t.scrollHeight}px`;
-          }}
+          onFocus={autoGrow} onInput={autoGrow}
           placeholder="Bemerkungen (erforderlich)"
           className={`w-full h-full min-h-[76px] text-[11px] px-2 py-1.5 rounded border outline-none resize-none overflow-hidden transition-colors ${inputCls} ${
             notesEmpty ? (isDark ? 'border-rose-500/40' : 'border-rose-300') : ''
@@ -921,12 +922,17 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
       {/* Kopf: Projektangaben */}
       <div className={`${cardCls} p-4 mb-4`}>
         <div className="flex items-center justify-between gap-4 mb-4">
-          <h2 className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-black'}`}>
-            {proj.name || proj.slug}
+          <div className="flex items-center gap-2 min-w-0">
+            <input value={proj.name} disabled={ro}
+              onChange={e => setField('name', e.target.value)}
+              placeholder={proj.slug}
+              title="Projektname"
+              className={`text-sm font-semibold bg-transparent border border-transparent rounded px-1 -mx-1 outline-none min-w-0 transition-colors disabled:cursor-default ${isDark ? 'text-white placeholder-white/30 hover:border-white/15 focus:border-white/30 focus:bg-white/5' : 'text-black placeholder-black/30 hover:border-black/15 focus:border-black/30 focus:bg-black/5'}`}
+              style={{ width: `${Math.max(8, (proj.name || proj.slug).length + 1)}ch` }} />
             {typeof proj.projectNumber === 'string' && proj.projectNumber && (
-              <span className={`ml-2 text-[11px] font-normal ${textMuted}`}>{proj.projectNumber}</span>
+              <span className={`text-[11px] font-normal flex-shrink-0 ${textMuted}`}>{proj.projectNumber}</span>
             )}
-          </h2>
+          </div>
           <div className="flex items-center gap-3">
             <button onClick={downloadReviewPdf} disabled={pdfBusy}
               title="Architektur-Review als PDF-Bericht exportieren — Status und alle Antworten"
@@ -952,6 +958,7 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
           <label className={`block text-[10px] uppercase tracking-wider mb-1 ${labelCls}`}>Beschrieb</label>
           <textarea disabled={ro} value={proj.description ?? ''} rows={3}
             onChange={e => setField('description', e.target.value)}
+            onFocus={autoGrow} onInput={autoGrow}
             placeholder="Ausgangslage / Motivation — z. B. per MS10-Import übernehmen"
             className={`w-full text-xs px-3 py-2 rounded border outline-none resize-y transition-colors ${inputCls}`} />
         </div>
@@ -1266,6 +1273,25 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
       )}
 
       {/* Themen-Info (Markdown) */}
+      {infoQuestion && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-6" onClick={() => setInfoQuestion(null)}>
+          <div className={`max-w-2xl w-full max-h-[85vh] flex flex-col rounded-xl border p-6 ${isDark ? 'border-white/15 bg-[#16171a]' : 'border-black/15 bg-white'}`}
+            onClick={e => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <h3 className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-black'}`}>{infoQuestion.text}</h3>
+              <button onClick={() => setInfoQuestion(null)}
+                className={`p-1 rounded flex-shrink-0 transition-colors ${isDark ? 'text-white/25 hover:text-white/70' : 'text-black/25 hover:text-black/70'}`}>
+                <X size={14} />
+              </button>
+            </div>
+            <div className="overflow-y-auto min-h-0">
+              <div className={`docx-content ${isDark ? 'text-white/75' : 'text-black/75'}`}
+                dangerouslySetInnerHTML={{ __html: marked.parse(infoQuestion.hint ?? '', { async: false }) }} />
+            </div>
+          </div>
+        </div>
+      )}
+
       {infoTheme && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-6" onClick={() => setInfoTheme(null)}>
           <div className={`max-w-2xl w-full max-h-[85vh] flex flex-col rounded-xl border p-6 ${isDark ? 'border-white/15 bg-[#16171a]' : 'border-black/15 bg-white'}`}

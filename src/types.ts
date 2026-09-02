@@ -35,7 +35,12 @@ export interface Question {
   themeId: string;
   kind?: 'yesNo' | 'text' | 'choice'; // Default yesNo; choice = Auswahl aus options
   options?: string[];      // Auswahlmöglichkeiten für kind 'choice'
-  hint?: string;           // Erläuterung unterhalb der Frage
+  hint?: string;           // Erläuterung — wird hinter einem Info-Icon als
+                           // Dialog angezeigt (Markdown, z. B. Stufenbeschreibung
+                           // mit Beispielen bei choice-Fragen)
+  remarksAlwaysOpen?: boolean; // Bemerkungen-Textarea immer sichtbar statt hinter
+                           // «Bemerkungen …» versteckt (z. B. wenn eine Begründung
+                           // praktisch immer erwartet wird)
   source?: string;         // Quelle, z. B. «Prüfformular Datenhaltung, Schritt 2»
   minClassification?: string; // Mindest-Klassifikation (id, kumulativ nach
                            // Reihenfolge, z. B. «ab wegweisend»); nicht

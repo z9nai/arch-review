@@ -1,6 +1,5 @@
 {
   "version": 3,
-  "company": "Eigene Firma",
   "classifications": [
     {
       "id": "nicht-relevant",
@@ -19,92 +18,91 @@
     {
       "id": "data-classification",
       "title": "Datenklassifikation",
-      "infoMd": "# Factsheet Datenklassifikation\n\n*Dummy — Fachinhalt folgt.*\n\n## Zweck\n\nEinstufung der Daten (z. B. SCHUBAN) und daraus abgeleitete Datenhaltungsvorgaben (Schutzbedarfsanalyse).\n\n## Vorgaben\n\n- Schutzbedarfsanalyse durchführen (SCHUBAN)\n- Einstufung dokumentieren\n- Ableitung der Datenhaltungsvorgaben → Factsheet Datenhaltung\n\n## Ergebnis für den OnePager\n\nEine Zeile: relevant / geprüft / Ergebnis / Risiken, Conditions, offene Punkte."
+      "infoMd": "# Datenklassifikation\n\n## Zweck\n\nStuft die Daten eines Vorhabens ein (an SCHUBAN angelehnt, aber eigene DEMOCOMPANY-Skala) und leitet daraus die anzuwendenden Datenhaltungsvorgaben ab. Die Einstufung ist Grundlage für alle Fragen im Thema Datenhaltung — sie entscheidet, welche Schutzklasse (K0–K4) gilt.\n\n## Schutzklassen\n\n| Klasse | Bedeutung |\n|---|---|\n| K0 Öffentlich | Zur Veröffentlichung bestimmt oder bereits öffentlich |\n| K1 Intern | Intern bestimmt, ohne Personen- oder Kundenbezug |\n| K2 Vertraulich | Daten von Kunden oder Mitarbeitenden ohne besondere Brisanz |\n| K3 Hochvertraulich | Inhalte, deren Offenlegung den Betroffenen ernsthaft schadet |\n| K4 Hochschutz | Daten, mit denen sich unmittelbar handeln lässt |\n\nDer Unterschied zwischen K0 und K1 liegt in der **Bestimmung**, nicht im Schaden. Ein zweckgebundener Datenausschnitt kann tiefer eingestuft werden als der vollständige, führende Bestand — massgebend sind Inhalt und Rolle im Systemverbund, nicht die Zahl der Betroffenen.\n\n## Vorgaben\n\n- Schutzbedarfsanalyse durchführen\n- Einstufung dokumentieren\n- Ableitung der Datenhaltungsvorgaben → Thema Datenhaltung\n"
     },
     {
       "id": "data-storage",
       "title": "Datenhaltung",
-      "infoMd": "# Factsheet Datenhaltung\n\n*Version 0.3 · 04.08.2026 · Tim Känzig · Status: In Prüfung (ehemals «Leitlinie Datenhaltungsvorgaben»)*\n\n## Zweck\n\nDieses Factsheet legt fest, wo Daten je Schutzklasse gehalten werden dürfen und wo deren Backups liegen dürfen. Es dient dem Nachschlagen. Das Prüfformular ist ein eigenes Dokument («Prüfformular Datenhaltung») und wird je Projekt ausgefüllt.\n\nEs gilt für neue oder geänderte Datenhaltungen in Projekten, Applikationen, Plattformen, Cloud- und SaaS-Lösungen, Datenbanken, Dateiablagen, Reporting-Umgebungen, Exporten, Caches und Backups.\n\nZur Datenhaltung gehören auch Bestände, an die man zuerst nicht denkt:\n\n- Reporting- und Auswertungsbestände\n- Logs und Monitoringdaten, sofern sie Personendaten, Tokens oder Secrets enthalten\n- persistente Caches, die Daten über die Verarbeitung hinaus behalten\n- prozessual vorgesehene Exporte, etwa ein wiederkehrender Auszug in eine andere Umgebung\n- Testumgebungen mit Produktivdaten\n- Backups und Snapshots\n\n**Keine** Datenhaltung ist die blosse Möglichkeit, Daten zu exportieren. Ein Export zählt erst, wenn der Prozess ihn vorsieht, er regelmässig entsteht oder das Ergebnis abgelegt wird. Ebenso wenig zählen die reine Übertragung und die reine Anzeige ohne Speicherung.\n\nNicht Gegenstand: Löschfristen und Aufbewahrungspflichten, Berechtigungskonzepte, Datenschutzfreigaben, Security-Konzept, Betriebs- und Wiederherstellungskonzepte.\n\n## Schutzklassen\n\n| Klasse | Bedeutung |\n|---|---|\n| K0 Öffentlich | Zur Veröffentlichung bestimmt oder bereits öffentlich |\n| K1 Intern | Intern bestimmt, ohne Personen- oder Kundenbezug |\n| K2 Vertraulich | Daten von Kunden oder Mitarbeitenden ohne besondere Brisanz |\n| K3 Hochvertraulich | Inhalte, deren Offenlegung den Betroffenen ernsthaft schadet |\n| K4 Hochschutz | Daten, mit denen sich unmittelbar handeln lässt |\n\nDer Unterschied zwischen K0 und K1 liegt in der **Bestimmung**, nicht im Schaden. Ein zweckgebundener Datenausschnitt kann tiefer eingestuft werden als der vollständige, führende Bestand — massgebend sind Inhalt und Rolle im Systemverbund, nicht die Zahl der Betroffenen.\n\n## Grundprinzipien\n\n- Massgebend ist der **Inhalt** der Datenhaltung, weder der Name der Applikation noch die Personengruppe.\n- Die **höchste zutreffende Klasse** gilt für die gesamte Datenhaltung.\n- Liegt die Datenhaltung an mehreren Orten, gilt der **strengste Fall**.\n- Kopien, Exporte, Reporting-Bestände, Caches, Backups und Restore-Ziele **übernehmen die Klasse** der enthaltenen Daten.\n- **Unklarheit ist kein zulässiges Ergebnis**: Fehlen Angaben, lautet das Ergebnis «nicht beurteilbar», nicht «in Ordnung».\n- Labels, DLP, Verschlüsselung und Monitoring unterstützen, ersetzen aber weder Einstufung noch zulässigen Ort.\n\n## Vorgaben je Schutzklasse\n\nGrundlage für die Felder R1 bis R3 im Prüfformular. Die Anforderungen sind kumulativ.\n\n| Klasse | Zulässige Datenhaltung | Logs und Monitoring | Kopien und Exporte |\n|---|---|---|---|\n| K0 | Kein zwingender Datenraum | Normales Betriebsmonitoring | Keine Einschränkung |\n| K1 | Intern oder Cloud/SaaS, Schweiz als Standard | Normales Betriebsmonitoring | Keine Ablage in persönlichen oder unkontrollierten Bereichen |\n| K2 | Schweiz erforderlich, Cloud/SaaS Schweiz möglich | Monitoring erforderlich, keine Nutzdaten, Secrets oder Tokens in Logs | Nur zweckgebunden |\n| K3 | Schweiz und restriktiv kontrollierter Ort | Zusätzlich nachvollziehbare Protokollierung | Nur wenn fachlich notwendig |\n| K4 | Private Cloud oder dedizierter Hochschutz-Ort Schweiz | Zusätzlich auditierbare Protokollierung | Grundsätzlich zu vermeiden |\n\nFür K0 keine verbindliche Ortsvorgabe. Für K1 gilt die Schweiz als Standard; eine Abweichung vom Standardort allein ist keine Condition.\n\n## Abweichungen und Risikoakzeptanz\n\nDie Architektur bewertet die Abweichung, die Risikoakzeptanz erfolgt durch die zuständige Entscheidungsebene.\n\n| Situation | Erwartete Behandlung |\n|---|---|\n| Abweichung bei K2 oder K3 | Risikoanalyse und dokumentierte Risikoakzeptanz |\n| Abweichung bei K4 | Grundsätzlich nicht zulässig, es braucht eine explizite Ausnahmeentscheidung |\n| Ort nicht belegbar oder Zugriff aus dem Ausland unklar | Nicht beurteilbar, bis ein Nachweis vorliegt |\n"
+      "infoMd": "# Datenhaltung\n\n## Zweck\n\nDiese Übersicht legt fest, wo Daten je Schutzklasse gehalten werden dürfen und wo deren Backups liegen dürfen. Sie dient dem Nachschlagen. Das Prüfformular ist ein eigenes Dokument («Prüfformular Datenhaltung») und wird je Projekt ausgefüllt.\n\nEs gilt für neue oder geänderte Datenhaltungen in Projekten, Applikationen, Plattformen, Cloud- und SaaS-Lösungen, Datenbanken, Dateiablagen, Reporting-Umgebungen, Exporten, Caches und Backups.\n\nZur Datenhaltung gehören auch Bestände, an die man zuerst nicht denkt:\n\n- Reporting- und Auswertungsbestände\n- Logs und Monitoringdaten, sofern sie Personendaten, Tokens oder Secrets enthalten\n- persistente Caches, die Daten über die Verarbeitung hinaus behalten\n- prozessual vorgesehene Exporte, etwa ein wiederkehrender Auszug in eine andere Umgebung\n- Testumgebungen mit Produktivdaten\n- Backups und Snapshots\n\n**Keine** Datenhaltung ist die blosse Möglichkeit, Daten zu exportieren. Ein Export zählt erst, wenn der Prozess ihn vorsieht, er regelmässig entsteht oder das Ergebnis abgelegt wird. Ebenso wenig zählen die reine Übertragung und die reine Anzeige ohne Speicherung.\n\nNicht Gegenstand: Löschfristen und Aufbewahrungspflichten, Berechtigungskonzepte, Datenschutzfreigaben, Security-Konzept, Betriebs- und Wiederherstellungskonzepte.\n\n## Schutzklassen\n\nSiehe Thema Datenklassifikation, Abschnitt «Schutzklassen» — hier nur referenziert, nicht mehr dupliziert.\n\n## Grundprinzipien\n\n- Massgebend ist der **Inhalt** der Datenhaltung, weder der Name der Applikation noch die Personengruppe.\n- Die **höchste zutreffende Klasse** gilt für die gesamte Datenhaltung.\n- Liegt die Datenhaltung an mehreren Orten, gilt der **strengste Fall**.\n- Kopien, Exporte, Reporting-Bestände, Caches, Backups und Restore-Ziele **übernehmen die Klasse** der enthaltenen Daten.\n- **Unklarheit ist kein zulässiges Ergebnis**: Fehlen Angaben, lautet das Ergebnis «nicht beurteilbar», nicht «in Ordnung».\n- Labels, DLP, Verschlüsselung und Monitoring unterstützen, ersetzen aber weder Einstufung noch zulässigen Ort.\n\n## Vorgaben je Schutzklasse\n\nGrundlage für die Felder R1 bis R3 im Prüfformular. Die Anforderungen sind kumulativ.\n\n| Klasse | Zulässige Datenhaltung | Logs und Monitoring | Kopien und Exporte |\n|---|---|---|---|\n| K0 | Kein zwingender Datenraum | Normales Betriebsmonitoring | Keine Einschränkung |\n| K1 | Intern oder Cloud/SaaS, Schweiz als Standard | Normales Betriebsmonitoring | Keine Ablage in persönlichen oder unkontrollierten Bereichen |\n| K2 | Schweiz erforderlich, Cloud/SaaS Schweiz möglich | Monitoring erforderlich, keine Nutzdaten, Secrets oder Tokens in Logs | Nur zweckgebunden |\n| K3 | Schweiz und restriktiv kontrollierter Ort | Zusätzlich nachvollziehbare Protokollierung | Nur wenn fachlich notwendig |\n| K4 | Private Cloud oder dedizierter Hochschutz-Ort Schweiz | Zusätzlich auditierbare Protokollierung | Grundsätzlich zu vermeiden |\n\nFür K0 keine verbindliche Ortsvorgabe. Für K1 gilt die Schweiz als Standard; eine Abweichung vom Standardort allein ist keine Condition.\n\n## Abweichungen und Risikoakzeptanz\n\nDie Architektur bewertet die Abweichung, die Risikoakzeptanz erfolgt durch die zuständige Entscheidungsebene.\n\n| Situation | Erwartete Behandlung |\n|---|---|\n| Abweichung bei K2 oder K3 | Risikoanalyse und dokumentierte Risikoakzeptanz |\n| Abweichung bei K4 | Grundsätzlich nicht zulässig, es braucht eine explizite Ausnahmeentscheidung |\n| Ort nicht belegbar oder Zugriff aus dem Ausland unklar | Nicht beurteilbar, bis ein Nachweis vorliegt |\n"
     },
     {
       "id": "integration-application",
       "title": "Integrations- und Applikationsarchitektur",
-      "infoMd": "# Factsheet Integrations- und Applikationsarchitektur\n\n*Dummy — Fachinhalt folgt.*\n\n## Zweck\n\nPrüfung der Integrations- und Applikationsarchitektur des Vorhabens.\n\n## Vorgaben\n\n- Kontextdiagramm als Lieferobjekt (Architektur, 2 PT)\n- Einhaltung der Integrationsmuster\n- Abgrenzung zu bestehenden Applikationen\n\n## Ergebnis für den OnePager\n\nEine Zeile: relevant / geprüft / Ergebnis / Risiken, Conditions, offene Punkte."
+      "infoMd": "# Integrations- und Applikationsarchitektur\n\n*Zweck ausformuliert (Entwurf Claude, 02.09.2026) — Vorgaben (Detailregeln) noch offen, brauchen Fachinput.*\n\n## Zweck\n\nPrüft, ob neue oder geänderte Schnittstellen und Applikationskomponenten den etablierten Integrationsmustern folgen und sauber gegen den bestehenden Applikationsbestand abgegrenzt sind.\n\n## Vorgaben\n\n- Kontextdiagramm als Lieferobjekt (Architektur, 2 PT)\n- Einhaltung der Integrationsmuster\n- Abgrenzung zu bestehenden Applikationen\n\n## Ergebnis für den OnePager\n\nEine Zeile: relevant / geprüft / Ergebnis / Risiken, Conditions, offene Punkte."
     },
     {
       "id": "cloud-infrastructure",
       "title": "Cloud- und Infrastrukturarchitektur",
-      "infoMd": "# Factsheet Cloud- und Infrastrukturarchitektur\n\n*Dummy — Fachinhalt folgt.*\n\n## Zweck\n\nPrüfung der Cloud- und Infrastrukturarchitektur des Vorhabens.\n\n## Vorgaben\n\n- Zielumgebung und Plattformwahl\n- Infrastrukturvorgaben\n- Betriebsaspekte der Infrastruktur\n\n## Ergebnis für den OnePager\n\nEine Zeile: relevant / geprüft / Ergebnis / Risiken, Conditions, offene Punkte."
+      "infoMd": "# Cloud- und Infrastrukturarchitektur\n\n*Zweck ausformuliert (Entwurf Claude, 02.09.2026) — Vorgaben (Detailregeln) noch offen, brauchen Fachinput.*\n\n## Zweck\n\nPrüft die Wahl der Zielumgebung und Plattform sowie die Einhaltung der Infrastrukturvorgaben, inklusive der damit verbundenen Betriebsaspekte.\n\n## Vorgaben\n\n- Zielumgebung und Plattformwahl\n- Infrastrukturvorgaben\n- Betriebsaspekte der Infrastruktur\n\n## Ergebnis für den OnePager\n\nEine Zeile: relevant / geprüft / Ergebnis / Risiken, Conditions, offene Punkte."
     },
     {
       "id": "security-compliance",
       "title": "Security & Compliance",
-      "infoMd": "# Factsheet Security & Compliance\n\n*Dummy — Fachinhalt folgt.*\n\n## Zweck\n\nWird nicht von uns erstellt, sondern zur Erstellung/Prüfung an die zuständige Stelle übergeben; hier nur Verweis und Übergabe.\n\n## Vorgaben\n\n- Übergabe an die zuständige Stelle\n- Ergebnis der externen Prüfung entgegennehmen\n\n## Ergebnis für den OnePager\n\nEine Zeile: relevant / geprüft / Ergebnis / Risiken, Conditions, offene Punkte."
+      "infoMd": "# Security & Compliance\n\n*Zweck ausformuliert (Entwurf Claude, 02.09.2026) — Vorgaben (Detailregeln) noch offen, brauchen Fachinput.*\n\n## Zweck\n\nWird nicht von der Architekturprüfung selbst erstellt oder inhaltlich beurteilt, sondern an die zuständige Fachstelle übergeben. Hier wird nur die Übergabe dokumentiert und das Ergebnis der externen Prüfung entgegengenommen.\n\n## Vorgaben\n\n- Übergabe an die zuständige Stelle\n- Ergebnis der externen Prüfung entgegennehmen\n\n## Ergebnis für den OnePager\n\nEine Zeile: relevant / geprüft / Ergebnis / Risiken, Conditions, offene Punkte."
     },
     {
       "id": "idm-iam",
       "title": "IdM / IAM",
-      "infoMd": "# Factsheet IdM / IAM\n\n*Dummy — Fachinhalt folgt.*\n\n## Zweck\n\nPrüfung von Identity- und Access-Management-Aspekten des Vorhabens.\n\n## Vorgaben\n\n- Rollen und Berechtigungen\n- Anbindung an zentrale IdM/IAM-Dienste\n- Privilegierte Zugriffe\n\n## Ergebnis für den OnePager\n\nEine Zeile: relevant / geprüft / Ergebnis / Risiken, Conditions, offene Punkte."
+      "infoMd": "# IdM / IAM\n\n*Zweck ausformuliert (Entwurf Claude, 02.09.2026) — Vorgaben (Detailregeln) noch offen, brauchen Fachinput.*\n\n## Zweck\n\nPrüft Rollen- und Berechtigungskonzept, Anbindung an die zentralen IdM/IAM-Dienste sowie den Umgang mit privilegierten Zugriffen.\n\n## Vorgaben\n\n- Rollen und Berechtigungen\n- Anbindung an zentrale IdM/IAM-Dienste\n- Privilegierte Zugriffe\n\n## Ergebnis für den OnePager\n\nEine Zeile: relevant / geprüft / Ergebnis / Risiken, Conditions, offene Punkte."
     },
     {
       "id": "operations",
       "title": "Betriebsarchitektur",
-      "infoMd": "# Factsheet Betriebsarchitektur\n\n*Dummy — Fachinhalt folgt.*\n\n## Zweck\n\nBetriebsnahe Prüfung der Lösung (MS40).\n\n## Vorgaben\n\n- Betriebsorganisation\n- Betriebshandbuch und Supportprozesse\n- Backup, Monitoring, Alarmierung\n\n## Ergebnis für den OnePager\n\nEine Zeile: relevant / geprüft / Ergebnis / Risiken, Conditions, offene Punkte."
+      "infoMd": "# Betriebsarchitektur\n\n*Zweck ausformuliert (Entwurf Claude, 02.09.2026) — Vorgaben (Detailregeln) noch offen, brauchen Fachinput.*\n\n## Zweck\n\nPrüft betriebsnah, ob die Lösung organisatorisch und prozessual betriebsbereit ist: Betriebsorganisation, Supportprozesse sowie Backup, Monitoring und Alarmierung.\n\n## Vorgaben\n\n- Betriebsorganisation\n- Betriebshandbuch und Supportprozesse\n- Backup, Monitoring, Alarmierung\n\n## Ergebnis für den OnePager\n\nEine Zeile: relevant / geprüft / Ergebnis / Risiken, Conditions, offene Punkte."
     },
     {
       "id": "documentation",
       "title": "Dokumentation",
-      "infoMd": "# Factsheet Dokumentation\n\n*Dummy — Fachinhalt folgt.*\n\n## Zweck\n\nPrüfung der Architektur- und Lösungsdokumentation (MS40).\n\n## Vorgaben\n\n- Aktualität der Dokumentation\n- Nachvollziehbarkeit der Architekturentscheide\n\n## Ergebnis für den OnePager\n\nEine Zeile: relevant / geprüft / Ergebnis / Risiken, Conditions, offene Punkte."
+      "infoMd": "# Dokumentation\n\n*Zweck ausformuliert (Entwurf Claude, 02.09.2026) — Vorgaben (Detailregeln) noch offen, brauchen Fachinput.*\n\n## Zweck\n\nPrüft, ob die Architektur- und Lösungsdokumentation zum Projektabschluss aktuell ist und ob Architekturentscheide nachvollziehbar begründet sind.\n\n## Vorgaben\n\n- Aktualität der Dokumentation\n- Nachvollziehbarkeit der Architekturentscheide\n\n## Ergebnis für den OnePager\n\nEine Zeile: relevant / geprüft / Ergebnis / Risiken, Conditions, offene Punkte."
     },
     {
       "id": "technical-debt",
       "title": "Technische Schulden / Risiken / Conditions",
-      "infoMd": "# Factsheet Technische Schulden / Risiken / Conditions\n\n*Dummy — Fachinhalt folgt.*\n\n## Zweck\n\nFesthalten technischer Schulden, Risiken und Conditions inkl. Budget zur Behebung (Low / Med / High).\n\n## Vorgaben\n\n- Technische Schulden erfassen\n- Budget zur Behebung (Low / Med / High)\n- Risiken und Conditions im OnePager nachführen\n\n## Ergebnis für den OnePager\n\nEine Zeile: relevant / geprüft / Ergebnis / Risiken, Conditions, offene Punkte."
+      "infoMd": "# Technische Schulden / Risiken / Conditions\n\n*Zweck ausformuliert (Entwurf Claude, 02.09.2026) — Vorgaben (Detailregeln) noch offen, brauchen Fachinput.*\n\n## Zweck\n\nHält am Projektende technische Schulden, Risiken und Conditions fest, inklusive einer groben Aufwandschätzung zur Behebung (Low/Medium/High), zur Weiterverfolgung im OnePager.\n\n## Vorgaben\n\n- Technische Schulden erfassen\n- Budget zur Behebung (Low / Med / High)\n- Risiken und Conditions im OnePager nachführen\n\n## Ergebnis für den OnePager\n\nEine Zeile: relevant / geprüft / Ergebnis / Risiken, Conditions, offene Punkte."
     }
   ],
   "questions": [
     {
-      "id": "D1",
-      "text": "Enthält das Vorhaben Personendaten?",
-      "milestone": "M10",
-      "themeId": "data-classification",
-      "hint": "Dummy-Frage — massgeblich ist die Schutzbedarfsanalyse (SCHUBAN).",
-      "source": "Dummy — Fachinhalt folgt"
-    },
-    {
-      "id": "D2",
-      "text": "Enthält das Vorhaben besonders schützenswerte Daten?",
-      "milestone": "M10",
-      "themeId": "data-classification",
-      "source": "Dummy — Fachinhalt folgt"
-    },
-    {
-      "id": "D3",
-      "text": "Welche SCHUBAN-Einstufung ergibt sich?",
-      "milestone": "M10",
-      "themeId": "data-classification",
-      "kind": "choice",
-      "hint": "Daraus leiten sich die Datenhaltungsvorgaben ab.",
-      "options": [
-        "A",
-        "B",
-        "C"
-      ],
-      "source": "Dummy — Fachinhalt folgt"
-    },
-    {
-      "id": "K1",
-      "text": "Liegt die SCHUBAN-Einstufung vor?",
+      "id": "qk9oegv9j4j",
+      "text": "Ist für alle neuen Datenspeicher (inkl. Kopien/Repliken ausserhalb des Kernsystems) eine Datenklassifizierung inkl. CID-Relevanz dokumentiert?",
       "milestone": "M20",
       "themeId": "data-classification",
-      "hint": "Dummy-Frage — Fachinhalt folgt.",
-      "source": "Dummy — Fachinhalt folgt"
+      "hint": "Betrifft insb. Read-Replicas/Caches (z.B. MongoDB-Golden-Record ohne Fallback auf den Core) - dort ist Datenverlust nicht durch das Kernsystem abgesichert."
     },
     {
-      "id": "K2",
-      "text": "Sind die abgeleiteten Datenhaltungsvorgaben berücksichtigt?",
+      "id": "q9a3zestv5p",
+      "text": "Ist die finale Zielarchitektur (inkl. aller Integrationspunkte, Datenflüsse und Abhängigkeiten zu Drittsystemen) dokumentiert und von allen Beteiligten (Betreiber, Hersteller, Auftraggeber) freigegeben?",
       "milestone": "M20",
-      "themeId": "data-classification",
+      "themeId": "integration-application",
+      "hint": "Insb. relevant, wenn der Betreiber (nicht der Auftraggeber) die finale Architektur definiert - dann muss der Freigabeprozess/das Review explizit geregelt sein."
+    },
+    {
+      "id": "qttvv4euyry",
+      "text": "Liegt ein Threat Model für die neue Komponente/den neuen Service vor, und deckt es alle neuen Trust-Boundaries (z.B. neue externe Integrationen) ab?",
+      "milestone": "M20",
+      "themeId": "security-compliance",
+      "hint": "Falls das Threat Model vom Betreiber als Projektleistung geliefert wird: Zeitpunkt und Scope explizit prüfen, nicht als gegeben annehmen."
+    },
+    {
+      "id": "qpzx51ivonp",
+      "text": "Existiert ein getestetes Backup-/DR-Konzept mit definierten RPO/RTO-Werten je Datenklasse, und wird es von den Fachbereichen als ausreichend akzeptiert?",
+      "milestone": "M40",
+      "themeId": "operations",
+      "hint": "Nicht nur nach Rahmenwerten des Herstellers fragen ('als Hilfestellung'), sondern nach dem konkreten, vom Betreiber gebauten und getesteten Konzept."
+    },
+    {
+      "id": "qx7q7pxw95o",
+      "text": "Ist das Identity-/Access-Management-Konzept beschrieben, inkl. Federation zu externen Identity Providern und Zuständigkeit für deren Anbindung?",
+      "milestone": "M20",
+      "themeId": "idm-iam",
+      "hint": "Insbesondere prüfen, wer welchen Teil der Kette (externer IdP -> Federation Broker -> Applikation) verantwortet und ob das dokumentiert ist, nicht nur architektonisch plausibel."
+    },
+    {
+      "id": "SC1",
+      "text": "Wurde das Vorhaben der zuständigen Stelle für Security & Compliance übergeben?",
+      "milestone": "M20",
+      "themeId": "security-compliance",
+      "hint": "Dieses Thema wird extern erstellt und geprüft.",
       "source": "Dummy — Fachinhalt folgt"
     },
     {
@@ -112,7 +110,7 @@
       "text": "Speichern wir irgendwo Daten neu?",
       "milestone": "M10",
       "themeId": "data-storage",
-      "hint": "Was alles als Datenhaltung zählt, steht in der «Factsheet Datenhaltung» (Info-Icon), Abschnitt Zweck.",
+      "hint": "Was alles als Datenhaltung zählt, steht in der «Datenhaltung» (Info-Icon), Abschnitt Zweck.",
       "source": "Prüfformular Datenhaltung (V0.3, 04.08.2026), Schritt 1"
     },
     {
@@ -122,6 +120,27 @@
       "themeId": "data-storage",
       "hint": "Dass ein System einen Export-Knopf hat, zählt nicht.",
       "source": "Prüfformular Datenhaltung (V0.3, 04.08.2026), Schritt 1"
+    },
+    {
+      "id": "C1",
+      "text": "Werden neue Cloud-Dienste oder Plattformen eingesetzt?",
+      "milestone": "M10",
+      "themeId": "cloud-infrastructure",
+      "source": "Dummy — Fachinhalt folgt"
+    },
+    {
+      "id": "C3",
+      "text": "Ist der Betrieb der Infrastruktur (Monitoring, Patching) geklärt?",
+      "milestone": "M40",
+      "themeId": "cloud-infrastructure",
+      "source": "Dummy — Fachinhalt folgt"
+    },
+    {
+      "id": "I1",
+      "text": "Entstehen neue Schnittstellen zu bestehenden Systemen?",
+      "milestone": "M10",
+      "themeId": "integration-application",
+      "source": "Dummy — Fachinhalt folgt"
     },
     {
       "id": "S3",
@@ -139,25 +158,25 @@
       "source": "Prüfformular Datenhaltung (V0.3, 04.08.2026), Schritt 1"
     },
     {
-      "id": "I1",
-      "text": "Entstehen neue Schnittstellen zu bestehenden Systemen?",
-      "milestone": "M10",
-      "themeId": "integration-application",
+      "id": "K1",
+      "text": "Liegt die Schutzklasse (K0–K4) vor?",
+      "milestone": "M20",
+      "themeId": "data-classification",
+      "hint": "Dummy-Frage — Fachinhalt folgt.",
       "source": "Dummy — Fachinhalt folgt"
     },
     {
-      "id": "I2",
-      "text": "Liegt ein aktuelles Kontextdiagramm vor?",
-      "milestone": "M10",
-      "themeId": "integration-application",
-      "hint": "Das Kontextdiagramm ist Lieferobjekt der Architektur.",
-      "source": "Dummy — Fachinhalt folgt"
+      "id": "cat-sc2",
+      "themeId": "security-compliance",
+      "milestone": "M20",
+      "text": "Ist ein Prozess für den Umgang mit Security-Incidents definiert?",
+      "source": "AWS Well-Architected, Security / FINMA-RS 2023/1"
     },
     {
-      "id": "I3",
-      "text": "Werden die bestehenden Integrationsmuster eingehalten?",
-      "milestone": "M10",
-      "themeId": "integration-application",
+      "id": "K2",
+      "text": "Sind die abgeleiteten Datenhaltungsvorgaben berücksichtigt?",
+      "milestone": "M20",
+      "themeId": "data-classification",
       "source": "Dummy — Fachinhalt folgt"
     },
     {
@@ -176,27 +195,6 @@
       "source": "Dummy — Fachinhalt folgt"
     },
     {
-      "id": "C1",
-      "text": "Werden neue Cloud-Dienste oder Plattformen eingesetzt?",
-      "milestone": "M10",
-      "themeId": "cloud-infrastructure",
-      "source": "Dummy — Fachinhalt folgt"
-    },
-    {
-      "id": "C2",
-      "text": "Entspricht die Zielumgebung den Infrastrukturvorgaben?",
-      "milestone": "M10",
-      "themeId": "cloud-infrastructure",
-      "source": "Dummy — Fachinhalt folgt"
-    },
-    {
-      "id": "C3",
-      "text": "Ist der Betrieb der Infrastruktur (Monitoring, Patching) geklärt?",
-      "milestone": "M10",
-      "themeId": "cloud-infrastructure",
-      "source": "Dummy — Fachinhalt folgt"
-    },
-    {
       "id": "CI1",
       "text": "Ist die Zielumgebung definiert und abgenommen?",
       "milestone": "M20",
@@ -212,47 +210,11 @@
       "source": "Dummy — Fachinhalt folgt"
     },
     {
-      "id": "SC1",
-      "text": "Wurde das Vorhaben der zuständigen Stelle für Security & Compliance übergeben?",
-      "milestone": "M10",
-      "themeId": "security-compliance",
-      "hint": "Dieses Factsheet wird extern erstellt und geprüft.",
-      "source": "Dummy — Fachinhalt folgt"
-    },
-    {
-      "id": "SC2",
-      "text": "Liegt das Ergebnis der externen Prüfung vor?",
-      "milestone": "M10",
-      "themeId": "security-compliance",
-      "source": "Dummy — Fachinhalt folgt"
-    },
-    {
       "id": "SC10",
       "text": "Liegt das Ergebnis der zuständigen Stelle vor?",
       "milestone": "M20",
       "themeId": "security-compliance",
       "hint": "Dummy-Frage — Prüfung erfolgt extern.",
-      "source": "Dummy — Fachinhalt folgt"
-    },
-    {
-      "id": "A1",
-      "text": "Werden neue Rollen oder Berechtigungen eingeführt?",
-      "milestone": "M10",
-      "themeId": "idm-iam",
-      "source": "Dummy — Fachinhalt folgt"
-    },
-    {
-      "id": "A2",
-      "text": "Erfolgt die Authentifizierung über die zentralen IdM/IAM-Dienste?",
-      "milestone": "M10",
-      "themeId": "idm-iam",
-      "source": "Dummy — Fachinhalt folgt"
-    },
-    {
-      "id": "A3",
-      "text": "Sind privilegierte Zugriffe geregelt (Admin, Wartung)?",
-      "milestone": "M10",
-      "themeId": "idm-iam",
       "source": "Dummy — Fachinhalt folgt"
     },
     {
@@ -271,78 +233,10 @@
       "source": "Dummy — Fachinhalt folgt"
     },
     {
-      "id": "B1",
-      "text": "Ist die Betriebsorganisation für die Lösung geklärt?",
-      "milestone": "M40",
-      "themeId": "operations",
-      "source": "Dummy — Fachinhalt folgt"
-    },
-    {
-      "id": "B2",
-      "text": "Liegen Betriebshandbuch und Supportprozesse vor?",
-      "milestone": "M40",
-      "themeId": "operations",
-      "source": "Dummy — Fachinhalt folgt"
-    },
-    {
-      "id": "B3",
-      "text": "Sind Backup, Monitoring und Alarmierung definiert?",
-      "milestone": "M40",
-      "themeId": "operations",
-      "source": "Dummy — Fachinhalt folgt",
-      "minClassification": "wegweisend"
-    },
-    {
-      "id": "DO1",
-      "text": "Ist die Architekturdokumentation aktuell?",
-      "milestone": "M40",
-      "themeId": "documentation",
-      "source": "Dummy — Fachinhalt folgt"
-    },
-    {
-      "id": "DO2",
-      "text": "Sind Architekturentscheide nachvollziehbar dokumentiert?",
-      "milestone": "M40",
-      "themeId": "documentation",
-      "source": "Dummy — Fachinhalt folgt"
-    },
-    {
-      "id": "T1",
-      "text": "Sind technische Schulden aus dem Vorhaben erfasst?",
-      "milestone": "M40",
-      "themeId": "technical-debt",
-      "source": "Dummy — Fachinhalt folgt",
-      "hint": "Liegen Teile an mehreren Orten (Reporting, Testumgebung, Cache), sind alle zu nennen.",
-      "kind": "text"
-    },
-    {
-      "id": "T2",
-      "text": "Ist das Budget zur Behebung eingeplant (Low / Med / High)?",
-      "milestone": "M40",
-      "themeId": "technical-debt",
-      "kind": "text",
-      "source": "Prüfformular Datenhaltung (V0.3, 04.08.2026), Schritt 3",
-      "hint": "Eigenes Rechenzentrum, Private Cloud, Public Cloud oder SaaS.",
-      "options": [
-        "eigenes Rechenzentrum",
-        "Private Cloud",
-        "Public Cloud",
-        "SaaS"
-      ]
-    },
-    {
-      "id": "T3",
-      "text": "Sind Risiken und Conditions im OnePager nachgeführt?",
-      "milestone": "M40",
-      "themeId": "technical-debt",
-      "source": "Dummy — Fachinhalt folgt",
-      "hint": "Vertrag, Regionseinstellung oder schriftliche Herstellerangabe — Beleg in den Bemerkungen festhalten."
-    },
-    {
       "id": "E1",
       "kind": "text",
       "text": "Um welche Datenhaltung geht es?",
-      "hint": "Name und Ort des Bestands, z. B. Applikation, Datenbank, SaaS-Lösung. Grundlagen im Factsheet Datenhaltung (Info-Icon).",
+      "hint": "Name und Ort des Bestands, z. B. Applikation, Datenbank, SaaS-Lösung. Grundlagen im Thema Datenhaltung (Info-Icon).",
       "milestone": "M20",
       "themeId": "data-storage",
       "source": "Prüfformular Datenhaltung (V0.3, 04.08.2026), Schritt 2"
@@ -488,7 +382,7 @@
     {
       "id": "R1",
       "text": "Passen Datenhaltungsort und Backup-Ort zur Schutzklasse?",
-      "hint": "Abgleich gegen die Vorgaben je Schutzklasse im Factsheet Datenhaltung. Nein → Abweichung unten beschreiben.",
+      "hint": "Abgleich gegen die Vorgaben je Schutzklasse im Thema Datenhaltung. Nein → Abweichung unten beschreiben.",
       "milestone": "M20",
       "themeId": "data-storage",
       "source": "Prüfformular Datenhaltung (V0.3, 04.08.2026), Schritt 4"
@@ -519,6 +413,127 @@
       "source": "Prüfformular Datenhaltung (V0.3, 04.08.2026), Schritt 4"
     },
     {
+      "id": "cat-dc1",
+      "themeId": "data-classification",
+      "milestone": "M20",
+      "text": "Sind alle Datenkategorien des Vorhabens inventarisiert und klassifiziert?",
+      "source": "BSI IT-Grundschutz, CON.2 / Datenschutz"
+    },
+    {
+      "id": "cat-dc2",
+      "themeId": "data-classification",
+      "milestone": "M20",
+      "text": "Ist der Umgang mit besonders schützenswerten Personendaten geregelt?",
+      "hint": "Gesundheit, Religion, biometrische Daten usw.",
+      "source": "CH-DSG (revidiert), Art. 5"
+    },
+    {
+      "id": "cat-ia1",
+      "themeId": "integration-application",
+      "milestone": "M20",
+      "text": "Sind Schnittstellen versioniert und abwärtskompatibel geplant?",
+      "source": "TOGAF Architecture Compliance Review (paraphrasiert)"
+    },
+    {
+      "id": "cat-ia2",
+      "themeId": "integration-application",
+      "milestone": "M20",
+      "text": "Ist die Fehlerbehandlung über Systemgrenzen definiert (Retry, Idempotenz, Timeouts)?",
+      "source": "aim42 / TOGAF Compliance Review"
+    },
+    {
+      "id": "cat-ia3",
+      "themeId": "integration-application",
+      "milestone": "M20",
+      "text": "Liegt ein aktuelles Kontextdiagramm mit allen Nachbarsystemen vor?",
+      "source": "arc42, Kapitel 3 (Kontextabgrenzung)"
+    },
+    {
+      "id": "cat-ci1",
+      "themeId": "cloud-infrastructure",
+      "milestone": "M20",
+      "text": "Verkraftet die Lösung den Ausfall einer einzelnen Komponente ohne Serviceunterbruch?",
+      "source": "AWS Well-Architected, Reliability"
+    },
+    {
+      "id": "cat-ci2",
+      "themeId": "cloud-infrastructure",
+      "milestone": "M20",
+      "text": "Sind Wiederherstellungsziele (RTO/RPO) definiert und getestet?",
+      "source": "AWS Well-Architected, Reliability"
+    },
+    {
+      "id": "cat-ci3",
+      "themeId": "cloud-infrastructure",
+      "milestone": "M20",
+      "text": "Werden Infrastruktur-Änderungen automatisiert und nachvollziehbar ausgerollt (Infrastructure as Code)?",
+      "source": "AWS Well-Architected, Operational Excellence"
+    },
+    {
+      "id": "cat-sc1",
+      "themeId": "security-compliance",
+      "milestone": "M20",
+      "text": "Werden Daten bei der Übertragung und bei der Speicherung verschlüsselt?",
+      "source": "AWS Well-Architected, Security"
+    },
+    {
+      "id": "cat-sc3",
+      "themeId": "security-compliance",
+      "milestone": "M20",
+      "text": "Werden eingesetzte Komponenten und Abhängigkeiten auf bekannte Schwachstellen geprüft?",
+      "source": "OWASP ASVS"
+    },
+    {
+      "id": "cat-am1",
+      "themeId": "idm-iam",
+      "milestone": "M20",
+      "text": "Ist für administrative Zugriffe Multi-Faktor-Authentifizierung erzwungen?",
+      "source": "OWASP ASVS / AWS Well-Architected, Security"
+    },
+    {
+      "id": "cat-am2",
+      "themeId": "idm-iam",
+      "milestone": "M20",
+      "text": "Folgen die Berechtigungen dem Least-Privilege-Prinzip?",
+      "source": "AWS Well-Architected, Security"
+    },
+    {
+      "id": "B1",
+      "text": "Ist die Betriebsorganisation für die Lösung geklärt?",
+      "milestone": "M40",
+      "themeId": "operations",
+      "source": "Dummy — Fachinhalt folgt"
+    },
+    {
+      "id": "B2",
+      "text": "Liegen Betriebshandbuch und Supportprozesse vor?",
+      "milestone": "M40",
+      "themeId": "operations",
+      "source": "Dummy — Fachinhalt folgt"
+    },
+    {
+      "id": "B3",
+      "text": "Sind Backup, Monitoring und Alarmierung definiert?",
+      "milestone": "M40",
+      "themeId": "operations",
+      "source": "Dummy — Fachinhalt folgt",
+      "minClassification": "wegweisend"
+    },
+    {
+      "id": "DO1",
+      "text": "Ist die Architekturdokumentation aktuell?",
+      "milestone": "M40",
+      "themeId": "documentation",
+      "source": "Dummy — Fachinhalt folgt"
+    },
+    {
+      "id": "DO2",
+      "text": "Sind Architekturentscheide nachvollziehbar dokumentiert?",
+      "milestone": "M40",
+      "themeId": "documentation",
+      "source": "Dummy — Fachinhalt folgt"
+    },
+    {
       "id": "U1",
       "milestone": "M40",
       "themeId": "data-storage",
@@ -527,33 +542,159 @@
       "source": "Architekturprüfmodell, MS40 (Überprüfung)"
     },
     {
-      "id": "cat-sc2",
-      "themeId": "security-compliance",
-      "milestone": "M20",
-      "text": "Ist ein Prozess für den Umgang mit Security-Incidents definiert?",
-      "source": "AWS Well-Architected, Security / FINMA-RS 2023/1"
-    },
-    {
-      "id": "cat-dc1",
-      "themeId": "data-classification",
-      "milestone": "M20",
-      "text": "Sind alle Datenkategorien des Vorhabens inventarisiert und klassifiziert?",
-      "source": "BSI IT-Grundschutz, CON.2 / Datenschutz"
-    },
-    {
-      "id": "qoa6a8zcfrq",
-      "text": "sdfsdf?",
-      "milestone": "M10",
-      "themeId": "data-classification",
-      "hint": "asdfdddd"
-    },
-    {
       "id": "cat-ds1",
       "themeId": "data-storage",
       "milestone": "M40",
       "text": "Werden Backups regelmässig durch Restore-Tests verifiziert?",
       "source": "BSI IT-Grundschutz, CON.3 Datensicherungskonzept"
+    },
+    {
+      "id": "cat-ci4",
+      "themeId": "cloud-infrastructure",
+      "milestone": "M40",
+      "text": "Werden Kapazität und Kosten der Zielumgebung laufend überwacht?",
+      "source": "AWS Well-Architected, Cost Optimization"
+    },
+    {
+      "id": "cat-am3",
+      "themeId": "idm-iam",
+      "milestone": "M40",
+      "text": "Werden Berechtigungen regelmässig überprüft und rezertifiziert?",
+      "source": "BSI IT-Grundschutz, ORP.4"
+    },
+    {
+      "id": "cat-op1",
+      "themeId": "operations",
+      "milestone": "M40",
+      "text": "Gibt es Runbooks für Standard- und Notfall-Betriebsabläufe?",
+      "source": "AWS Well-Architected, Operational Excellence"
+    },
+    {
+      "id": "cat-op2",
+      "themeId": "operations",
+      "milestone": "M40",
+      "text": "Ist die Alarmierung mit klaren Eskalationswegen geregelt?",
+      "source": "AWS Well-Architected, Operational Excellence / SRE-Praxis"
+    },
+    {
+      "id": "cat-do1",
+      "themeId": "documentation",
+      "milestone": "M40",
+      "text": "Folgt die Architekturdokumentation einer einheitlichen Struktur (z. B. arc42)?",
+      "source": "arc42"
+    },
+    {
+      "id": "cat-do2",
+      "themeId": "documentation",
+      "milestone": "M40",
+      "text": "Sind wesentliche Architekturentscheide als ADRs festgehalten?",
+      "source": "aim42 / ADR-Praxis"
+    },
+    {
+      "id": "cat-td1",
+      "themeId": "technical-debt",
+      "milestone": "M40",
+      "text": "Sind bekannte technische Schulden mit Aufwand und Risiko bewertet?",
+      "source": "aim42 (Improve)"
+    },
+    {
+      "id": "D4",
+      "text": "Ist der Inhalt NICHT für die Veröffentlichung bestimmt?",
+      "milestone": "M10",
+      "themeId": "data-classification",
+      "hint": "Nein → K0, die weiteren Einstufungsfragen entfallen. Ja → mindestens K1. Massgebend ist die Bestimmung, nicht ob man den Inhalt veröffentlichen könnte.",
+      "source": "DEMOCOMPANY"
+    },
+    {
+      "id": "D1",
+      "text": "Geht es in den Daten um bestimmte Personen (Kunden, Mitarbeitende, Partner)?",
+      "milestone": "M10",
+      "themeId": "data-classification",
+      "hint": "Nein → höchstens Schutzklasse K1. Ja → mindestens K2. Beispiel: Namen, Adressen, Vertragsdaten von Kund:innen oder Mitarbeitenden.",
+      "source": "DEMOCOMPANY"
+    },
+    {
+      "id": "D2",
+      "text": "Würde die Offenlegung dieser Daten einer betroffenen Person ernsthaft schaden?",
+      "milestone": "M10",
+      "themeId": "data-classification",
+      "source": "DEMOCOMPANY",
+      "hint": "Ja → mindestens Schutzklasse K3. Beispiel: Bankgeheimnis-Bezug (Konto-/Depotdaten, Vermögensverhältnisse), Gesundheitsdaten, biometrische Daten."
+    },
+    {
+      "id": "D5",
+      "text": "Könnte jemand mit diesen Daten unmittelbar handeln (Geld bewegen, sich als jemand anderes ausgeben, Zugang verschaffen)?",
+      "milestone": "M10",
+      "themeId": "data-classification",
+      "hint": "Ja → K4. Beispiel: Konto- und Transaktionsdaten, Zahlungsmittel, Identitätsnachweise, Passwörter, Schlüssel, Administrationszugänge.",
+      "source": "DEMOCOMPANY"
+    },
+    {
+      "id": "D0",
+      "text": "Welche Schutzklasse ergibt sich (K0–K4)?",
+      "milestone": "M10",
+      "themeId": "data-classification",
+      "kind": "choice",
+      "options": [
+        "K0",
+        "K1",
+        "K2",
+        "K3",
+        "K4",
+        "nicht beurteilbar"
+      ],
+      "hint": "Aus D4/D1/D2/D5 abgeleitet: D4 Nein → K0. D4 Ja → mindestens K1, D1 Ja → mindestens K2. D2 Ja → mindestens K3. D5 Ja → K4. Bei Unklarheit: «nicht beurteilbar».",
+      "remarksAlwaysOpen": true,
+      "source": "DEMOCOMPANY"
+    },
+    {
+      "id": "D3",
+      "text": "Welche Schutzklasse ergibt sich?",
+      "milestone": "M20",
+      "themeId": "data-classification",
+      "kind": "choice",
+      "hint": "Daraus leiten sich die Datenhaltungsvorgaben ab.",
+      "options": [
+        "K0",
+        "K1",
+        "K2",
+        "K3",
+        "K4",
+        "nicht beurteilbar"
+      ],
+      "source": "Dummy — Fachinhalt folgt",
+      "minClassification": "wegweisend"
+    },
+    {
+      "id": "A1",
+      "text": "Werden neue Rollen oder Berechtigungen eingeführt?",
+      "milestone": "M10",
+      "themeId": "idm-iam",
+      "source": "Dummy — Fachinhalt folgt"
+    },
+    {
+      "id": "A3",
+      "text": "Sind privilegierte Zugriffe geregelt (Admin, Wartung)?",
+      "milestone": "M20",
+      "themeId": "idm-iam",
+      "source": "Dummy — Fachinhalt folgt"
+    },
+    {
+      "id": "SC0",
+      "text": "Berührt das Vorhaben neue oder wesentlich veränderte Schnittstellen nach aussen, neue Datenverarbeitung oder regulatorische Anforderungen (z. B. FINMA, DSG)?",
+      "milestone": "M10",
+      "themeId": "security-compliance",
+      "hint": "Entwurf — Formulierung und Aufzählung mit Security & Compliance abstimmen"
     }
   ],
-  "classificationInfoMd": "# Klassifikation\n\n*Dummy — die echten Kriterien folgen.*\n\nDie Klassifikation ist das Ergebnis der Foundation-Prüfung (M10) und Teil\nder Freigabe:\n\n- **nicht relevant** — alle Relevanz-Fragen sind mit Nein beantwortet.\n  Es findet keine weitere Architekturprüfung statt (kein M20/M40).\n- **relevant** — das Projekt berührt die Architektur; die Fragenkataloge\n  M20 und M40 werden geprüft.\n- **wegweisend** — das Projekt prägt die Architektur; zusätzlich werden\n  die als «ab wegweisend» markierten Fragen gestellt.\n\nOb ein Projekt architekturrelevant ist, ergibt sich automatisch aus den\nJa/Nein-Fragen im M10 (mindestens eine Frage mit Ja → relevant; alle Nein\n→ nicht relevant). Ob es **relevant** oder **wegweisend** ist, entscheidet\nder/die Architekt/in.\n"
+  "classificationInfoMd": "# Klassifikation\n\nDie Klassifikation ist das Ergebnis der Foundation-Prüfung (M10) und Teil\nder Freigabe:\n\n- **nicht relevant** — alle Relevanz-Fragen sind mit Nein beantwortet.\n  Es findet keine weitere Architekturprüfung statt (kein M20/M40).\n- **relevant** — das Projekt berührt die Architektur; die Fragenkataloge\n  M20 und M40 werden geprüft.\n- **wegweisend** — das Projekt prägt die Architektur; zusätzlich werden\n  die als «ab wegweisend» markierten Fragen gestellt.\n\nOb ein Projekt architekturrelevant ist, ergibt sich automatisch aus den\nJa/Nein-Fragen im M10 (mindestens eine Frage mit Ja → relevant; alle Nein\n→ nicht relevant).\n\nOb ein relevantes Projekt zusätzlich **wegweisend** ist, entscheidet\nder/die Architekt/in anhand folgender Kriterien (mindestens eines trifft zu):\n\n- **Referenz-/Pilotcharakter** — das Projekt führt ein Muster, eine\n  Technologie oder eine Plattform ein, die anschliessend als Vorlage für\n  weitere Projekte dient.\n- **Wirkung über das Projekt hinaus** — Entscheide betreffen mehrere\n  Systeme, mehrere Mandanten/Banken oder die gemeinsame Plattform, nicht\n  nur die Applikation des Projekts selbst.\n- **Abweichung von bestehenden Vorgaben** — das Projekt weicht bewusst von\n  einem etablierten Standard ab, und diese Abweichung soll künftig als\n  Präzedenzfall/neue Richtlinie gelten (nicht nur als Einzelfall-Ausnahme).\n- **Hohe Tragweite bei Fehlentscheid** — Risiko, Kosten oder regulatorische\n  Sichtbarkeit sind so hoch, dass ein Fehler in der Architekturprüfung\n  überproportionalen Schaden anrichten würde.\n",
+  "company": "DEMOCOMPANY",
+  "auth": {
+    "enabled": true,
+    "tenantId": "b7c70efe-b7ac-4b20-8b66-7d91a6d472e6",
+    "clientId": "576bfb92-4b3e-4b13-bb89-816cc356516a",
+    "adminRole": "ArchReview.Admin",
+    "reviewerRole": "ArchReview.Reviewer",
+    "viewerRole": "ArchReview.Viewer"
+  }
 }

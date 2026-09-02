@@ -4,7 +4,7 @@ import { useStore } from '../store';
 import { MILESTONES, MILESTONE_TITLES, Model, Question } from '../types';
 import { DEFAULT_MODEL } from '../defaultModel';
 import { CATALOG_QUESTIONS } from '../catalog';
-import { slugify } from '../util';
+import { autoGrow, slugify } from '../util';
 import { GUID_RE, LEVEL_LABELS, setupLink, useAuth } from '../auth';
 
 function genId(): string {
@@ -430,6 +430,7 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
           </label>
           <textarea value={draft.classificationInfoMd ?? ''} rows={8}
             onChange={e => setDraft(d => d ? { ...d, classificationInfoMd: e.target.value || undefined } : d)}
+            onFocus={autoGrow} onInput={autoGrow}
             placeholder={'# Klassifikation\n\nBeschreibung der Stufen …'}
             className={`w-full text-[11px] px-2 py-1.5 rounded border outline-none resize-y transition-colors ${inputCls}`} />
         </div>
@@ -482,6 +483,7 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
                   </label>
                   <textarea value={theme.infoMd ?? ''} rows={10}
                     onChange={e => updateTheme(theme.id, { infoMd: e.target.value || undefined })}
+                    onFocus={autoGrow} onInput={autoGrow}
                     placeholder={'# Titel\n\nBeschreibung …\n\n- Punkt 1\n- Punkt 2'}
                     className={`w-full text-[11px] px-2 py-1.5 rounded border outline-none resize-y transition-colors ${inputCls}`} />
                 </div>
@@ -497,7 +499,14 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
       </h2>
       <div className="space-y-6">
         {MILESTONES.map(ms => {
-          const qs = draft.questions.filter(q => q.milestone === ms);
+          // Anzeige nach Themen-Reihenfolge (A–Z) sortieren; die automatische
+          // Nummer (numberOf) bleibt unabhängig davon, sie zählt weiterhin die
+          // Position innerhalb desselben Themas+Meilensteins in draft.questions.
+          const themeOrder = new Map(draft.themes.map((t, i) => [t.id, i]));
+          const qs = draft.questions
+            .filter(q => q.milestone === ms)
+            .slice()
+            .sort((a, b) => (themeOrder.get(a.themeId) ?? 999) - (themeOrder.get(b.themeId) ?? 999));
           return (
             <div key={ms} className={cardCls}>
               <div className="px-4 pt-3 pb-1 flex items-center gap-2 flex-wrap">
@@ -550,9 +559,10 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
                       <span className={`w-14 text-[10px] font-semibold flex-shrink-0 ${textMuted}`} title="Nummer wird automatisch vergeben">
                         {numberOf(q)}
                       </span>
-                      <input value={q.text} placeholder="Fragetext"
+                      <textarea value={q.text} placeholder="Fragetext" rows={1}
                         onChange={e => updateQuestion(q.id, { text: e.target.value })}
-                        className={`flex-1 min-w-[220px] text-[11px] px-2 py-1.5 rounded border outline-none transition-colors ${inputCls} ${!q.text.trim() ? (isDark ? 'border-rose-500/40' : 'border-rose-300') : ''}`} />
+                        onFocus={autoGrow} onInput={autoGrow}
+                        className={`flex-1 min-w-[220px] text-[11px] px-2 py-1.5 rounded border outline-none resize-none overflow-hidden transition-colors ${inputCls} ${!q.text.trim() ? (isDark ? 'border-rose-500/40' : 'border-rose-300') : ''}`} />
                       <select value={q.milestone}
                         onChange={e => updateQuestion(q.id, { milestone: e.target.value })}
                         title="Meilenstein"
@@ -591,9 +601,10 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
                         className={`w-full text-[11px] px-2 py-1.5 rounded border outline-none transition-colors ${inputCls} ${!(q.options ?? []).filter(Boolean).length ? (isDark ? 'border-rose-500/40' : 'border-rose-300') : ''}`} />
                     )}
                     <div className="flex items-center gap-2 flex-wrap">
-                      <input value={q.hint ?? ''} placeholder="Erläuterung (optional)"
+                      <textarea value={q.hint ?? ''} placeholder="Erläuterung (optional, Markdown) — wird über ein Info-Icon bei der Frage angezeigt" rows={1}
                         onChange={e => updateQuestion(q.id, { hint: e.target.value || undefined })}
-                        className={`flex-1 min-w-[200px] text-[11px] px-2 py-1.5 rounded border outline-none transition-colors ${inputCls}`} />
+                        onFocus={autoGrow} onInput={autoGrow}
+                        className={`flex-1 min-w-[200px] text-[11px] px-2 py-1.5 rounded border outline-none resize-none overflow-hidden transition-colors ${inputCls}`} />
                       <span className={`max-w-[16rem] truncate text-[10px] ${textMuted}`}
                         title={q.source ?? `${draft.company ?? 'Eigene Firma'} (eigene Frage)`}>
                         Quelle: {q.source ?? (draft.company ?? 'Eigene Firma')}
@@ -609,6 +620,13 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
                           ))}
                         </select>
                       )}
+                      <label className="flex items-center gap-1.5 text-[11px] cursor-pointer flex-shrink-0"
+                        title="Bemerkungen-Textarea immer sichtbar statt hinter «Bemerkungen …» versteckt">
+                        <input type="checkbox" checked={q.remarksAlwaysOpen === true}
+                          onChange={e => updateQuestion(q.id, { remarksAlwaysOpen: e.target.checked ? true : undefined })}
+                          className="accent-blue-500 cursor-pointer" />
+                        Bemerkungen immer offen
+                      </label>
                     </div>
                   </div>
                 ))}

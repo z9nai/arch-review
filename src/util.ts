@@ -1,3 +1,5 @@
+import type React from 'react';
+
 export const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 // Kleinbuchstaben, Bindestriche, keine Umlaute
@@ -37,4 +39,12 @@ export function fmtTimestamp(iso: string): string {
 export function basename(path: string): string {
   const i = path.lastIndexOf('/');
   return i >= 0 ? path.slice(i + 1) : path;
+}
+
+// Textarea beim Fokussieren/Tippen auf die volle Höhe des Inhalts wachsen
+// lassen, statt nur die feste rows-Höhe mit Scrollbalken zu zeigen.
+export function autoGrow(e: React.FocusEvent<HTMLTextAreaElement> | React.FormEvent<HTMLTextAreaElement>): void {
+  const t = e.currentTarget;
+  t.style.height = 'auto';
+  t.style.height = `${t.scrollHeight}px`;
 }
