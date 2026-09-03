@@ -18,7 +18,7 @@
     {
       "id": "data-classification",
       "title": "Datenklassifikation",
-      "infoMd": "# Datenklassifikation\n\n## Zweck\n\nStuft die Daten eines Vorhabens ein (an SCHUBAN angelehnt, aber eigene DEMOCOMPANY-Skala) und leitet daraus die anzuwendenden Datenhaltungsvorgaben ab. Die Einstufung ist Grundlage für alle Fragen im Thema Datenhaltung — sie entscheidet, welche Schutzklasse (K0–K4) gilt.\n\n## Schutzklassen\n\n| Klasse | Bedeutung |\n|---|---|\n| K0 Öffentlich | Zur Veröffentlichung bestimmt oder bereits öffentlich |\n| K1 Intern | Intern bestimmt, ohne Personen- oder Kundenbezug |\n| K2 Vertraulich | Daten von Kunden oder Mitarbeitenden ohne besondere Brisanz |\n| K3 Hochvertraulich | Inhalte, deren Offenlegung den Betroffenen ernsthaft schadet |\n| K4 Hochschutz | Daten, mit denen sich unmittelbar handeln lässt |\n\nDer Unterschied zwischen K0 und K1 liegt in der **Bestimmung**, nicht im Schaden. Ein zweckgebundener Datenausschnitt kann tiefer eingestuft werden als der vollständige, führende Bestand — massgebend sind Inhalt und Rolle im Systemverbund, nicht die Zahl der Betroffenen.\n\n## Vorgaben\n\n- Schutzbedarfsanalyse durchführen\n- Einstufung dokumentieren\n- Ableitung der Datenhaltungsvorgaben → Thema Datenhaltung\n"
+      "infoMd": "# Datenklassifikation\n\n## Zweck\n\nStuft die Daten eines Vorhabens ein (an SCHUBAN angelehnt, mit eigener Skala) und leitet daraus die anzuwendenden Datenhaltungsvorgaben ab. Die Einstufung ist Grundlage für alle Fragen im Thema Datenhaltung — sie entscheidet, welche Schutzklasse (K0–K4) gilt.\n\n## Schutzklassen\n\n| Klasse | Bedeutung |\n|---|---|\n| K0 Öffentlich | Zur Veröffentlichung bestimmt oder bereits öffentlich |\n| K1 Intern | Intern bestimmt, ohne Personen- oder Kundenbezug |\n| K2 Vertraulich | Daten von Kunden oder Mitarbeitenden ohne besondere Brisanz |\n| K3 Hochvertraulich | Inhalte, deren Offenlegung den Betroffenen ernsthaft schadet |\n| K4 Hochschutz | Daten, mit denen sich unmittelbar handeln lässt |\n\nDer Unterschied zwischen K0 und K1 liegt in der **Bestimmung**, nicht im Schaden. Ein zweckgebundener Datenausschnitt kann tiefer eingestuft werden als der vollständige, führende Bestand — massgebend sind Inhalt und Rolle im Systemverbund, nicht die Zahl der Betroffenen.\n\n## Vorgaben\n\n- Schutzbedarfsanalyse durchführen\n- Einstufung dokumentieren\n- Ableitung der Datenhaltungsvorgaben → Thema Datenhaltung\n"
     },
     {
       "id": "data-storage",
@@ -139,11 +139,11 @@
       "themeId": "cloud-infrastructure",
       "kind": "choice",
       "options": [
-        "Private Cloud (dedizierter Betrieb, z. B. Swisscom)",
+        "Private Cloud (dedizierter Betrieb bei einem einzelnen Anbieter)",
         "Public/Multi-Tenant Cloud (Hyperscaler, z. B. AWS, Azure, GCP)",
         "Hybrid / gemischt"
       ],
-      "hint": "Private Cloud = dedizierter Betrieb (z. B. Swisscom). Public/Multi-Tenant Cloud = Hyperscaler (z. B. AWS, Azure, GCP). Nur relevant, wenn C1 = Ja. Bei Public/Multi-Tenant Cloud sind Datenresidenz, Shared-Responsibility-Modell und ggf. Bankkundengeheimnis-/Outsourcing-Vorgaben (FINMA-Rundschreiben) besonders zu prüfen; bei Private Cloud primär die vertragliche/betriebliche Kontrolle über die Plattform. Fliesst nicht in die Ja/Nein-Relevanzableitung ein (nur C1 ist Gate-Frage) — dient der direkten Sichtbarkeit der Cloud-Art im M10."
+      "hint": "Private Cloud = dedizierter Betrieb bei einem einzelnen Anbieter. Public/Multi-Tenant Cloud = Hyperscaler (z. B. AWS, Azure, GCP). Nur relevant, wenn C1 = Ja. Bei Public/Multi-Tenant Cloud sind Datenresidenz, Shared-Responsibility-Modell und ggf. Bankkundengeheimnis-/Outsourcing-Vorgaben (FINMA-Rundschreiben) besonders zu prüfen; bei Private Cloud primär die vertragliche/betriebliche Kontrolle über die Plattform. Fliesst nicht in die Ja/Nein-Relevanzableitung ein (nur C1 ist Gate-Frage) — dient der direkten Sichtbarkeit der Cloud-Art im M10."
     },
     {
       "id": "C3",
@@ -264,7 +264,7 @@
       "id": "E1",
       "kind": "text",
       "text": "Um welche Datenhaltung geht es?",
-      "hint": "Name und Ort des Bestands, z. B. Applikation, Datenbank, SaaS-Lösung. Grundlagen im Thema Datenhaltung (Info-Icon). Auch App-Daten, Backup und Logs als eigene Datenhaltung erfassen, wenn sie unterschiedlich eingestuft werden könnten (z. B. Logs mit eigener CID-/Aufbewahrungslage gegenüber den Primärdaten — Beispiel Demo.alpha: Benutzerdaten/Prozessinfos/Log-Files sind dort separate Datenklassen mit je eigenen RPO/RTO-Werten).",
+      "hint": "Name und Ort des Bestands, z. B. Applikation, Datenbank, SaaS-Lösung. Grundlagen im Thema Datenhaltung (Info-Icon). Auch App-Daten, Backup und Logs als eigene Datenhaltung erfassen, wenn sie unterschiedlich eingestuft werden könnten (z. B. Logs mit eigener CID-/Aufbewahrungsfrist gegenüber den Primärdaten).",
       "milestone": "M20",
       "themeId": "data-storage"
     },
@@ -728,13 +728,5 @@
     }
   ],
   "classificationInfoMd": "# Klassifikation\n\nDie Klassifikation ist das Ergebnis der Foundation-Prüfung (M10) und Teil\nder Freigabe:\n\n- **nicht relevant** — alle Relevanz-Fragen sind mit Nein beantwortet.\n  Es findet keine weitere Architekturprüfung statt (kein M20/M40).\n- **relevant** — das Projekt berührt die Architektur; die Fragenkataloge\n  M20 und M40 werden geprüft.\n- **wegweisend** — das Projekt prägt die Architektur; zusätzlich werden\n  die als «ab wegweisend» markierten Fragen gestellt.\n\nOb ein Projekt architekturrelevant ist, ergibt sich automatisch aus den\nJa/Nein-Fragen im M10 (mindestens eine Frage mit Ja → relevant; alle Nein\n→ nicht relevant).\n\nOb ein relevantes Projekt zusätzlich **wegweisend** ist, entscheidet\nder/die Architekt/in anhand folgender Kriterien (mindestens eines trifft zu):\n\n- **Referenz-/Pilotcharakter** — das Projekt führt ein Muster, eine\n  Technologie oder eine Plattform ein, die anschliessend als Vorlage für\n  weitere Projekte dient.\n- **Wirkung über das Projekt hinaus** — Entscheide betreffen mehrere\n  Systeme, mehrere Mandanten/Banken oder die gemeinsame Plattform, nicht\n  nur die Applikation des Projekts selbst.\n- **Abweichung von bestehenden Vorgaben** — das Projekt weicht bewusst von\n  einem etablierten Standard ab, und diese Abweichung soll künftig als\n  Präzedenzfall/neue Richtlinie gelten (nicht nur als Einzelfall-Ausnahme).\n- **Hohe Tragweite bei Fehlentscheid** — Risiko, Kosten oder regulatorische\n  Sichtbarkeit sind so hoch, dass ein Fehler in der Architekturprüfung\n  überproportionalen Schaden anrichten würde.\n",
-  "company": "DEMOCOMPANY",
-  "auth": {
-    "enabled": true,
-    "tenantId": "b7c70efe-b7ac-4b20-8b66-7d91a6d472e6",
-    "clientId": "576bfb92-4b3e-4b13-bb89-816cc356516a",
-    "adminRole": "ArchReview.Admin",
-    "reviewerRole": "ArchReview.Reviewer",
-    "viewerRole": "ArchReview.Viewer"
-  }
+  "company": "MyCompany"
 }

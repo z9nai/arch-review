@@ -8,166 +8,183 @@
   "classification": "relevant",
   "architectureRelevant": true,
   "createdAt": "2026-08-15",
-  "updatedAt": "2026-08-19T15:35:34+02:00",
+  "updatedAt": "2026-09-03T12:12:14+00:00",
   "reviews": {
+    "data-classification": {
+      "relevant": true,
+      "reviewed": true,
+      "result": null,
+      "milestone": "",
+      "notes": "",
+      "answers": {
+        "D1": {
+          "value": true,
+          "remarks": "Ja – die Core-Datenbank enthält Kundendaten (Namen, Adressen, Vertragsdaten)."
+        },
+        "D2": {
+          "value": false,
+          "remarks": "Nein – Standard-Kundendaten ohne besondere Brisanz bei Offenlegung."
+        },
+        "D3": {
+          "value": null,
+          "remarks": "Vertrauliche Kundendaten, kein erhöhter Schutzbedarf.",
+          "choice": "K2"
+        }
+      }
+    },
     "data-storage": {
-      "relevant": false,
-      "reviewed": false,
+      "relevant": true,
+      "reviewed": true,
       "result": null,
       "milestone": "",
       "notes": "",
       "answers": {
         "S1": {
           "value": false,
-          "remarks": "Kundendaten wandern in die neue Core-Datenbank"
+          "remarks": "Nein – keine grundsätzlich neue Datenhaltung, die Zieldatenbank ersetzt die bestehende."
         },
         "S2": {
-          "value": false,
-          "remarks": ""
+          "value": true,
+          "remarks": "Ja – während der Migration werden Daten auf die neue Plattform kopiert, bevor die alte abgeschaltet wird."
         },
         "S3": {
-          "value": false,
-          "remarks": ""
+          "value": true,
+          "remarks": "Ja – die Core-Datenbank wechselt vollständig auf eine neue Plattform."
         },
         "S4": {
           "value": false,
-          "remarks": ""
+          "remarks": "Nein – es kommen keine neuen Datenarten dazu, nur bestehende Daten werden verschoben."
         },
         "E1": {
           "value": null,
-          "remarks": "datenbank du pinsel"
+          "remarks": "Core-Datenbank (neue Plattform)"
         },
         "E2": {
-          "value": false,
-          "remarks": ""
+          "value": true,
+          "remarks": "Ja – die Daten bleiben dauerhaft in der neuen Datenbank liegen."
         },
         "E3": {
           "value": true,
-          "remarks": ""
-        }
-      }
-    },
-    "data-classification": {
-      "relevant": true,
-      "reviewed": false,
-      "result": null,
-      "milestone": "",
-      "notes": "",
-      "answers": {
-        "D3": {
-          "value": null,
-          "remarks": "",
-          "choice": "B"
-        },
-        "D1": {
-          "value": true,
-          "remarks": ""
-        },
-        "D2": {
-          "value": false,
-          "remarks": ""
-        },
-        "qoa6a8zcfrq": {
-          "value": false,
-          "remarks": ""
+          "remarks": "Ja – die Inhalte sind nicht zur Veröffentlichung bestimmt."
         }
       }
     },
     "integration-application": {
-      "relevant": false,
-      "reviewed": false,
+      "relevant": true,
+      "reviewed": true,
       "result": null,
       "milestone": "",
       "notes": "",
       "answers": {
         "I1": {
-          "value": false,
-          "remarks": ""
+          "value": true,
+          "remarks": "Ja – die Reporting-Anbindung muss neu an die migrierte Datenbank angebunden werden."
         },
         "I2": {
           "value": false,
-          "remarks": ""
+          "remarks": "Nein – bestehende Schnittstellen zu anderen Systemen ändern sich nicht in Format/Protokoll/Vertrag."
         },
         "I3": {
           "value": false,
-          "remarks": ""
+          "remarks": "Nein – es entsteht keine neue Applikationskomponente, nur die Datenbank wird migriert."
         }
       }
     },
     "cloud-infrastructure": {
-      "relevant": false,
-      "reviewed": false,
+      "relevant": true,
+      "reviewed": true,
       "result": null,
       "milestone": "",
       "notes": "",
       "answers": {
         "C1": {
-          "value": false,
-          "remarks": ""
+          "value": true,
+          "remarks": "Ja – die Zielplattform ist eine neue Cloud-Datenbank-Instanz."
         },
-        "C3": {
+        "C4": {
           "value": false,
-          "remarks": "ok wir haben alles im griff"
+          "remarks": "Nein – kein Hyperscaler-Bezug, dedizierter Anbieter."
         },
         "C2": {
-          "value": false,
-          "remarks": ""
+          "value": null,
+          "remarks": "",
+          "choice": "Private Cloud (dedizierter Betrieb bei einem einzelnen Anbieter)"
+        },
+        "C3": {
+          "value": true,
+          "remarks": "Ja – Betrieb, Monitoring und Patching sind mit dem Infrastruktur-Team geklärt."
         }
       }
     },
     "security-compliance": {
-      "relevant": false,
-      "reviewed": false,
+      "relevant": true,
+      "reviewed": true,
       "result": null,
       "milestone": "",
       "notes": "",
       "answers": {
-        "SC1": {
+        "SC0": {
           "value": false,
-          "remarks": ""
+          "remarks": "Nein – keine neuen oder veränderten Schnittstellen nach aussen."
         },
         "SC2": {
+          "value": true,
+          "remarks": "Ja – die Datenverarbeitung ändert sich technisch durch den Plattformwechsel."
+        },
+        "SC3": {
           "value": false,
-          "remarks": ""
+          "remarks": "Nein – keine zusätzlichen regulatorischen Anforderungen über die bestehenden hinaus."
+        },
+        "SC1": {
+          "value": true,
+          "remarks": "Ja – Vorhaben wurde der Security-&-Compliance-Stelle gemeldet."
         }
       }
     },
     "idm-iam": {
       "relevant": false,
-      "reviewed": false,
+      "reviewed": true,
       "result": null,
       "milestone": "",
       "notes": "",
       "answers": {
         "A1": {
           "value": false,
-          "remarks": ""
+          "remarks": "Nein – keine neuen Rollen oder Berechtigungen, bestehende Zugriffsrechte werden übernommen."
         },
         "A2": {
           "value": false,
-          "remarks": ""
+          "remarks": "Nein – keine neue IdM/IAM-Anbindung, Authentifizierung bleibt unverändert."
+        },
+        "A4": {
+          "value": false,
+          "remarks": "Nein – keine neuen privilegierten Zugriffe, Administrationsrechte bleiben wie bisher."
+        },
+        "A5": {
+          "value": false,
+          "remarks": "Nein – kein externer Zugriff, ausschliesslich interne Systeme und Nutzer."
         },
         "A3": {
-          "value": false,
-          "remarks": "alles super\nwarum auch nicht"
+          "value": true,
+          "remarks": "Ja – privilegierte Zugriffe (DB-Administration) sind über die bestehende Rollen-/Berechtigungsverwaltung geregelt."
         }
       }
     },
     "m10": {
-      "relevant": null,
+      "relevant": true,
       "reviewed": true,
       "result": null,
       "milestone": "M10",
-      "notes": "sdfdsfkjhkjh",
+      "notes": "Migration eines bestehenden Core-Systems auf eine neue Plattform. Relevante Themen: Datenklassifikation, Datenhaltung, Integrations-/Applikationsarchitektur, Cloud-Infrastruktur, Security & Compliance.",
       "approved": true,
-      "approvedBy": "Martin"
+      "approvedBy": "Max Muster"
     },
     "m20": {
       "relevant": null,
       "reviewed": false,
       "result": null,
       "milestone": "M20",
-      "notes": "sssss"
+      "notes": "Wird nach Freigabe von M10 gestartet."
     }
   }
 }
