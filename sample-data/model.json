@@ -110,16 +110,14 @@
       "text": "Speichern wir irgendwo Daten neu?",
       "milestone": "M10",
       "themeId": "data-storage",
-      "hint": "Was alles als Datenhaltung zählt, steht in der «Datenhaltung» (Info-Icon), Abschnitt Zweck.",
-      "source": "Prüfformular Datenhaltung (V0.3, 04.08.2026), Schritt 1"
+      "hint": "Was alles als Datenhaltung zählt, steht in der «Datenhaltung» (Info-Icon), Abschnitt Zweck."
     },
     {
       "id": "S2",
       "text": "Kopieren wir Daten an einen Ort, an dem sie heute nicht liegen?",
       "milestone": "M10",
       "themeId": "data-storage",
-      "hint": "Dass ein System einen Export-Knopf hat, zählt nicht.",
-      "source": "Prüfformular Datenhaltung (V0.3, 04.08.2026), Schritt 1"
+      "hint": "Dass ein System einen Export-Knopf hat, zählt nicht."
     },
     {
       "id": "C1",
@@ -147,15 +145,13 @@
       "text": "Wechselt eine bestehende Datenhaltung den Ort?",
       "milestone": "M10",
       "themeId": "data-storage",
-      "hint": "Anderes Land, anderer Anbieter oder andere Plattform.",
-      "source": "Prüfformular Datenhaltung (V0.3, 04.08.2026), Schritt 1"
+      "hint": "Anderes Land, anderer Anbieter oder andere Plattform."
     },
     {
       "id": "S4",
       "text": "Kommen in einer bestehenden Datenhaltung neue Datenarten dazu?",
       "milestone": "M10",
-      "themeId": "data-storage",
-      "source": "Prüfformular Datenhaltung (V0.3, 04.08.2026), Schritt 1"
+      "themeId": "data-storage"
     },
     {
       "id": "K1",
@@ -236,80 +232,71 @@
       "id": "E1",
       "kind": "text",
       "text": "Um welche Datenhaltung geht es?",
-      "hint": "Name und Ort des Bestands, z. B. Applikation, Datenbank, SaaS-Lösung. Grundlagen im Thema Datenhaltung (Info-Icon).",
+      "hint": "Name und Ort des Bestands, z. B. Applikation, Datenbank, SaaS-Lösung. Grundlagen im Thema Datenhaltung (Info-Icon). Auch App-Daten, Backup und Logs als eigene Datenhaltung erfassen, wenn sie unterschiedlich eingestuft werden könnten (z. B. Logs mit eigener CID-/Aufbewahrungslage gegenüber den Primärdaten — Beispiel Demo.alpha: Benutzerdaten/Prozessinfos/Log-Files sind dort separate Datenklassen mit je eigenen RPO/RTO-Werten).",
       "milestone": "M20",
-      "themeId": "data-storage",
-      "source": "Prüfformular Datenhaltung (V0.3, 04.08.2026), Schritt 2"
+      "themeId": "data-storage"
     },
     {
       "id": "E2",
       "text": "Bleiben die Daten dort liegen (nicht nur Anzeige)?",
       "hint": "Nur Anzeige → keine Datenhaltung; die Prüfung endet hier und wird auf dem OnePager entsprechend eingetragen.",
       "milestone": "M20",
-      "themeId": "data-storage",
-      "source": "Prüfformular Datenhaltung (V0.3, 04.08.2026), Schritt 2"
+      "themeId": "data-storage"
     },
     {
       "id": "E3",
-      "text": "Ist der Inhalt dafür bestimmt, öffentlich zu sein?",
-      "hint": "Ja → K0, die Einstufungsfragen entfallen. Massgebend ist die Bestimmung, nicht ob man ihn veröffentlichen könnte.",
+      "text": "Ist der Inhalt NICHT für die Veröffentlichung bestimmt?",
+      "hint": "Nein → K0, die weiteren Einstufungsfragen entfallen. Ja → mindestens K1. Massgebend ist die Bestimmung, nicht ob man den Inhalt veröffentlichen könnte.",
       "milestone": "M20",
-      "themeId": "data-storage",
-      "source": "Prüfformular Datenhaltung (V0.3, 04.08.2026), Schritt 2"
+      "themeId": "data-storage"
     },
     {
       "id": "E4",
       "text": "Geht es in den Daten um bestimmte Personen (Kunden, Mitarbeitende, Partner)?",
       "hint": "Nein → K1, Ja → mindestens K2. Nein heisst: rein interne Inhalte wie Prozessbeschreibungen oder Konfigurationen ohne Passwörter.",
       "milestone": "M20",
-      "themeId": "data-storage",
-      "source": "Prüfformular Datenhaltung (V0.3, 04.08.2026), Schritt 2"
+      "themeId": "data-storage"
     },
     {
       "id": "E5",
       "text": "Enthalten die Daten Inhalte, die einer betroffenen Person ernsthaft schaden würden, wenn sie nach aussen gelangen?",
       "hint": "Ja → mindestens K3. Gesundheit, Bonität, finanzielle Situation — auch wenn sie nur in Freitextfeldern, Notizen oder Anhängen vorkommen.",
       "milestone": "M20",
-      "themeId": "data-storage",
-      "source": "Prüfformular Datenhaltung (V0.3, 04.08.2026), Schritt 2"
+      "themeId": "data-storage"
     },
     {
       "id": "E6",
       "text": "Könnte jemand mit diesen Daten unmittelbar handeln (Geld bewegen, sich als jemand anderes ausgeben, Zugang verschaffen)?",
       "hint": "Ja → K4. Konto- und Transaktionsdaten, Zahlungsmittel, Identitätsnachweise, Passwörter, Schlüssel, Administrationszugänge.",
       "milestone": "M20",
-      "themeId": "data-storage",
-      "source": "Prüfformular Datenhaltung (V0.3, 04.08.2026), Schritt 2"
+      "themeId": "data-storage"
     },
     {
       "id": "E7",
       "text": "Entstehen diese Daten hier, statt aus einem anderen System zu stammen?",
       "hint": "Verstärkerfrage, nur ab Grundklasse K2 beantworten.",
       "milestone": "M20",
-      "themeId": "data-storage",
-      "source": "Prüfformular Datenhaltung (V0.3, 04.08.2026), Schritt 2"
+      "themeId": "data-storage"
     },
     {
       "id": "E8",
       "text": "Bewegt sich Geld oder ändert sich eine Berechtigung oder ein Vertrag, wenn hier jemand unbemerkt Daten verändert?",
       "hint": "Verstärkerfrage: mindestens ein Ja → eine Stufe höher, höchstens eine. K4 bleibt K4.",
       "milestone": "M20",
-      "themeId": "data-storage",
-      "source": "Prüfformular Datenhaltung (V0.3, 04.08.2026), Schritt 2"
+      "themeId": "data-storage"
     },
     {
       "id": "E9",
       "text": "Steht das Kerngeschäft still, wenn diese Daten nicht mehr verfügbar sind?",
       "hint": "Verstärkerfrage, nur ab Grundklasse K2 beantworten.",
       "milestone": "M20",
-      "themeId": "data-storage",
-      "source": "Prüfformular Datenhaltung (V0.3, 04.08.2026), Schritt 2"
+      "themeId": "data-storage"
     },
     {
       "id": "E10",
       "kind": "choice",
       "text": "Welche Schutzklasse ergibt sich (K0–K4)?",
-      "hint": "Bei «Weiss nicht» gilt die nächsthöhere plausible Klasse, sonst «nicht beurteilbar». Eine bewusst zu tiefe Einstufung ist nicht zulässig.",
+      "hint": "Ausgangspunkt ist die Schutzklasse aus M10 (Datenklassifikation, D0). Weicht diese konkrete Datenhaltung davon ab (höher z. B. durch Aggregation, tiefer z. B. bei Anonymisierung), hier begründen. Bei «Weiss nicht» gilt die nächsthöhere plausible Klasse, sonst «nicht beurteilbar». Eine bewusst zu tiefe Einstufung ist nicht zulässig.",
       "milestone": "M20",
       "themeId": "data-storage",
       "options": [
@@ -319,8 +306,7 @@
         "K3",
         "K4",
         "nicht beurteilbar"
-      ],
-      "source": "Prüfformular Datenhaltung (V0.3, 04.08.2026), Schritt 2"
+      ]
     },
     {
       "id": "T1",
@@ -328,8 +314,7 @@
       "text": "In welchem Land liegen die Daten?",
       "hint": "Liegen Teile an mehreren Orten (Reporting, Testumgebung, Cache), sind alle zu nennen.",
       "milestone": "M20",
-      "themeId": "data-storage",
-      "source": "Prüfformular Datenhaltung (V0.3, 04.08.2026), Schritt 3"
+      "themeId": "data-storage"
     },
     {
       "id": "T2",
@@ -343,32 +328,28 @@
         "Private Cloud",
         "Public Cloud",
         "SaaS"
-      ],
-      "source": "Prüfformular Datenhaltung (V0.3, 04.08.2026), Schritt 3"
+      ]
     },
     {
       "id": "T3",
       "text": "Ist der Datenhaltungsort belegbar?",
       "hint": "Vertrag, Regionseinstellung oder schriftliche Herstellerangabe — Beleg in den Bemerkungen festhalten.",
       "milestone": "M20",
-      "themeId": "data-storage",
-      "source": "Prüfformular Datenhaltung (V0.3, 04.08.2026), Schritt 3"
+      "themeId": "data-storage"
     },
     {
       "id": "T4",
       "text": "Können Personen aus dem Ausland auf die Daten zugreifen?",
       "hint": "Etwa über Anbieter-Support, Subunternehmer, Fernwartung oder Betriebsteams im Ausland. Wird nur festgehalten, ist keine Abweichung.",
       "milestone": "M20",
-      "themeId": "data-storage",
-      "source": "Prüfformular Datenhaltung (V0.3, 04.08.2026), Schritt 3"
+      "themeId": "data-storage"
     },
     {
       "id": "T5",
       "text": "Werden die Daten gesichert?",
       "hint": "Backup-Ort nach Land und Art in den Bemerkungen; das Restore-Ziel zählt dazu.",
       "milestone": "M20",
-      "themeId": "data-storage",
-      "source": "Prüfformular Datenhaltung (V0.3, 04.08.2026), Schritt 3"
+      "themeId": "data-storage"
     },
     {
       "id": "T6",
@@ -376,32 +357,28 @@
       "text": "Wie sind Logs, Monitoring und wiederkehrende Exporte geregelt?",
       "hint": "Was wird protokolliert, wo liegen die Protokolle, welche Auszüge verlassen das System regelmässig?",
       "milestone": "M20",
-      "themeId": "data-storage",
-      "source": "Prüfformular Datenhaltung (V0.3, 04.08.2026), Schritt 3"
+      "themeId": "data-storage"
     },
     {
       "id": "R1",
       "text": "Passen Datenhaltungsort und Backup-Ort zur Schutzklasse?",
       "hint": "Abgleich gegen die Vorgaben je Schutzklasse im Thema Datenhaltung. Nein → Abweichung unten beschreiben.",
       "milestone": "M20",
-      "themeId": "data-storage",
-      "source": "Prüfformular Datenhaltung (V0.3, 04.08.2026), Schritt 4"
+      "themeId": "data-storage"
     },
     {
       "id": "R2",
       "text": "Passen Logs und Monitoring zur Schutzklasse?",
       "hint": "Nein → Abweichung unten beschreiben.",
       "milestone": "M20",
-      "themeId": "data-storage",
-      "source": "Prüfformular Datenhaltung (V0.3, 04.08.2026), Schritt 4"
+      "themeId": "data-storage"
     },
     {
       "id": "R3",
       "text": "Passen Kopien und Exporte zur Schutzklasse?",
       "hint": "Nein → Abweichung unten beschreiben.",
       "milestone": "M20",
-      "themeId": "data-storage",
-      "source": "Prüfformular Datenhaltung (V0.3, 04.08.2026), Schritt 4"
+      "themeId": "data-storage"
     },
     {
       "id": "R4",
@@ -409,8 +386,7 @@
       "text": "Abweichungen: Was weicht ab, wer akzeptiert das Risiko (Rolle und Person), bis wann behoben?",
       "hint": "Nur ausfüllen, wenn eine Abgleichfrage mit Nein beantwortet wurde. Solange die Risikoakzeptanz nicht dokumentiert vorliegt, bleibt die Condition offen.",
       "milestone": "M20",
-      "themeId": "data-storage",
-      "source": "Prüfformular Datenhaltung (V0.3, 04.08.2026), Schritt 4"
+      "themeId": "data-storage"
     },
     {
       "id": "cat-dc1",
@@ -602,23 +578,20 @@
       "text": "Ist der Inhalt NICHT für die Veröffentlichung bestimmt?",
       "milestone": "M10",
       "themeId": "data-classification",
-      "hint": "Nein → K0, die weiteren Einstufungsfragen entfallen. Ja → mindestens K1. Massgebend ist die Bestimmung, nicht ob man den Inhalt veröffentlichen könnte.",
-      "source": "DEMOCOMPANY"
+      "hint": "Nein → K0, die weiteren Einstufungsfragen entfallen. Ja → mindestens K1. Massgebend ist die Bestimmung, nicht ob man den Inhalt veröffentlichen könnte."
     },
     {
       "id": "D1",
       "text": "Geht es in den Daten um bestimmte Personen (Kunden, Mitarbeitende, Partner)?",
       "milestone": "M10",
       "themeId": "data-classification",
-      "hint": "Nein → höchstens Schutzklasse K1. Ja → mindestens K2. Beispiel: Namen, Adressen, Vertragsdaten von Kund:innen oder Mitarbeitenden.",
-      "source": "DEMOCOMPANY"
+      "hint": "Nein → höchstens Schutzklasse K1. Ja → mindestens K2. Beispiel: Namen, Adressen, Vertragsdaten von Kund:innen oder Mitarbeitenden."
     },
     {
       "id": "D2",
       "text": "Würde die Offenlegung dieser Daten einer betroffenen Person ernsthaft schaden?",
       "milestone": "M10",
       "themeId": "data-classification",
-      "source": "DEMOCOMPANY",
       "hint": "Ja → mindestens Schutzklasse K3. Beispiel: Bankgeheimnis-Bezug (Konto-/Depotdaten, Vermögensverhältnisse), Gesundheitsdaten, biometrische Daten."
     },
     {
@@ -626,8 +599,7 @@
       "text": "Könnte jemand mit diesen Daten unmittelbar handeln (Geld bewegen, sich als jemand anderes ausgeben, Zugang verschaffen)?",
       "milestone": "M10",
       "themeId": "data-classification",
-      "hint": "Ja → K4. Beispiel: Konto- und Transaktionsdaten, Zahlungsmittel, Identitätsnachweise, Passwörter, Schlüssel, Administrationszugänge.",
-      "source": "DEMOCOMPANY"
+      "hint": "Ja → K4. Beispiel: Konto- und Transaktionsdaten, Zahlungsmittel, Identitätsnachweise, Passwörter, Schlüssel, Administrationszugänge."
     },
     {
       "id": "D0",
@@ -644,8 +616,7 @@
         "nicht beurteilbar"
       ],
       "hint": "Aus D4/D1/D2/D5 abgeleitet: D4 Nein → K0. D4 Ja → mindestens K1, D1 Ja → mindestens K2. D2 Ja → mindestens K3. D5 Ja → K4. Bei Unklarheit: «nicht beurteilbar».",
-      "remarksAlwaysOpen": true,
-      "source": "DEMOCOMPANY"
+      "remarksAlwaysOpen": true
     },
     {
       "id": "D3",

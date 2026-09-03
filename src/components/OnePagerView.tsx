@@ -179,6 +179,11 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
   // ── Stammdaten-Zugriffe ───────────────────────────────────────────────────
   const themes = model?.themes?.length ? model.themes : DEFAULT_MODEL.themes;
   const allQuestions = model?.questions?.length ? model.questions : DEFAULT_MODEL.questions;
+  // Themen-Buchstabe für die Fragenummerierung (M10A1 …) — siehe themeLetter.
+  const themeLetterOf = (themeId: string): string => {
+    const ti = themes.findIndex(t => t.id === themeId);
+    return ti >= 0 ? themeLetter(ti) : 'X';
+  };
 
   // Gilt die Frage für die Klassifikation des Projekts? (kumulativ nach
   // Reihenfolge, z. B. «ab wegweisend»; ohne minClassification oder solange
@@ -192,14 +197,18 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
     return order.indexOf(p.classification) >= order.indexOf(q.minClassification);
   };
 
-  // Fragen eines Themas in einem Meilenstein, mit automatischer Nummer M10F1 …
-  // Die Nummern werden über den vollen Katalog vergeben und bleiben damit
-  // stabil, auch wenn die Klassifikation einzelne Fragen ausblendet (Lücken).
-  const questionsAt = (themeId: string, ms: string, p: Project | null = proj): { q: Question; number: string }[] =>
-    allQuestions
+  // Fragen eines Themas in einem Meilenstein, mit automatischer Nummer M10A1 …
+  // Der Buchstabe ist der Themen-Buchstabe (siehe themeLetter), damit die
+  // Nummer über alle Themen hinweg eindeutig bleibt. Die Nummern werden über
+  // den vollen Katalog vergeben und bleiben damit stabil, auch wenn die
+  // Klassifikation einzelne Fragen ausblendet (Lücken).
+  const questionsAt = (themeId: string, ms: string, p: Project | null = proj): { q: Question; number: string }[] => {
+    const letter = themeLetterOf(themeId);
+    return allQuestions
       .filter(q => q.themeId === themeId && q.milestone === ms)
-      .map((q, i) => ({ q, number: `${ms}F${i + 1}` }))
+      .map((q, i) => ({ q, number: `${ms}${letter}${i + 1}` }))
       .filter(({ q }) => q.enabled !== false && (!p || classOk(p, q)));
+  };
 
   // Thema relevant, abgeleitet aus den M10-Fragen:
   // eine Frage offen → Offen; eine mit Ja → Ja; sonst Nein.
@@ -699,7 +708,7 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
         if (patch.value !== undefined) parts.push(patch.value ? 'Ja' : 'Nein');
         if (patch.choice) parts.push(patch.choice);
         if (patch.remarks) parts.push(`«${patch.remarks.length > 40 ? patch.remarks.slice(0, 40) + '…' : patch.remarks}»`);
-        items.push({ themeId: q.themeId, q, number: `${ms}F${idx + 1}`, patch, summary: parts.join(' · ') });
+        items.push({ themeId: q.themeId, q, number: `${ms}${themeLetterOf(q.themeId)}${idx + 1}`, patch, summary: parts.join(' · ') });
       }
       setAnswersPdfItems(items);
     } catch {
@@ -708,7 +717,7 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
   };
 
   // Ausgefüllten Export-Text wieder einlesen: erkennt Themen-Header,
-  // Fragenummern (M20F3 …), angekreuzte [X] Ja/[X] Nein, Auswahl-Antworten
+  // Fragenummern (M20B3 …), angekreuzte [X] Ja/[X] Nein, Auswahl-Antworten
   // und Bemerkungen (auch mehrzeilig).
   type ImportItem = { themeId: string; q: Question; number: string; patch: Partial<QuestionAnswer>; summary: string };
 
@@ -718,9 +727,10 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
     const numberMap = new Map<string, Map<string, Question>>();
     for (const t of themes) {
       const m = new Map<string, Question>();
+      const letter = themeLetterOf(t.id);
       allQuestions
         .filter(q => q.themeId === t.id && q.milestone === ms)
-        .forEach((q, i) => m.set(`${ms}F${i + 1}`, q));
+        .forEach((q, i) => m.set(`${ms}${letter}${i + 1}`, q));
       numberMap.set(t.id, m);
     }
 
@@ -762,7 +772,7 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
       const themeId = themeByTitle.get(line.replace(/^[A-Z]\s*·\s*/, '').trim().toLowerCase());
       if (themeId) { flush(); currentTheme = themeId; continue; }
       if (/^-{5,}$/.test(line) || /^(Guten Tag|Vielen Dank|Freundliche Grüsse)/i.test(line)) continue;
-      const qm = line.match(/^(M\d+F\d+)\b\s*(.*)/);
+      const qm = line.match(/^(M\d+[A-Z]\d+)\b\s*(.*)/);
       if (qm) {
         flush();
         const q = currentTheme ? numberMap.get(currentTheme)?.get(qm[1]) : undefined;
