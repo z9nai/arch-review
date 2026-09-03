@@ -3,7 +3,7 @@ import { Model } from './types';
 // Standard-Katalog: wird als model.json angelegt, wenn die Datei im
 // gewählten Ordner fehlt. Dient auch als Fallback, wenn eine bestehende
 // model.json (noch) keine Fragen enthält.
-// GENERIERT aus sample-data/model.json — dort ändern und neu generieren.
+
 export const DEFAULT_MODEL: Model = {
   "version": 3,
   "classifications": [
@@ -70,38 +70,38 @@ export const DEFAULT_MODEL: Model = {
   "questions": [
     {
       "id": "qk9oegv9j4j",
-      "text": "Ist für alle neuen Datenspeicher (inkl. Kopien/Repliken ausserhalb des Kernsystems) eine Datenklassifizierung inkl. CID-Relevanz dokumentiert?",
+      "text": "Ist für alle neuen Datenspeicher eine Datenklassifizierung inkl. CID-Relevanz dokumentiert?",
       "milestone": "M20",
       "themeId": "data-classification",
-      "hint": "Betrifft insb. Read-Replicas/Caches (z.B. MongoDB-Golden-Record ohne Fallback auf den Core) - dort ist Datenverlust nicht durch das Kernsystem abgesichert."
+      "hint": "Auch Kopien/Repliken ausserhalb des Kernsystems zählen als eigener Datenspeicher. Betrifft insb. Read-Replicas/Caches (z.B. MongoDB-Golden-Record ohne Fallback auf den Core) - dort ist Datenverlust nicht durch das Kernsystem abgesichert."
     },
     {
       "id": "q9a3zestv5p",
-      "text": "Ist die finale Zielarchitektur (inkl. aller Integrationspunkte, Datenflüsse und Abhängigkeiten zu Drittsystemen) dokumentiert und von allen Beteiligten (Betreiber, Hersteller, Auftraggeber) freigegeben?",
+      "text": "Ist die finale Zielarchitektur dokumentiert und freigegeben?",
       "milestone": "M20",
       "themeId": "integration-application",
-      "hint": "Insb. relevant, wenn der Betreiber (nicht der Auftraggeber) die finale Architektur definiert - dann muss der Freigabeprozess/das Review explizit geregelt sein."
+      "hint": "Zielarchitektur umfasst alle Integrationspunkte, Datenflüsse und Abhängigkeiten zu Drittsystemen; Freigabe durch alle Beteiligten (Betreiber, Hersteller, Auftraggeber). Insb. relevant, wenn der Betreiber (nicht der Auftraggeber) die finale Architektur definiert - dann muss der Freigabeprozess/das Review explizit geregelt sein."
     },
     {
       "id": "qttvv4euyry",
-      "text": "Liegt ein Threat Model für die neue Komponente/den neuen Service vor, und deckt es alle neuen Trust-Boundaries (z.B. neue externe Integrationen) ab?",
+      "text": "Liegt ein Threat Model für die neue Komponente/den neuen Service vor und deckt es alle neuen Trust-Boundaries ab?",
       "milestone": "M20",
       "themeId": "security-compliance",
-      "hint": "Falls das Threat Model vom Betreiber als Projektleistung geliefert wird: Zeitpunkt und Scope explizit prüfen, nicht als gegeben annehmen."
+      "hint": "Beispiel für eine neue Trust-Boundary: neue externe Integrationen. Falls das Threat Model vom Betreiber als Projektleistung geliefert wird: Zeitpunkt und Scope explizit prüfen, nicht als gegeben annehmen."
     },
     {
       "id": "qpzx51ivonp",
-      "text": "Existiert ein getestetes Backup-/DR-Konzept mit definierten RPO/RTO-Werten je Datenklasse, und wird es von den Fachbereichen als ausreichend akzeptiert?",
+      "text": "Existiert ein getestetes Backup-/DR-Konzept, das von den Fachbereichen als ausreichend akzeptiert wird?",
       "milestone": "M40",
       "themeId": "operations",
-      "hint": "Nicht nur nach Rahmenwerten des Herstellers fragen ('als Hilfestellung'), sondern nach dem konkreten, vom Betreiber gebauten und getesteten Konzept."
+      "hint": "Konzept muss RPO/RTO-Werte je Datenklasse definieren. Nicht nur nach Rahmenwerten des Herstellers fragen ('als Hilfestellung'), sondern nach dem konkreten, vom Betreiber gebauten und getesteten Konzept."
     },
     {
       "id": "qx7q7pxw95o",
-      "text": "Ist das Identity-/Access-Management-Konzept beschrieben, inkl. Federation zu externen Identity Providern und Zuständigkeit für deren Anbindung?",
+      "text": "Ist das Identity-/Access-Management-Konzept beschrieben?",
       "milestone": "M20",
       "themeId": "idm-iam",
-      "hint": "Insbesondere prüfen, wer welchen Teil der Kette (externer IdP -> Federation Broker -> Applikation) verantwortet und ob das dokumentiert ist, nicht nur architektonisch plausibel."
+      "hint": "Inkl. Federation zu externen Identity Providern und Zuständigkeit für deren Anbindung. Insbesondere prüfen, wer welchen Teil der Kette (externer IdP -> Federation Broker -> Applikation) verantwortet und ob das dokumentiert ist, nicht nur architektonisch plausibel."
     },
     {
       "id": "SC1",
@@ -129,8 +129,27 @@ export const DEFAULT_MODEL: Model = {
       "id": "C1",
       "text": "Werden neue Cloud-Dienste oder Plattformen eingesetzt?",
       "milestone": "M10",
+      "themeId": "cloud-infrastructure"
+    },
+    {
+      "id": "C4",
+      "text": "Kommen (neu oder in verstärktem Umfang) Hyperscaler-Dienste zum Einsatz?",
+      "milestone": "M10",
       "themeId": "cloud-infrastructure",
-      "source": "Dummy — Fachinhalt folgt"
+      "hint": "Beispiele: AWS, Azure, GCP. Eigenständiges Gate, unabhängig von C1 — auch relevant, wenn ein bereits bestehender Hyperscaler-Bezug ausgeweitet wird und dies für sich allein evtl. nicht als «neuer» Dienst im engeren Sinn von C1 gelesen würde. Hyperscaler-Nutzung ist regulatorisch (FINMA-Outsourcing-Vorgaben, Datenresidenz, Sub-Outsourcing-Ketten) besonders prüfrelevant und wird darum unabhängig erfasst. Bei Ja: Cloud-Art in C2 entsprechend als Public/Multi-Tenant oder Hybrid einstufen."
+    },
+    {
+      "id": "C2",
+      "text": "Private Cloud oder Public/Multi-Tenant Cloud?",
+      "milestone": "M10",
+      "themeId": "cloud-infrastructure",
+      "kind": "choice",
+      "options": [
+        "Private Cloud (dedizierter Betrieb, z. B. Swisscom)",
+        "Public/Multi-Tenant Cloud (Hyperscaler, z. B. AWS, Azure, GCP)",
+        "Hybrid / gemischt"
+      ],
+      "hint": "Private Cloud = dedizierter Betrieb (z. B. Swisscom). Public/Multi-Tenant Cloud = Hyperscaler (z. B. AWS, Azure, GCP). Nur relevant, wenn C1 = Ja. Bei Public/Multi-Tenant Cloud sind Datenresidenz, Shared-Responsibility-Modell und ggf. Bankkundengeheimnis-/Outsourcing-Vorgaben (FINMA-Rundschreiben) besonders zu prüfen; bei Private Cloud primär die vertragliche/betriebliche Kontrolle über die Plattform. Fliesst nicht in die Ja/Nein-Relevanzableitung ein (nur C1 ist Gate-Frage) — dient der direkten Sichtbarkeit der Cloud-Art im M10."
     },
     {
       "id": "C3",
@@ -143,8 +162,21 @@ export const DEFAULT_MODEL: Model = {
       "id": "I1",
       "text": "Entstehen neue Schnittstellen zu bestehenden Systemen?",
       "milestone": "M10",
+      "themeId": "integration-application"
+    },
+    {
+      "id": "I2",
+      "text": "Werden bestehende Schnittstellen zu anderen Systemen wesentlich geändert?",
+      "milestone": "M10",
       "themeId": "integration-application",
-      "source": "Dummy — Fachinhalt folgt"
+      "hint": "Z. B. Format, Protokoll, Vertrag. Auch technische Änderungen ohne neue Schnittstelle zählen, z. B. Protokollwechsel, neue Version eines bestehenden Contracts, Format-/Schema-Änderungen."
+    },
+    {
+      "id": "I3",
+      "text": "Entsteht eine neue Applikationskomponente oder wird eine bestehende wesentlich verändert?",
+      "milestone": "M10",
+      "themeId": "integration-application",
+      "hint": "Z. B. Technologiewechsel, Ablösung. Auch ohne neue/geänderte Schnittstelle relevant — z. B. reiner Technologie- oder Plattformwechsel einer bestehenden Komponente."
     },
     {
       "id": "S3",
@@ -258,8 +290,8 @@ export const DEFAULT_MODEL: Model = {
     },
     {
       "id": "E4",
-      "text": "Geht es in den Daten um bestimmte Personen (Kunden, Mitarbeitende, Partner)?",
-      "hint": "Nein → K1, Ja → mindestens K2. Nein heisst: rein interne Inhalte wie Prozessbeschreibungen oder Konfigurationen ohne Passwörter.",
+      "text": "Geht es in den Daten um bestimmte Personen?",
+      "hint": "Gemeint sind z. B. Kunden, Mitarbeitende, Partner. Nein → K1, Ja → mindestens K2. Nein heisst: rein interne Inhalte wie Prozessbeschreibungen oder Konfigurationen ohne Passwörter.",
       "milestone": "M20",
       "themeId": "data-storage"
     },
@@ -272,8 +304,8 @@ export const DEFAULT_MODEL: Model = {
     },
     {
       "id": "E6",
-      "text": "Könnte jemand mit diesen Daten unmittelbar handeln (Geld bewegen, sich als jemand anderes ausgeben, Zugang verschaffen)?",
-      "hint": "Ja → K4. Konto- und Transaktionsdaten, Zahlungsmittel, Identitätsnachweise, Passwörter, Schlüssel, Administrationszugänge.",
+      "text": "Könnte jemand mit diesen Daten unmittelbar handeln?",
+      "hint": "Gemeint ist z. B.: Geld bewegen, sich als jemand anderes ausgeben, Zugang verschaffen. Ja → K4. Konto- und Transaktionsdaten, Zahlungsmittel, Identitätsnachweise, Passwörter, Schlüssel, Administrationszugänge.",
       "milestone": "M20",
       "themeId": "data-storage"
     },
@@ -389,8 +421,8 @@ export const DEFAULT_MODEL: Model = {
     {
       "id": "R4",
       "kind": "text",
-      "text": "Abweichungen: Was weicht ab, wer akzeptiert das Risiko (Rolle und Person), bis wann behoben?",
-      "hint": "Nur ausfüllen, wenn eine Abgleichfrage mit Nein beantwortet wurde. Solange die Risikoakzeptanz nicht dokumentiert vorliegt, bleibt die Condition offen.",
+      "text": "Abweichungen: Was weicht ab, wer akzeptiert das Risiko, bis wann behoben?",
+      "hint": "Risikoakzeptanz mit Rolle und Person dokumentieren. Nur ausfüllen, wenn eine Abgleichfrage mit Nein beantwortet wurde. Solange die Risikoakzeptanz nicht dokumentiert vorliegt, bleibt die Condition offen.",
       "milestone": "M20",
       "themeId": "data-storage"
     },
@@ -420,8 +452,9 @@ export const DEFAULT_MODEL: Model = {
       "id": "cat-ia2",
       "themeId": "integration-application",
       "milestone": "M20",
-      "text": "Ist die Fehlerbehandlung über Systemgrenzen definiert (Retry, Idempotenz, Timeouts)?",
-      "source": "aim42 / TOGAF Compliance Review"
+      "text": "Ist die Fehlerbehandlung über Systemgrenzen definiert?",
+      "source": "aim42 / TOGAF Compliance Review",
+      "hint": "Z. B. Retry, Idempotenz, Timeouts."
     },
     {
       "id": "cat-ia3",
@@ -448,8 +481,9 @@ export const DEFAULT_MODEL: Model = {
       "id": "cat-ci3",
       "themeId": "cloud-infrastructure",
       "milestone": "M20",
-      "text": "Werden Infrastruktur-Änderungen automatisiert und nachvollziehbar ausgerollt (Infrastructure as Code)?",
-      "source": "AWS Well-Architected, Operational Excellence"
+      "text": "Werden Infrastruktur-Änderungen automatisiert und nachvollziehbar ausgerollt?",
+      "source": "AWS Well-Architected, Operational Excellence",
+      "hint": "Stichwort: Infrastructure as Code (IaC)."
     },
     {
       "id": "cat-sc1",
@@ -562,8 +596,9 @@ export const DEFAULT_MODEL: Model = {
       "id": "cat-do1",
       "themeId": "documentation",
       "milestone": "M40",
-      "text": "Folgt die Architekturdokumentation einer einheitlichen Struktur (z. B. arc42)?",
-      "source": "arc42"
+      "text": "Folgt die Architekturdokumentation einer einheitlichen Struktur?",
+      "source": "arc42",
+      "hint": "Z. B. arc42."
     },
     {
       "id": "cat-do2",
@@ -588,10 +623,10 @@ export const DEFAULT_MODEL: Model = {
     },
     {
       "id": "D1",
-      "text": "Geht es in den Daten um bestimmte Personen (Kunden, Mitarbeitende, Partner)?",
+      "text": "Geht es in den Daten um bestimmte Personen?",
       "milestone": "M10",
       "themeId": "data-classification",
-      "hint": "Nein → höchstens Schutzklasse K1. Ja → mindestens K2. Beispiel: Namen, Adressen, Vertragsdaten von Kund:innen oder Mitarbeitenden."
+      "hint": "Gemeint sind z. B. Kunden, Mitarbeitende, Partner. Nein → höchstens Schutzklasse K1. Ja → mindestens K2. Beispiel: Namen, Adressen, Vertragsdaten von Kund:innen oder Mitarbeitenden."
     },
     {
       "id": "D2",
@@ -602,10 +637,10 @@ export const DEFAULT_MODEL: Model = {
     },
     {
       "id": "D5",
-      "text": "Könnte jemand mit diesen Daten unmittelbar handeln (Geld bewegen, sich als jemand anderes ausgeben, Zugang verschaffen)?",
+      "text": "Könnte jemand mit diesen Daten unmittelbar handeln?",
       "milestone": "M10",
       "themeId": "data-classification",
-      "hint": "Ja → K4. Beispiel: Konto- und Transaktionsdaten, Zahlungsmittel, Identitätsnachweise, Passwörter, Schlüssel, Administrationszugänge."
+      "hint": "Gemeint ist z. B.: Geld bewegen, sich als jemand anderes ausgeben, Zugang verschaffen. Ja → K4. Beispiel: Konto- und Transaktionsdaten, Zahlungsmittel, Identitätsnachweise, Passwörter, Schlüssel, Administrationszugänge."
     },
     {
       "id": "D0",
@@ -646,8 +681,28 @@ export const DEFAULT_MODEL: Model = {
       "id": "A1",
       "text": "Werden neue Rollen oder Berechtigungen eingeführt?",
       "milestone": "M10",
+      "themeId": "idm-iam"
+    },
+    {
+      "id": "A2",
+      "text": "Entsteht eine neue Anbindung an die zentralen IdM/IAM-Dienste oder wird eine bestehende wesentlich geändert?",
+      "milestone": "M10",
       "themeId": "idm-iam",
-      "source": "Dummy — Fachinhalt folgt"
+      "hint": "Z. B. neuer Identity Provider, neues Föderationsmuster, Wechsel des IdM/IAM-Dienstes selbst."
+    },
+    {
+      "id": "A4",
+      "text": "Entstehen neue oder wesentlich veränderte privilegierte Zugriffe (Admin, Wartung)?",
+      "milestone": "M10",
+      "themeId": "idm-iam",
+      "hint": "Auch Änderungen an bestehenden privilegierten Zugriffsmustern zählen, z. B. neue Break-Glass-Prozesse, verändertes Wartungs-/Update-Rechtemodell."
+    },
+    {
+      "id": "A5",
+      "text": "Erhalten externe Parteien (z. B. Kunden, Drittanbieter/TPP) direkten Zugriff auf das System?",
+      "milestone": "M10",
+      "themeId": "idm-iam",
+      "hint": "Abgrenzung zu A2: A2 betrifft die Anbindung interner Nutzer (Mitarbeitende) an IdM/IAM, diese Frage den Zugriff von ausserhalb der eigenen Organisation. Bei Ja: eigenes Bedrohungsmodell, WAF-/API-Gateway-Härtung sowie vertragliche/regulatorische Fragen (z. B. Open-Banking/TPP-Szenarien) zusätzlich prüfen."
     },
     {
       "id": "A3",
@@ -658,10 +713,24 @@ export const DEFAULT_MODEL: Model = {
     },
     {
       "id": "SC0",
-      "text": "Berührt das Vorhaben neue oder wesentlich veränderte Schnittstellen nach aussen, neue Datenverarbeitung oder regulatorische Anforderungen (z. B. FINMA, DSG)?",
+      "text": "Entstehen neue oder wesentlich veränderte Schnittstellen nach aussen?",
       "milestone": "M10",
       "themeId": "security-compliance",
-      "hint": "Entwurf — Formulierung und Aufzählung mit Security & Compliance abstimmen"
+      "hint": "Z. B. neue externe Integrationen, neue Identity-/Access-Anbindungen. Entwurf — Formulierung und Kriterienliste mit Security & Compliance abstimmen. Löst bei Ja die Übergabe an die zuständige Stelle aus (s. SC1)."
+    },
+    {
+      "id": "SC2",
+      "text": "Entsteht neue oder wesentlich veränderte Datenverarbeitung?",
+      "milestone": "M10",
+      "themeId": "security-compliance",
+      "hint": "Z. B. neue Datenflüsse, neue Speicherorte/-systeme, neue Verarbeitungszwecke. Entwurf — Formulierung und Kriterienliste mit Security & Compliance abstimmen. Löst bei Ja die Übergabe an die zuständige Stelle aus (s. SC1)."
+    },
+    {
+      "id": "SC3",
+      "text": "Bestehen regulatorische Anforderungen an das Vorhaben?",
+      "milestone": "M10",
+      "themeId": "security-compliance",
+      "hint": "Z. B. FINMA-Vorgaben, DSG. Entwurf — Formulierung und Kriterienliste mit Security & Compliance abstimmen. Löst bei Ja die Übergabe an die zuständige Stelle aus (s. SC1)."
     }
   ],
   "classificationInfoMd": "# Klassifikation\n\nDie Klassifikation ist das Ergebnis der Foundation-Prüfung (M10) und Teil\nder Freigabe:\n\n- **nicht relevant** — alle Relevanz-Fragen sind mit Nein beantwortet.\n  Es findet keine weitere Architekturprüfung statt (kein M20/M40).\n- **relevant** — das Projekt berührt die Architektur; die Fragenkataloge\n  M20 und M40 werden geprüft.\n- **wegweisend** — das Projekt prägt die Architektur; zusätzlich werden\n  die als «ab wegweisend» markierten Fragen gestellt.\n\nOb ein Projekt architekturrelevant ist, ergibt sich automatisch aus den\nJa/Nein-Fragen im M10 (mindestens eine Frage mit Ja → relevant; alle Nein\n→ nicht relevant).\n\nOb ein relevantes Projekt zusätzlich **wegweisend** ist, entscheidet\nder/die Architekt/in anhand folgender Kriterien (mindestens eines trifft zu):\n\n- **Referenz-/Pilotcharakter** — das Projekt führt ein Muster, eine\n  Technologie oder eine Plattform ein, die anschliessend als Vorlage für\n  weitere Projekte dient.\n- **Wirkung über das Projekt hinaus** — Entscheide betreffen mehrere\n  Systeme, mehrere Mandanten/Banken oder die gemeinsame Plattform, nicht\n  nur die Applikation des Projekts selbst.\n- **Abweichung von bestehenden Vorgaben** — das Projekt weicht bewusst von\n  einem etablierten Standard ab, und diese Abweichung soll künftig als\n  Präzedenzfall/neue Richtlinie gelten (nicht nur als Einzelfall-Ausnahme).\n- **Hohe Tragweite bei Fehlentscheid** — Risiko, Kosten oder regulatorische\n  Sichtbarkeit sind so hoch, dass ein Fehler in der Architekturprüfung\n  überproportionalen Schaden anrichten würde.\n",
