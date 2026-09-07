@@ -72,17 +72,17 @@ export const DEFAULT_MODEL: Model = {
     {
       "id": "operations",
       "title": "Betriebsarchitektur",
-      "infoMd": "# Betriebsarchitektur\n\n*Zweck ausformuliert (Entwurf Claude, 02.09.2026) — Vorgaben (Detailregeln) noch offen, brauchen Fachinput.*\n\n## Zweck\n\nPrüft betriebsnah, ob die Lösung organisatorisch und prozessual betriebsbereit ist: Betriebsorganisation, Supportprozesse sowie Backup, Monitoring und Alarmierung.\n\n## Vorgaben\n\n- Betriebsorganisation\n- Betriebshandbuch und Supportprozesse\n- Backup, Monitoring, Alarmierung\n\n## Ergebnis für den OnePager\n\nEine Zeile: relevant / geprüft / Ergebnis / Risiken, Conditions, offene Punkte."
+      "infoMd": "# Betriebsarchitektur\n\n*Zweck und Prüffragen ausformuliert (Entwurf Claude, 02./07.09.2026) — Detailregeln noch offen, brauchen Fachinput.*\n\n## Zweck\n\nPrüft betriebsnah, ob die Lösung organisatorisch und prozessual betriebsbereit ist: Betriebsorganisation und Support-Kette, Betriebshandbuch und Runbooks, Monitoring und Alarmierung, Datensicherung als Betriebsroutine, Release- und Change-Prozess. Abgrenzung: Ob die Plattform ist, was sie sein soll (Bau, Resilienztest), prüft Cloud- und Infrastrukturarchitektur (M40D1–M40D3); hier geht es um die Organisation und die Routinen, die sie am Laufen halten.\n\n## Vorgaben\n\n- Betriebsorganisation mit Verantwortlichen je Komponente, Support-Kette Bank → Betreiber → Hersteller, SLAs\n- Betriebshandbuch und Runbooks für Standard- und Notfallabläufe\n- Monitoring und Alarmierung mit Eskalationswegen\n- Datensicherung als Betriebsroutine (Überwachung, Restore-Tests, Aufbewahrung)\n- Release- und Change-Prozess inkl. herstellerseitiger Zwänge\n- Weitere Detailregeln noch offen — brauchen Fachinput\n\n## Ergebnis für den OnePager\n\nEine Zeile: relevant / geprüft / Ergebnis / Risiken, Conditions, offene Punkte.\n"
     },
     {
       "id": "documentation",
       "title": "Dokumentation",
-      "infoMd": "# Dokumentation\n\n*Zweck ausformuliert (Entwurf Claude, 02.09.2026) — Vorgaben (Detailregeln) noch offen, brauchen Fachinput.*\n\n## Zweck\n\nPrüft, ob die Architektur- und Lösungsdokumentation zum Projektabschluss aktuell ist und ob Architekturentscheide nachvollziehbar begründet sind.\n\n## Vorgaben\n\n- Aktualität der Dokumentation\n- Nachvollziehbarkeit der Architekturentscheide\n\n## Ergebnis für den OnePager\n\nEine Zeile: relevant / geprüft / Ergebnis / Risiken, Conditions, offene Punkte."
+      "infoMd": "# Dokumentation\n\n*Zweck und Prüffragen ausformuliert (Entwurf Claude, 02./07.09.2026) — Struktur- und Ablagevorgabe noch zu klären; vorläufig gilt LeanIX als Referenz.*\n\n## Zweck\n\nPrüft, ob die Architektur- und Lösungsdokumentation zum Projektabschluss dem entspricht, was läuft, ob Architekturentscheide nachvollziehbar begründet sind und ob die Dokumentation dort verankert ist, wo sie gefunden wird.\n\n## Vorgaben\n\n- Dokumentation auf dem Stand der umgesetzten Lösung (Zielarchitektur, Schnittstellen, Datenhaltung, Betrieb)\n- Wesentliche Architekturentscheide mit Alternativen und Begründung festgehalten\n- Vorläufig: LeanIX als Referenz — Applikations-Factsheet mit Verknüpfung zur Lösungsdokumentation; Struktur- und Ablagevorgabe (z. B. arc42, Dokumentablage) noch offen\n\n## Ergebnis für den OnePager\n\nEine Zeile: relevant / geprüft / Ergebnis / Risiken, Conditions, offene Punkte.\n"
     },
     {
       "id": "technical-debt",
       "title": "Technische Schulden / Risiken / Conditions",
-      "infoMd": "# Technische Schulden / Risiken / Conditions\n\n*Zweck ausformuliert (Entwurf Claude, 02.09.2026) — Vorgaben (Detailregeln) noch offen, brauchen Fachinput.*\n\n## Zweck\n\nHält am Projektende technische Schulden, Risiken und Conditions fest, inklusive einer groben Aufwandschätzung zur Behebung (Low/Medium/High), zur Weiterverfolgung im OnePager.\n\n## Vorgaben\n\n- Technische Schulden erfassen\n- Budget zur Behebung (Low / Med / High)\n- Risiken und Conditions im OnePager nachführen\n\n## Ergebnis für den OnePager\n\nEine Zeile: relevant / geprüft / Ergebnis / Risiken, Conditions, offene Punkte."
+      "infoMd": "# Technische Schulden / Risiken / Conditions\n\n*Zweck und Prüffragen ausformuliert (Entwurf Claude, 02./07.09.2026).*\n\n## Zweck\n\nHält am Projektende die Bilanz: technische Schulden mit Aufwand und Risiko, eine grobe Einordnung des Behebungsaufwands (keine / Low / Medium / High) und den Status aller Conditions aus M10–M40 — jede mit Verantwortlichem und Termin oder mit dokumentierter Risikoakzeptanz. Das Ergebnis speist die Zeile Risiken/Conditions des OnePagers.\n\n## Vorgaben\n\n- Technische Schulden erfassen und bewerten (Auswirkung, Risiko, Behebungsaufwand)\n- Behebungsaufwand gesamthaft einordnen: keine / Low (laufender Betrieb) / Medium (Arbeitspaket) / High (Projekt oder Budgetantrag)\n- Conditions aus allen Meilensteinen: Owner und Termin oder Risikoakzeptanz — nichts bleibt ohne beides\n\n## Ergebnis für den OnePager\n\nEine Zeile: relevant / geprüft / Ergebnis / Risiken, Conditions, offene Punkte.\n"
     }
   ],
   "questions": [
@@ -125,11 +125,47 @@ export const DEFAULT_MODEL: Model = {
       "hint": "Nur bei wegweisenden Projekten. Traktandum/Protokoll-Referenz in den Bemerkungen festhalten."
     },
     {
-      "id": "qpzx51ivonp",
-      "text": "Existiert ein getestetes Backup-/DR-Konzept, das von den Fachbereichen als ausreichend akzeptiert wird?",
+      "id": "B1",
+      "text": "Ist die Betriebsorganisation geklärt — Verantwortliche je Komponente, Support-Kette Bank → Betreiber → Hersteller, SLAs, Betriebszeiten?",
       "milestone": "M40",
       "themeId": "operations",
-      "hint": "Konzept muss RPO/RTO-Werte je Datenklasse definieren. Nicht nur nach Rahmenwerten des Herstellers fragen ('als Hilfestellung'), sondern nach dem konkreten, vom Betreiber gebauten und getesteten Konzept."
+      "hint": "Baut auf M20D3 (wer stellt/betreibt/patcht) auf und macht es betriebsfähig: Wer nimmt Störungen entgegen, wer eskaliert zum Hersteller, welche Reaktions- und Lösungszeiten gelten, wer darf Changes beauftragen (RfC). Ein Vertrag ohne benannte Personen/Rollen ist keine Betriebsorganisation."
+    },
+    {
+      "id": "B2",
+      "text": "Liegen Betriebshandbuch und Runbooks für Standard- und Notfallabläufe vor?",
+      "milestone": "M40",
+      "themeId": "operations",
+      "hint": "Start/Stop, Deployment, Backup/Restore, Failover, Wiederanlauf nach Ausfall, Incident-Behandlung — vom Betreiber geschrieben, von der Bank abgenommen. Ein Handbuch als Projektlieferobjekt zählt erst, wenn es da ist."
+    },
+    {
+      "id": "B3",
+      "text": "Sind Monitoring und Alarmierung eingerichtet — mit Eskalationswegen und Zuständigkeiten?",
+      "milestone": "M40",
+      "themeId": "operations",
+      "hint": "Was wird überwacht (Verfügbarkeit, Kapazität, Fehler, Datenflüsse), wer bekommt welchen Alarm, wer eskaliert an wen, auch nachts und am Wochenende. Basis-Monitoring des Plattformbetreibers deckt die Applikation nicht ab — Tracing über die Kette hinweg explizit prüfen."
+    },
+    {
+      "id": "qpzx51ivonp",
+      "text": "Ist die Datensicherung im Betrieb eingerichtet — Backup-Läufe überwacht, Restore regelmässig getestet, Aufbewahrung geregelt?",
+      "milestone": "M40",
+      "themeId": "operations",
+      "hint": "Die Betriebsroutine zu M20D6 (Konzept) und M40D2 (einmaliger Test vor PROD): Backup-Jobs laufen und werden überwacht, Restore wird periodisch geprobt, Aufbewahrungsfristen und Löschung sind umgesetzt — je Datenhaltung gemäss Schutzklasse (M40B1)."
+    },
+    {
+      "id": "OP1",
+      "themeId": "operations",
+      "milestone": "M40",
+      "text": "Ist der Release- und Change-Prozess geregelt — Takt, Test, Freigabe, Rollback, inkl. herstellerseitig erzwungener Updates?",
+      "hint": "Wie kommen neue Versionen in Betrieb (Non-Prod vor Prod, Regressionstest, Freigabe), wer bestellt und bezahlt Releases, wie wird zurückgerollt. Herstellerseitige Zwänge (Mindestversion, Support-Fenster, untermonatliche Auslieferungen) müssen im Prozess und in der Kapazitätsplanung abgebildet sein."
+    },
+    {
+      "id": "OP2",
+      "themeId": "operations",
+      "milestone": "M40",
+      "minClassification": "wegweisend",
+      "text": "Ist das Betriebsmodell als Referenz für Folgeprojekte dokumentiert?",
+      "hint": "Verantwortungen, Support-Kette, Release-Prozess und Monitoring-Muster als wiederverwendbare Vorgabe — nicht nur im Betriebshandbuch dieses Projekts."
     },
     {
       "id": "qx7q7pxw95o",
@@ -231,10 +267,17 @@ export const DEFAULT_MODEL: Model = {
     },
     {
       "id": "C3",
-      "text": "Ist der Betrieb der Infrastruktur (Monitoring, Patching) geklärt?",
+      "text": "Ist die Plattform wie in M20 spezifiziert umgesetzt und vom Betreiber abgenommen — Zielarchitektur, Verantwortung je Komponente, Sizing?",
       "milestone": "M40",
       "themeId": "cloud-infrastructure",
-      "source": "Dummy — Fachinhalt folgt"
+      "hint": "Abgleich mit M20D1–M20D4: Läuft die Lösung auf der spezifizierten Plattform (Cluster, Standort, dediziert/geteilt, Umgebungen), ist die Zielarchitektur des Betreibers in der abgenommenen Fassung dokumentiert, sind alle Komponenten mit Verantwortung besetzt, entspricht das Sizing dem erhobenen Mengengerüst. Abweichungen = Condition."
+    },
+    {
+      "id": "CI8",
+      "themeId": "cloud-infrastructure",
+      "milestone": "M40",
+      "text": "Wurden Ausfall einer Komponente und Wiederherstellung (RTO/RPO) vor Produktivsetzung getestet?",
+      "hint": "Der Nachweis zu M20D5 (Ausfall einer Komponente) und M20D6 (RTO/RPO): einmaliger Test vor PROD mit Protokoll — Failover, Restore aus Backup, Wiederaufbau. Die laufende Betriebsroutine (regelmässige Restore-Tests, Backup-Überwachung) ist Betrieb M40G4."
     },
     {
       "id": "I1",
@@ -297,7 +340,7 @@ export const DEFAULT_MODEL: Model = {
       "themeId": "cloud-infrastructure",
       "milestone": "M20",
       "text": "Beruht das Sizing (Mengengerüst, Ressourcen, Replikas) auf erhobenen Zahlen statt auf Annahmen, mit geklärtem Nachforderungsweg?",
-      "hint": "Mengengerüst der Bank (Benutzer, Volumen, Spitzenlast) erhoben und mit den Annahmen der Offerte abgeglichen; Speicherbedarf beziffert; Mechanismus für Nachforderungen (Consumption-Modell, RfC) bekannt. Die laufende Überwachung von Kapazität und Kosten ist M40D2."
+      "hint": "Mengengerüst der Bank (Benutzer, Volumen, Spitzenlast) erhoben und mit den Annahmen der Offerte abgeglichen; Speicherbedarf beziffert; Mechanismus für Nachforderungen (Consumption-Modell, RfC) bekannt. Die laufende Überwachung von Kapazität und Kosten ist M40D3."
     },
     {
       "id": "cat-ci1",
@@ -312,7 +355,7 @@ export const DEFAULT_MODEL: Model = {
       "milestone": "M20",
       "text": "Sind Wiederherstellungsziele (RTO/RPO) definiert und vom Betreiber in einem DR-Konzept bestätigt?",
       "source": "AWS Well-Architected, Reliability",
-      "hint": "Hier geht es um die Ziele je Komponente und ein vom Betreiber bestätigtes Konzept — der Test des Konzepts ist M40G1. Ob und wo die Daten je Schutzklasse gesichert sind, ist Thema Datenhaltung (M20B12). Herstellerseitige Rahmenwerte («als Hilfestellung») sind kein DR-Konzept."
+      "hint": "Hier geht es um die Ziele je Komponente und ein vom Betreiber bestätigtes Konzept — der Test vor Produktivsetzung ist M40D2, die Betriebsroutine M40G4. Ob und wo die Daten je Schutzklasse gesichert sind, ist Thema Datenhaltung (M20B12). Herstellerseitige Rahmenwerte («als Hilfestellung») sind kein DR-Konzept."
     },
     {
       "id": "cat-ci3",
@@ -545,7 +588,8 @@ export const DEFAULT_MODEL: Model = {
       "themeId": "integration-application",
       "milestone": "M20",
       "text": "Liegt ein aktuelles Kontextdiagramm mit allen Nachbarsystemen vor?",
-      "source": "arc42, Kapitel 3 (Kontextabgrenzung)"
+      "source": "arc42, Kapitel 3 (Kontextabgrenzung)",
+      "hint": "Idealerweise aus LeanIX generiert bzw. dort erfasst — dann ist M40C1 später ein Abgleich statt eine Nacherfassung."
     },
     {
       "hint": "Bei Referenz-/Pilotcharakter dient dieses Muster als Vorlage für spätere Projekte — die getroffene Wahl sollte entsprechend als Vorgabe festgehalten werden, nicht nur als Einzelfallentscheid.",
@@ -564,62 +608,56 @@ export const DEFAULT_MODEL: Model = {
       "themeId": "integration-application"
     },
     {
-      "id": "B1",
-      "text": "Ist die Betriebsorganisation für die Lösung geklärt?",
+      "id": "IA40-1",
+      "themeId": "integration-application",
       "milestone": "M40",
-      "themeId": "operations",
-      "source": "Dummy — Fachinhalt folgt"
+      "text": "Sind Applikation und Schnittstellen in LeanIX nachgeführt und auf dem Stand der Umsetzung — Applikations-Factsheet, Interfaces, IT-Komponenten, Verantwortliche?",
+      "hint": "LeanIX ist die Referenz, nicht eine Projektliste: jede produktive Schnittstelle ist als Interface erfasst (Quelle, Ziel, Datenobjekte, Versionierung gemäss M20C2), die eingesetzten Technologien als IT-Komponenten, Verantwortliche und Lifecycle gesetzt. Abgleich mit M20C1 (Zielarchitektur) und M20C4 (Kontextdiagramm). Schnittstellen, die während der Realisierung dazukamen, sind der Normalfall — deshalb die Frage. Nachführung durch die Architektur (kein separater EA-Prozess) — deshalb vor der Freigabe selbst erledigen, nicht als Auflage weiterreichen."
     },
     {
-      "id": "B2",
-      "text": "Liegen Betriebshandbuch und Supportprozesse vor?",
+      "id": "IA40-2",
+      "themeId": "integration-application",
       "milestone": "M40",
-      "themeId": "operations",
-      "source": "Dummy — Fachinhalt folgt"
-    },
-    {
-      "id": "B3",
-      "text": "Sind Backup, Monitoring und Alarmierung definiert?",
-      "milestone": "M40",
-      "themeId": "operations",
-      "source": "Dummy — Fachinhalt folgt",
-      "minClassification": "wegweisend"
+      "text": "Wurde die Integration unter Last und beim Ausfall eines Nachbarsystems getestet?",
+      "hint": "Lasttest gegen das Mengengerüst (M20D4) über die ganze Kette, nicht nur einzelne Komponenten; Ausfall-/Degradationsverhalten je kritischer Nachbar (Kernsystem, Messaging, IdM): Was sieht der Benutzer, was passiert mit Daten in Bewegung. Ergebnisse und Restrisiken in den Bemerkungen."
     },
     {
       "id": "DO1",
-      "text": "Ist die Architekturdokumentation aktuell?",
+      "text": "Ist die Architekturdokumentation auf dem Stand der umgesetzten Lösung — Zielarchitektur, Schnittstellen, Datenhaltung, Betrieb?",
       "milestone": "M40",
       "themeId": "documentation",
-      "source": "Dummy — Fachinhalt folgt"
+      "hint": "Nicht «gibt es Dokumentation», sondern «stimmt sie mit dem überein, was läuft». Abgleich mit M40C1 (LeanIX), M40D1 (Plattform), M40B1 (Datenhaltung), M40G2 (Betriebshandbuch). Herstellerdokumentation ersetzt die eigene Lösungsdokumentation nicht — die bankspezifische Konfiguration und Integration muss beschrieben sein."
     },
     {
       "id": "DO2",
-      "text": "Sind Architekturentscheide nachvollziehbar dokumentiert?",
+      "text": "Sind die wesentlichen Architekturentscheide nachvollziehbar festgehalten — Entscheid, Alternativen, Begründung, Datum (ADR oder gleichwertig)?",
       "milestone": "M40",
       "themeId": "documentation",
-      "source": "Dummy — Fachinhalt folgt"
+      "hint": "Mindestens die Entscheide, die in M20 zu Conditions oder Board-Traktanden geführt haben, und alle Abweichungen von Vorgaben mit Risikoakzeptanz. Form ist zweitrangig (ADR, Protokoll, OnePager-Bemerkung), Auffindbarkeit nicht."
+    },
+    {
+      "id": "cat-do1",
+      "themeId": "documentation",
+      "milestone": "M40",
+      "text": "Ist die Dokumentation in LeanIX verankert — Applikations-Factsheet mit Verknüpfung zur Lösungsdokumentation und zu den Architekturentscheiden?",
+      "source": "arc42 / LeanIX",
+      "hint": "Vorläufige Referenz, solange keine Struktur- und Ablagevorgabe besteht: Wer die Applikation in LeanIX findet, findet von dort die Dokumentation. Sobald eine Vorgabe existiert (z. B. arc42-Gliederung, Dokumentablage), hier zusätzlich deren Einhaltung prüfen."
     },
     {
       "id": "U1",
       "milestone": "M40",
       "themeId": "data-storage",
-      "text": "Sind die Datenhaltungsvorgaben im Betrieb weiterhin eingehalten (Überprüfung)?",
-      "hint": "Betriebsnahe Überprüfung von Ort, Backup, Logs und Exporten gegen die Schutzklasse.",
+      "text": "Sind Ort, Backup-Ort, Logs und Exporte dieser Datenhaltung im Betrieb so, wie in M20 spezifiziert und für die Schutzklasse zulässig?",
+      "hint": "Abgleich der M20-Angaben (M20B8–M20B13) mit dem tatsächlichen Betrieb: Wo liegen die Daten und Backups wirklich, was steht in den Logs, welche Exporte laufen. Abweichung = Condition mit Termin, bei K4 Ausnahmeentscheid. Die regelmässigen Restore-Tests sind Betriebsroutine (M40G4).",
       "source": "Architekturprüfmodell, MS40 (Überprüfung)"
-    },
-    {
-      "id": "cat-ds1",
-      "themeId": "data-storage",
-      "milestone": "M40",
-      "text": "Werden Backups regelmässig durch Restore-Tests verifiziert?",
-      "source": "BSI IT-Grundschutz, CON.3 Datensicherungskonzept"
     },
     {
       "id": "cat-ci4",
       "themeId": "cloud-infrastructure",
       "milestone": "M40",
       "text": "Werden Kapazität und Kosten der Zielumgebung laufend überwacht?",
-      "source": "AWS Well-Architected, Cost Optimization"
+      "source": "AWS Well-Architected, Cost Optimization",
+      "hint": "Schliesst die Sizing-Annahmen aus M20D4: Auslastung gegen das Mengengerüst, Kosten gegen die Offerte; der Nachforderungsweg (Consumption-Modell, RfC) ist im Betrieb etabliert."
     },
     {
       "id": "AM1",
@@ -636,40 +674,34 @@ export const DEFAULT_MODEL: Model = {
       "source": "BSI IT-Grundschutz, ORP.4"
     },
     {
-      "id": "cat-op1",
-      "themeId": "operations",
-      "milestone": "M40",
-      "text": "Gibt es Runbooks für Standard- und Notfall-Betriebsabläufe?",
-      "source": "AWS Well-Architected, Operational Excellence"
-    },
-    {
-      "id": "cat-op2",
-      "themeId": "operations",
-      "milestone": "M40",
-      "text": "Ist die Alarmierung mit klaren Eskalationswegen geregelt?",
-      "source": "AWS Well-Architected, Operational Excellence / SRE-Praxis"
-    },
-    {
-      "id": "cat-do1",
-      "themeId": "documentation",
-      "milestone": "M40",
-      "text": "Folgt die Architekturdokumentation einer einheitlichen Struktur?",
-      "source": "arc42",
-      "hint": "Z. B. arc42."
-    },
-    {
-      "id": "cat-do2",
-      "themeId": "documentation",
-      "milestone": "M40",
-      "text": "Sind wesentliche Architekturentscheide als ADRs festgehalten?",
-      "source": "aim42 / ADR-Praxis"
-    },
-    {
       "id": "cat-td1",
       "themeId": "technical-debt",
       "milestone": "M40",
-      "text": "Sind bekannte technische Schulden mit Aufwand und Risiko bewertet?",
-      "source": "aim42 (Improve)"
+      "text": "Sind die bekannten technischen Schulden erfasst und mit Aufwand und Risiko bewertet?",
+      "source": "aim42 (Improve)",
+      "hint": "Alles, was bewusst nicht gelöst wurde: Abweichungen von Vorgaben, Provisorien, ausgeschlossene Leistungen (z. B. nicht durchgeführte Tests), bekannte Lücken in Betrieb oder Dokumentation. Je Eintrag: Auswirkung, Risiko, grober Behebungsaufwand."
+    },
+    {
+      "id": "TD2",
+      "themeId": "technical-debt",
+      "milestone": "M40",
+      "kind": "choice",
+      "options": [
+        "keine",
+        "Low",
+        "Medium",
+        "High"
+      ],
+      "remarksAlwaysOpen": true,
+      "text": "Wie hoch ist der Aufwand zur Behebung der technischen Schulden gesamthaft?",
+      "hint": "Grobe Einordnung für den OnePager und die Portfolio-Sicht: Low = im laufenden Betrieb erledigbar, Medium = eigenes Arbeitspaket, High = eigenes Projekt oder Budgetantrag. Begründung in den Bemerkungen."
+    },
+    {
+      "id": "TD3",
+      "themeId": "technical-debt",
+      "milestone": "M40",
+      "text": "Sind alle offenen Conditions aus M10–M40 mit Verantwortlichem und Termin erfasst — oder mit dokumentierter Risikoakzeptanz geschlossen?",
+      "hint": "Die Bilanz über alle Themen: jede Condition hat entweder Owner und Termin oder eine Risikoakzeptanz der zuständigen Entscheidungsebene. Eine Condition ohne beides ist keine Condition, sondern ein vergessenes Risiko. Ergebnis gehört in die Zeile Risiken/Conditions des OnePagers."
     },
     {
       "id": "D4",
@@ -715,6 +747,13 @@ export const DEFAULT_MODEL: Model = {
       ],
       "hint": "Aus M10A1/M10A2/M10A3/M10A4 abgeleitet: M10A1 Nein → K0. M10A1 Ja → mindestens K1, M10A2 Ja → mindestens K2. M10A3 Ja → mindestens K3. M10A4 Ja → K4. Bei Unklarheit: «nicht beurteilbar».",
       "remarksAlwaysOpen": true
+    },
+    {
+      "id": "DC40",
+      "themeId": "data-classification",
+      "milestone": "M40",
+      "text": "Ist die Schutzklasse (M10A5) auf dem Stand der umgesetzten Lösung — keine neuen Datenkategorien oder Verarbeitungszwecke, die die Herleitung ändern?",
+      "hint": "Vor Produktivsetzung prüfen, ob der Dateninhalt noch dem entspricht, was in M10 beurteilt wurde. Bei Änderung: Herleitung (M10A1–M10A4) wiederholen, Abweichung in Datenhaltung (M20B3) nachziehen, Security informieren. Ergebnis mit Datum in den Bemerkungen."
     },
     {
       "id": "A1",
