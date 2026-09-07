@@ -22,6 +22,17 @@ export interface Theme {
   id: string;
   title: string;
   infoMd?: string;
+  // Übergabe an eine Fachstelle (z. B. Security & Compliance): nur Themen mit
+  // diesem Eintrag bieten im OnePager den Übergabetext (Mail-Icon) an.
+  // E-Mail-Vorlage: to/subject/body mit Platzhaltern {{projekt}}, {{slug}},
+  // {{thema}}, {{ms}}, {{meilenstein}}, {{klassifikation}}, {{termin}},
+  // {{projektblock}}, {{ausloeser}}, {{ausgangslage}} (siehe OnePagerView).
+  handover?: {
+    to?: string;        // Empfänger (E-Mail-Adresse[n])
+    subject?: string;   // Betreff-Vorlage
+    body?: string;      // Text-Vorlage; fehlt sie, gilt der eingebaute Standardtext
+    context?: string[]; // Frage-ids (auch anderer Themen), deren Antworten unter {{ausgangslage}} mitgegeben werden
+  };
   [key: string]: unknown;
 }
 
@@ -47,6 +58,11 @@ export interface Question {
                            // gesetzt = gilt für alle Klassifikationen
   enabled?: boolean;       // false = deaktiviert (bleibt im Katalog, wird aber
                            // im OnePager nicht gestellt); Default aktiv
+  archived?: boolean;      // true = archiviert: die id bleibt für immer reserviert,
+                           // die Frage wird in neuen Reviews nicht mehr gestellt;
+                           // wo bereits eine Antwort existiert, bleibt sie
+                           // schreibgeschützt sichtbar (alte Reviews brechen nicht).
+                           // Die automatische Nummer bleibt belegt (Lücke).
   [key: string]: unknown;
 }
 

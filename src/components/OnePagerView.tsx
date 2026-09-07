@@ -11,6 +11,25 @@ import { autoGrow, fmtTimestamp, nowIsoWithTimezone } from '../util';
 
 const FOUNDATION_MS = MILESTONES[0]; // M10
 
+// Standard-Vorlage für die Übergabe an eine Fachstelle (theme.handover);
+// im Admin je Thema überschreibbar. Platzhalter siehe Theme.handover in types.ts.
+export const DEFAULT_HANDOVER_SUBJECT = 'Architekturprüfung «{{projekt}}» — Review {{thema}} für {{ms}}';
+export const DEFAULT_HANDOVER_BODY = `Guten Tag
+
+Für das Projekt «{{projekt}}» bitten wir um den Review {{thema}} zum Meilenstein {{meilenstein}}.
+
+Termin: {{termin}}
+
+{{projektblock}}
+
+{{ausloeser}}
+
+{{ausgangslage}}
+
+Bitte meldet uns Ergebnis und Auflagen zurück — wir tragen sie in die Architekturprüfung ein.
+
+Vielen Dank!`;
+
 function StatusBadge({ status, isDark }: { status: keyof typeof STATUS_META; isDark: boolean }) {
   const meta = STATUS_META[status];
   return (
@@ -48,7 +67,9 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
   const [infoQuestion, setInfoQuestion] = useState<Question | null>(null);
   const [showClassInfo, setShowClassInfo] = useState(false);
   const [exportMs, setExportMs] = useState<string | null>(null);
-  const [exportCopied, setExportCopied] = useState(false);
+  const [exportTheme, setExportTheme] = useState<string | null>(null); // gesetzt = Übergabetext eines Themas statt offene Fragen des Meilensteins
+  const [copiedKey, setCopiedKey] = useState<string | null>(null); // welcher Kopieren-Button zuletzt Erfolg hatte
+  const [handoverDeadline, setHandoverDeadline] = useState('');
   const [answersMs, setAnswersMs] = useState<string | null>(null);
   const [answersText, setAnswersText] = useState('');
   const [answersPdfItems, setAnswersPdfItems] = useState<ImportItem[] | null>(null);
@@ -197,17 +218,33 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
     return order.indexOf(p.classification) >= order.indexOf(q.minClassification);
   };
 
+  // Nummer einer beliebigen Frage (gleiche Regel wie questionsAt, ohne Filter)
+  const numberOfQuestion = (q: Question): string => {
+    const i = allQuestions.filter(x => x.themeId === q.themeId && x.milestone === q.milestone).findIndex(x => x.id === q.id);
+    return `${q.milestone}${themeLetterOf(q.themeId)}${i + 1}`;
+  };
+
+  // Hat das Projekt zu dieser Frage schon etwas erfasst? (Ja/Nein, Auswahl
+  // oder Bemerkung) — entscheidet, ob eine archivierte Frage noch gezeigt wird.
+  const hasAnswer = (p: Project, themeId: string, q: Question): boolean => {
+    const a = p.reviews?.[themeId]?.answers?.[q.id];
+    return !!a && (a.value !== null || !!a.choice || (a.remarks ?? '').trim() !== '');
+  };
+
   // Fragen eines Themas in einem Meilenstein, mit automatischer Nummer M10A1 …
   // Der Buchstabe ist der Themen-Buchstabe (siehe themeLetter), damit die
   // Nummer über alle Themen hinweg eindeutig bleibt. Die Nummern werden über
   // den vollen Katalog vergeben und bleiben damit stabil, auch wenn die
-  // Klassifikation einzelne Fragen ausblendet (Lücken).
+  // Klassifikation einzelne Fragen ausblendet oder Fragen archiviert sind
+  // (Lücken). Archivierte Fragen erscheinen nur noch dort, wo bereits eine
+  // Antwort existiert — schreibgeschützt (siehe questionBlock).
   const questionsAt = (themeId: string, ms: string, p: Project | null = proj): { q: Question; number: string }[] => {
     const letter = themeLetterOf(themeId);
     return allQuestions
       .filter(q => q.themeId === themeId && q.milestone === ms)
       .map((q, i) => ({ q, number: `${ms}${letter}${i + 1}` }))
-      .filter(({ q }) => q.enabled !== false && (!p || classOk(p, q)));
+      .filter(({ q }) => q.enabled !== false && (!p || classOk(p, q)))
+      .filter(({ q }) => !q.archived || (!!p && hasAnswer(p, themeId, q)));
   };
 
   // Thema relevant, abgeleitet aus den M10-Fragen:
@@ -358,15 +395,22 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
 
   // Eine Prüffrage mit automatischer Nummer, Ja/Nein-Checkboxen und Bemerkungen
   const questionBlock = (themeId: string, question: Question, number: string, disabledIn: boolean) => {
-    const disabled = disabledIn || ro;
+    // archiviert: nur noch lesbar — die bestehende Antwort bleibt als Nachweis stehen
+    const disabled = disabledIn || ro || question.archived === true;
     const r = getThemeReview(proj, themeId);
     const answer: QuestionAnswer = { value: null, remarks: '', ...r.answers?.[question.id] };
     const remarksKey = `${themeId}:${question.id}`;
     const remarksOpen = answer.remarks.trim() !== '' || openRemarks.has(remarksKey) || question.remarksAlwaysOpen === true;
     return (
-      <div key={question.id}>
+      <div key={question.id} className={question.archived ? 'opacity-70' : ''}>
         <p className={`text-[11px] font-semibold flex items-start gap-1 ${isDark ? 'text-white/80' : 'text-black/80'}`}>
           <span>{number} {question.text}</span>
+          {question.archived && (
+            <span title="Diese Frage wurde archiviert — sie wird in neuen Reviews nicht mehr gestellt; die erfasste Antwort bleibt als Nachweis erhalten."
+              className={`inline-block text-[9px] px-1.5 py-0.5 rounded-full border whitespace-nowrap font-normal flex-shrink-0 ${isDark ? 'bg-white/8 text-white/50 border-white/15' : 'bg-black/5 text-black/50 border-black/15'}`}>
+              archiviert
+            </span>
+          )}
           {question.hint && (
             <button type="button" onClick={() => setInfoQuestion(question)} title="Erläuterung anzeigen"
               className={`p-0.5 rounded flex-shrink-0 transition-colors ${isDark ? 'text-white/25 hover:text-white/70' : 'text-black/25 hover:text-black/70'}`}>
@@ -418,6 +462,14 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
         </div>
         <p className={`text-[10px] mt-0.5 ${textMuted}`}>
           Quelle: {question.source ?? (model?.company ?? DEFAULT_MODEL.company ?? 'Eigene Firma')}
+          {question.milestone !== FOUNDATION_MS && (
+            <>
+              {' · Klassifikation: '}
+              {question.minClassification
+                ? ((model?.classifications ?? DEFAULT_MODEL.classifications).find(c => c.id === question.minClassification)?.label ?? question.minClassification)
+                : 'relevant'}
+            </>
+          )}
         </p>
       </div>
     );
@@ -462,6 +514,13 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
                 className={`p-0.5 rounded flex-shrink-0 transition-colors ${isDark ? 'text-white/25 hover:text-white/70' : 'text-black/25 hover:text-black/70'}`}>
                 <Info size={11} />
               </button>
+              {!isFoundation && !notRelevant && theme.handover && (
+                <button onClick={() => { setExportTheme(theme.id); setExportMs(ms); setCopiedKey(null); }}
+                  title={`Übergabetext an ${theme.title} (E-Mail) — Ausgangslage plus zu klärende Fragen; die Antwort lässt sich über «Antworten importieren» übernehmen`}
+                  className={`p-0.5 rounded flex-shrink-0 transition-colors ${isDark ? 'text-white/25 hover:text-white/70' : 'text-black/25 hover:text-black/70'}`}>
+                  <Mail size={11} />
+                </button>
+              )}
               <span className={`text-[10px] ml-auto flex-shrink-0 ${textMuted}`}>
                 {notRelevant ? 'kein Review nötig' : `${answered}/${yesNoQs.length} beantwortet`}
               </span>
@@ -493,6 +552,34 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
     if ((q.kind ?? 'yesNo') === 'yesNo') return (a?.value ?? null) === null;
     if (q.kind === 'choice') return !(a?.choice);
     return !(a?.remarks ?? '').trim();
+  };
+
+  // In die Zwischenablage kopieren; writeText kann in restriktiven Umgebungen
+  // hängen → Timeout, dann Fallback über ein verstecktes Textfeld.
+  const copyToClipboard = async (value: string, key: string) => {
+    let ok = false;
+    try {
+      await Promise.race([
+        navigator.clipboard.writeText(value),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 800)),
+      ]);
+      ok = true;
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = value;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+    if (ok) {
+      setCopiedKey(key);
+      setTimeout(() => setCopiedKey(k => (k === key ? null : k)), 2000);
+    } else {
+      showToast('Kopieren fehlgeschlagen — Text markieren und mit Ctrl/Cmd+C kopieren.');
+    }
   };
 
   const buildExport = (ms: string): { text: string; count: number } => {
@@ -532,6 +619,71 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
     lines.push('');
     lines.push('Vielen Dank!');
     return { text: lines.join('\n'), count };
+  };
+
+  // Übergabe an eine Fachstelle (z. B. Security & Compliance): kurze
+  // Aufforderung, den Review für den Meilenstein bis zu einem Termin zu machen.
+  // Empfänger, Betreff und Text sind je Thema als Vorlage konfigurierbar
+  // (theme.handover, Admin); Platzhalter werden hier ersetzt. Das Ergebnis
+  // trägt die Architektur manuell ein — deshalb kein Ankreuzformat, kein Import.
+  const buildHandoverExport = (themeId: string, ms: string, deadline: string): { to: string; subject: string; text: string } => {
+    const theme = themes.find(t => t.id === themeId)!;
+    const oneLine = (s: string) => s.replace(/\s*\n+\s*/g, ' / ').trim();
+    // Kurzfassung einer Bemerkung: erster Satz, höchstens ~180 Zeichen
+    const brief = (s: string): string => {
+      const t = oneLine(s);
+      const m = t.match(/^(.{20,180}?[.!?])(\s|$)/);
+      const cut = m ? m[1] : t.slice(0, 180);
+      return cut.length < t.length ? `${cut.replace(/[.!?]$/, '')} …` : cut;
+    };
+    const answerText = (tid: string, q: Question): string => {
+      const a = getThemeReview(proj, tid).answers?.[q.id];
+      const kind = q.kind ?? 'yesNo';
+      const head = kind === 'yesNo'
+        ? (a?.value === true ? 'Ja' : a?.value === false ? 'Nein' : 'offen')
+        : kind === 'choice' ? (a?.choice ?? 'offen') : (String(a?.remarks ?? '').trim() ? '' : 'offen');
+      const rem = brief(String(a?.remarks ?? '')).replace(/^(Ja|Nein)\s*[.:,—–-]\s*/i, (s, w) => (w.toLowerCase() === head.toLowerCase() ? '' : s));
+      return [head, rem].filter(Boolean).join(': ');
+    };
+    const ctxLine = (tid: string, q: Question) => `– ${numberOfQuestion(q)} ${q.text} — ${answerText(tid, q)}`;
+    const classLabel = model.classifications.find(c => c.id === proj.classification)?.label ?? 'noch nicht klassifiziert';
+    const name = proj.name || proj.slug;
+
+    const projektblock = [
+      'Projekt',
+      `– Klassifikation: ${classLabel}`,
+      proj.description?.trim() ? `– Kurzbeschrieb: ${brief(proj.description)}` : '',
+      proj.responsibleProject?.trim() ? `– Verantwortlich Projekt: ${proj.responsibleProject.trim()}` : '',
+      proj.responsibleArchitecture?.trim() ? `– Verantwortlich Architektur: ${proj.responsibleArchitecture.trim()}` : '',
+    ].filter(Boolean).join('\n');
+    const gates = questionsAt(themeId, FOUNDATION_MS);
+    const ausloeser = gates.length
+      ? [`Auslöser (${FOUNDATION_MS} · ${MILESTONE_TITLES[FOUNDATION_MS] ?? ''})`, ...gates.map(({ q }) => ctxLine(themeId, q))].join('\n')
+      : '';
+    const ctxQs = (theme.handover?.context ?? []).map(id => allQuestions.find(q => q.id === id)).filter((q): q is Question => !!q);
+    const ausgangslage = ctxQs.length
+      ? ['Ausgangslage aus der Architekturprüfung (Kurzfassung — Details im Review-Bericht)', ...ctxQs.map(q => ctxLine(q.themeId, q))].join('\n')
+      : '';
+
+    const vars: Record<string, string> = {
+      projekt: name,
+      slug: proj.slug,
+      thema: theme.title,
+      ms,
+      meilenstein: `${ms} · ${MILESTONE_TITLES[ms] ?? 'Prüfung'}`,
+      klassifikation: classLabel,
+      termin: /^\d{4}-\d{2}-\d{2}$/.test(deadline) ? deadline.split('-').reverse().join('.') : (deadline.trim() || '[Datum]'),
+      projektblock, ausloeser, ausgangslage,
+    };
+    const fill = (tpl: string) => tpl
+      .replace(/\{\{\s*(\w+)\s*\}\}/g, (m, k: string) => (k in vars ? vars[k] : m))
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+    return {
+      to: theme.handover?.to?.trim() ?? '',
+      subject: fill(theme.handover?.subject?.trim() || DEFAULT_HANDOVER_SUBJECT),
+      text: fill(theme.handover?.body?.trim() || DEFAULT_HANDOVER_BODY),
+    };
   };
 
   // Gleiche offenen Fragen als ausfüllbares PDF-Formular (pdf-lib, lazy)
@@ -993,7 +1145,7 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
             {FOUNDATION_MS} · {MILESTONE_TITLES[FOUNDATION_MS] ?? 'Prüfung'}
           </h3>
           <div className="flex items-center gap-2">
-            <button onClick={() => { setExportMs(FOUNDATION_MS); setExportCopied(false); }}
+            <button onClick={() => { setExportMs(FOUNDATION_MS); setCopiedKey(null); }}
               title="Offene Fragen als E-Mail-Text exportieren"
               className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
               <Mail size={11} /> Offene Fragen
@@ -1065,7 +1217,7 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
                   {ms} · {MILESTONE_TITLES[ms] ?? 'Prüfung'}
                 </h3>
                 <div className="flex items-center gap-2">
-                  <button onClick={() => { setExportMs(ms); setExportCopied(false); }}
+                  <button onClick={() => { setExportMs(ms); setCopiedKey(null); }}
                     title="Offene Fragen als E-Mail-Text exportieren"
                     className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
                     <Mail size={11} /> Offene Fragen
@@ -1186,66 +1338,73 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
 
       {/* Export: offene Fragen als E-Mail-Text */}
       {exportMs && (() => {
-        const { text, count } = buildExport(exportMs);
+        const handoverTitle = exportTheme ? (themes.find(t => t.id === exportTheme)?.title ?? exportTheme) : null;
+        const handover = exportTheme ? buildHandoverExport(exportTheme, exportMs, handoverDeadline) : null;
+        const { text, count } = handover ? { text: handover.text, count: 0 } : buildExport(exportMs);
+        const closeExport = () => { setExportMs(null); setExportTheme(null); setHandoverDeadline(''); };
         return (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-6" onClick={() => setExportMs(null)}>
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-6" onClick={closeExport}>
             <div className={`max-w-2xl w-full max-h-[85vh] flex flex-col rounded-xl border p-6 ${isDark ? 'border-white/15 bg-[#16171a]' : 'border-black/15 bg-white'}`}
               onClick={e => e.stopPropagation()}>
               <div className="flex items-start justify-between gap-4 mb-3">
                 <h3 className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-black'}`}>
-                  Offene Fragen {exportMs}
+                  {handoverTitle ? `Übergabe an ${handoverTitle} (${exportMs})` : `Offene Fragen ${exportMs}`}
                   <span className={`ml-2 text-[11px] font-normal ${textMuted}`}>
-                    {count} {count === 1 ? 'Frage' : 'Fragen'}
+                    {handoverTitle ? 'Review-Bericht (PDF) beilegen' : `${count} ${count === 1 ? 'Frage' : 'Fragen'}`}
                   </span>
                 </h3>
-                <button onClick={() => setExportMs(null)}
+                <button onClick={closeExport}
                   className={`p-1 rounded flex-shrink-0 transition-colors ${isDark ? 'text-white/25 hover:text-white/70' : 'text-black/25 hover:text-black/70'}`}>
                   <X size={14} />
                 </button>
               </div>
-              {count === 0 ? (
+              {count === 0 && !handoverTitle ? (
                 <p className={`text-xs ${textMuted}`}>Alle Fragen dieses Meilensteins sind beantwortet — nichts zu verschicken.</p>
               ) : (
                 <>
+                  {handover && (
+                    <div className={`grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 items-center text-[11px] mb-3 ${isDark ? 'text-white/70' : 'text-black/70'}`}>
+                      <span className={textMuted}>An</span>
+                      <span className="truncate" title={handover.to}>{handover.to || <em className={textMuted}>kein Empfänger konfiguriert (Admin → Thema → Übergabe)</em>}</span>
+                      <span className={textMuted}>Betreff</span>
+                      <span className="truncate" title={handover.subject}>{handover.subject}</span>
+                      <span className={textMuted}>Termin</span>
+                      <input type="date" value={handoverDeadline} onChange={e => setHandoverDeadline(e.target.value)}
+                        className={`w-40 text-[11px] px-2 py-1 rounded border outline-none transition-colors ${inputCls}`} />
+                    </div>
+                  )}
                   <textarea readOnly value={text}
                     onFocus={e => e.currentTarget.select()}
                     className={`w-full flex-1 min-h-[280px] text-[11px] leading-relaxed px-3 py-2 rounded border outline-none resize-none font-mono ${inputCls}`} />
-                  <div className="flex gap-2 pt-4">
-                    <button
-                      onClick={async () => {
-                        let ok = false;
-                        try {
-                          // writeText kann in restriktiven Umgebungen hängen → Timeout
-                          await Promise.race([
-                            navigator.clipboard.writeText(text),
-                            new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 800)),
-                          ]);
-                          ok = true;
-                        } catch {
-                          // Fallback für Umgebungen ohne Clipboard-Berechtigung
-                          const ta = document.createElement('textarea');
-                          ta.value = text;
-                          ta.style.position = 'fixed';
-                          ta.style.opacity = '0';
-                          document.body.appendChild(ta);
-                          ta.select();
-                          ok = document.execCommand('copy');
-                          document.body.removeChild(ta);
-                        }
-                        if (ok) {
-                          setExportCopied(true);
-                          setTimeout(() => setExportCopied(false), 2000);
-                        } else {
-                          showToast('Kopieren fehlgeschlagen — Text im Feld markieren und mit Ctrl/Cmd+C kopieren.');
-                        }
-                      }}
-                      className={`flex-1 flex items-center justify-center gap-1.5 text-xs py-2 rounded font-semibold transition-colors ${isDark ? 'bg-white text-black hover:bg-white/90' : 'bg-black text-white hover:bg-black/80'}`}>
-                      <Copy size={12} /> {exportCopied ? '✓ Kopiert' : 'Kopieren'}
-                    </button>
-                    <button onClick={() => downloadPdf(exportMs)} disabled={pdfBusy}
-                      className={`flex-1 flex items-center justify-center gap-1.5 text-xs py-2 rounded border transition-colors disabled:opacity-40 ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
-                      <FileDown size={12} /> {pdfBusy ? 'Erzeuge PDF …' : 'PDF-Formular'}
-                    </button>
+                  <div className="flex gap-2 pt-4 flex-wrap">
+                    {handover ? (
+                      <>
+                        <button onClick={() => copyToClipboard(handover.to, 'to')} disabled={!handover.to}
+                          title={handover.to || 'Kein Empfänger konfiguriert'}
+                          className={`flex-1 flex items-center justify-center gap-1.5 text-xs py-2 rounded border transition-colors disabled:opacity-40 ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
+                          <Copy size={12} /> {copiedKey === 'to' ? '✓ Kopiert' : 'Empfänger kopieren'}
+                        </button>
+                        <button onClick={() => copyToClipboard(handover.subject, 'subject')}
+                          className={`flex-1 flex items-center justify-center gap-1.5 text-xs py-2 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
+                          <Copy size={12} /> {copiedKey === 'subject' ? '✓ Kopiert' : 'Betreff kopieren'}
+                        </button>
+                        <button onClick={() => copyToClipboard(text, 'text')}
+                          className={`flex-1 flex items-center justify-center gap-1.5 text-xs py-2 rounded font-semibold transition-colors ${isDark ? 'bg-white text-black hover:bg-white/90' : 'bg-black text-white hover:bg-black/80'}`}>
+                          <Copy size={12} /> {copiedKey === 'text' ? '✓ Kopiert' : 'Inhalt kopieren'}
+                        </button>
+                      </>
+                    ) : (
+                      <button onClick={() => copyToClipboard(text, 'text')}
+                        className={`flex-1 flex items-center justify-center gap-1.5 text-xs py-2 rounded font-semibold transition-colors ${isDark ? 'bg-white text-black hover:bg-white/90' : 'bg-black text-white hover:bg-black/80'}`}>
+                        <Copy size={12} /> {copiedKey === 'text' ? '✓ Kopiert' : 'Kopieren'}
+                      </button>
+                    )}
+                    {!handoverTitle && (
+                      <button onClick={() => downloadPdf(exportMs)} disabled={pdfBusy}
+                        className={`flex-1 flex items-center justify-center gap-1.5 text-xs py-2 rounded border transition-colors disabled:opacity-40 ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
+                        <FileDown size={12} /> {pdfBusy ? 'Erzeuge PDF …' : 'PDF-Formular'}
+                      </button>
+                    )}
                   </div>
                 </>
               )}

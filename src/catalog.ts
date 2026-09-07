@@ -46,7 +46,7 @@ export const CATALOG_QUESTIONS: Question[] = [
   },
   {
     id: 'cat-ci2', themeId: 'cloud-infrastructure', milestone: 'M20',
-    text: 'Sind Wiederherstellungsziele (RTO/RPO) definiert und getestet?',
+    text: 'Sind Wiederherstellungsziele (RTO/RPO) definiert und vom Betreiber in einem DR-Konzept bestätigt?',
     source: 'AWS Well-Architected, Reliability',
   },
   {

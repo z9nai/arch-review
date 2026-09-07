@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ChevronDown, ChevronUp, Copy, ExternalLink, Minus, Plus, Save, ShieldCheck, Trash2 } from 'lucide-react';
+import { Archive, ArchiveRestore, ArrowLeft, ChevronDown, ChevronUp, Copy, ExternalLink, Minus, Plus, Save, ShieldCheck, Trash2 } from 'lucide-react';
 import { useStore } from '../store';
 import { MILESTONES, MILESTONE_TITLES, Model, Question } from '../types';
 import { DEFAULT_MODEL } from '../defaultModel';
 import { CATALOG_QUESTIONS } from '../catalog';
+import { DEFAULT_HANDOVER_BODY, DEFAULT_HANDOVER_SUBJECT } from './OnePagerView';
 import { autoGrow, slugify } from '../util';
 import { GUID_RE, LEVEL_LABELS, setupLink, useAuth } from '../auth';
 
@@ -158,8 +159,27 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
   const updateQuestion = (id: string, patch: Partial<Question>) =>
     setDraft(d => d ? { ...d, questions: d.questions.map(q => q.id === id ? { ...q, ...patch } : q) } : d);
 
-  const deleteQuestion = (id: string) =>
+  // Löschen entfernt die Frage endgültig aus dem Katalog: die id wird frei und
+  // könnte später für eine andere Frage vergeben werden — dann hängen alte
+  // Antworten an der falschen Frage. Deshalb nur während des Aufbaus; für
+  // produktiv genutzte Fragen ist Archivieren der richtige Weg.
+  const deleteQuestion = (id: string, text: string) => {
+    const label = text.trim() ? `«${text.trim().slice(0, 80)}${text.trim().length > 80 ? ' …' : ''}»` : `(${id})`;
+    if (!window.confirm(
+      `Frage ${label} endgültig löschen?\n\n` +
+      `Die id «${id}» wird damit frei. Antworten aus bestehenden Projekten bleiben in den Dateien, ` +
+      `verlieren aber ihren Bezug — und würden an einer späteren Frage mit derselben id fälschlich wieder auftauchen.\n\n` +
+      `Wurde die Frage schon in Reviews beantwortet, stattdessen archivieren.`)) return;
     setDraft(d => d ? { ...d, questions: d.questions.filter(q => q.id !== id) } : d);
+  };
+
+  // Archivieren: id bleibt reserviert, Frage wird in neuen Reviews nicht mehr
+  // gestellt, bestehende Antworten bleiben schreibgeschützt sichtbar.
+  const archiveQuestion = (id: string) =>
+    updateQuestion(id, { archived: true, enabled: undefined });
+
+  const restoreQuestion = (id: string) =>
+    updateQuestion(id, { archived: undefined });
 
   const addQuestion = (ms: string) =>
     setDraft(d => d ? {
@@ -232,9 +252,13 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
   };
 
   // Automatische Nummer: n-te Frage des Themas im Meilenstein → z. B. M10F1
+  // Gleiche Regel wie im OnePager (questionsAt): Meilenstein + Themen-Buchstabe
+  // + Position innerhalb Thema/Meilenstein im vollen Katalog — archivierte und
+  // deaktivierte Fragen behalten ihre Nummer, damit Verweise stabil bleiben.
   const numberOf = (q: Question): string => {
+    const ti = draft.themes.findIndex(t => t.id === q.themeId);
     const inGroup = draft.questions.filter(x => x.themeId === q.themeId && x.milestone === q.milestone);
-    return `${q.milestone}F${inGroup.findIndex(x => x.id === q.id) + 1}`;
+    return `${q.milestone}${ti >= 0 ? themeLetter(ti) : 'X'}${inGroup.findIndex(x => x.id === q.id) + 1}`;
   };
 
   return (
@@ -486,6 +510,54 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
                     onFocus={autoGrow} onInput={autoGrow}
                     placeholder={'# Titel\n\nBeschreibung …\n\n- Punkt 1\n- Punkt 2'}
                     className={`w-full text-[11px] px-2 py-1.5 rounded border outline-none resize-y transition-colors ${inputCls}`} />
+                  {/* Übergabe an eine Fachstelle: schaltet das Mail-Icon (Übergabetext) im OnePager frei */}
+                  <label className="flex items-center gap-1.5 text-[11px] cursor-pointer mt-3"
+                    title="Thema wird an eine Fachstelle übergeben (z. B. Security & Compliance). Im OnePager erscheint dann ein Mail-Icon, das den Übergabetext erzeugt.">
+                    <input type="checkbox" checked={!!theme.handover}
+                      onChange={e => updateTheme(theme.id, { handover: e.target.checked ? { ...(theme.handover ?? {}) } : undefined })}
+                      className="accent-blue-500 cursor-pointer" />
+                    Übergabe an Fachstelle (Übergabetext im OnePager)
+                  </label>
+                  {theme.handover && (
+                    <div className="mt-2 space-y-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        <input value={theme.handover.to ?? ''}
+                          onChange={e => updateTheme(theme.id, { handover: { ...theme.handover, to: e.target.value || undefined } })}
+                          placeholder="Empfänger — z. B. security@firma.ch (mehrere mit Komma)"
+                          className={`w-full text-[11px] px-2 py-1.5 rounded border outline-none transition-colors ${inputCls}`} />
+                        <input value={theme.handover.subject ?? ''}
+                          onChange={e => updateTheme(theme.id, { handover: { ...theme.handover, subject: e.target.value || undefined } })}
+                          placeholder={`Betreff — leer = Standard: ${DEFAULT_HANDOVER_SUBJECT}`}
+                          title={`Standard: ${DEFAULT_HANDOVER_SUBJECT}`}
+                          className={`w-full text-[11px] px-2 py-1.5 rounded border outline-none transition-colors ${inputCls}`} />
+                      </div>
+                      <textarea value={theme.handover.body ?? ''} rows={3}
+                        onChange={e => updateTheme(theme.id, { handover: { ...theme.handover, body: e.target.value || undefined } })}
+                        onFocus={autoGrow} onInput={autoGrow}
+                        placeholder={`Text — leer = Standard:\n${DEFAULT_HANDOVER_BODY}`}
+                        className={`w-full text-[11px] px-2 py-1.5 rounded border outline-none resize-none overflow-hidden transition-colors font-mono ${inputCls}`} />
+                      <p className={`text-[10px] ${textMuted}`}>
+                        Platzhalter: {'{{projekt}} {{slug}} {{thema}} {{ms}} {{meilenstein}} {{klassifikation}} {{termin}} {{projektblock}} {{ausloeser}} {{ausgangslage}}'}
+                        {' '}— Blöcke: Projektangaben, M10-Antworten dieses Themas, Antworten der Kontext-Fragen unten.
+                      </p>
+                      <input value={(theme.handover.context ?? []).join(', ')}
+                        onChange={e => {
+                          const ids = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
+                          updateTheme(theme.id, { handover: { ...theme.handover, context: ids.length ? ids : undefined } });
+                        }}
+                        placeholder="Kontext-Fragen (ids, kommagetrennt) — deren Antworten bilden {{ausgangslage}}, z. B. D0, E1, T1"
+                        title="Frage-ids, auch aus anderen Themen. ids sind stabil, die angezeigte Nummer nicht."
+                        className={`w-full text-[11px] px-2 py-1.5 rounded border outline-none transition-colors ${inputCls}`} />
+                      {(theme.handover.context ?? []).length > 0 && (
+                        <p className={`text-[10px] ${textMuted}`}>
+                          {(theme.handover.context ?? []).map(id => {
+                            const q = draft.questions.find(x => x.id === id);
+                            return q ? `${numberOf(q)} ${q.text.slice(0, 40)}${q.text.length > 40 ? '…' : ''}` : `${id}: unbekannt`;
+                          }).join(' · ')}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -549,7 +621,23 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
                 {qs.length === 0 && (
                   <p className={`text-[11px] ${textMuted}`}>Keine Fragen — mit + ergänzen.</p>
                 )}
-                {qs.map(q => (
+                {qs.map(q => q.archived ? (
+                  // archiviert: nur lesen; Nummer und id bleiben belegt
+                  <div key={q.id} className={`rounded-lg border border-dashed px-3 py-2 flex items-center gap-2 flex-wrap opacity-60 ${isDark ? 'border-white/15' : 'border-black/15'}`}>
+                    <span className={`w-14 text-[10px] font-semibold flex-shrink-0 ${textMuted}`} title="Nummer bleibt reserviert">
+                      {numberOf(q)}
+                    </span>
+                    <span className={`flex-1 min-w-[220px] text-[11px] line-through ${isDark ? 'text-white/60' : 'text-black/60'}`}>{q.text || <em>(ohne Text)</em>}</span>
+                    <span className={`inline-block text-[9px] px-1.5 py-0.5 rounded-full border whitespace-nowrap ${isDark ? 'bg-white/8 text-white/50 border-white/15' : 'bg-black/5 text-black/50 border-black/15'}`}>
+                      archiviert
+                    </span>
+                    <span className={`text-[10px] ${textMuted}`}>id: {q.id}</span>
+                    <button onClick={() => restoreQuestion(q.id)} title="Frage wiederherstellen — wird wieder in Reviews gestellt"
+                      className={`p-1.5 rounded transition-colors ${isDark ? 'text-white/25 hover:text-emerald-400' : 'text-black/25 hover:text-emerald-600'}`}>
+                      <ArchiveRestore size={12} />
+                    </button>
+                  </div>
+                ) : (
                   <div key={q.id} className={`rounded-lg border px-3 py-2 space-y-2 ${isDark ? 'border-white/10 bg-white/3' : 'border-black/10 bg-white'} ${q.enabled === false ? 'opacity-40' : ''}`}>
                     <div className="flex items-center gap-2 flex-wrap">
                       <input type="checkbox" checked={q.enabled !== false}
@@ -589,7 +677,13 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
                         <option value="text">Text</option>
                         <option value="choice">Auswahl</option>
                       </select>
-                      <button onClick={() => deleteQuestion(q.id)} title="Frage löschen"
+                      <button onClick={() => archiveQuestion(q.id)}
+                        title="Frage archivieren — id bleibt reserviert, wird in neuen Reviews nicht mehr gestellt; bestehende Antworten bleiben schreibgeschützt sichtbar"
+                        className={`p-1.5 rounded transition-colors ${isDark ? 'text-white/25 hover:text-amber-400' : 'text-black/25 hover:text-amber-600'}`}>
+                        <Archive size={12} />
+                      </button>
+                      <button onClick={() => deleteQuestion(q.id, q.text)}
+                        title="Frage endgültig löschen (nur im Aufbau — id wird frei, alte Antworten verwaisen)"
                         className={`p-1.5 rounded transition-colors ${isDark ? 'text-white/25 hover:text-red-400' : 'text-black/25 hover:text-red-500'}`}>
                         <Trash2 size={12} />
                       </button>

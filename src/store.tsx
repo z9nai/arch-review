@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { Model, Project } from './types';
+import { Model, Project, Review } from './types';
 import { DEFAULT_MODEL } from './defaultModel';
 import { applyMs10, Ms10Data } from './ms10';
 import { nowIsoWithTimezone, todayIso } from './util';
@@ -62,6 +62,10 @@ interface StoreCtx {
   loadProject: (slug: string) => Promise<{ data: Project; version: string } | null>;
   saveProject: (data: Project, expectedVersion: string | null) => Promise<SaveResult>;
   createProject: (name: string, slug: string, ms10?: Ms10Data) => Promise<{ ok: true } | { ok: false; message: string }>;
+  /** Kopie anlegen: Antworten/Klassifikation bleiben, Freigaben werden zurückgesetzt */
+  duplicateProject: (sourceSlug: string, name: string, slug: string) => Promise<{ ok: true } | { ok: false; message: string }>;
+  /** projects/<slug>.json (und eine allfällige eigene Sperre) endgültig entfernen */
+  deleteProject: (slug: string) => Promise<{ ok: true } | { ok: false; message: string }>;
   // Bearbeitungssperre
   sessionId: string;
   readLock: (slug: string) => Promise<ProjectLock | null>;
@@ -541,6 +545,71 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // ── Projekt duplizieren / löschen ─────────────────────────────────────────
+  // Kopie: Stammdaten, Klassifikation und alle Themen-Reviews (Antworten,
+  // Bemerkungen, Relevanz) werden übernommen; die Meilenstein-Köpfe
+  // (geprüft/freigegeben, Prüfer/in, Ergebnis) werden zurückgesetzt, damit die
+  // Kopie nicht als freigegeben erscheint. Bemerkungen der Köpfe bleiben.
+  const duplicateProject = useCallback(async (sourceSlug: string, name: string, slug: string) => {
+    const be = backendRef.current;
+    if (!be) return { ok: false as const, message: 'Kein Ordner gewählt.' };
+    const src = await loadProject(sourceSlug);
+    if (!src) return { ok: false as const, message: 'Quellprojekt konnte nicht gelesen werden.' };
+    const reviews: Project['reviews'] = {};
+    for (const [key, r] of Object.entries(src.data.reviews ?? {})) {
+      const copy = JSON.parse(JSON.stringify(r)) as Partial<Review>;
+      if (/^(m\d+|ms\d+|foundation)$/i.test(key)) {
+        // Meilenstein-Kopf
+        delete copy.approved; delete copy.approvedBy;
+        copy.reviewed = false; copy.result = null;
+      }
+      reviews[key] = copy;
+    }
+    const project: Project = {
+      ...JSON.parse(JSON.stringify(src.data)),
+      slug, name,
+      createdAt: todayIso(),
+      updatedAt: nowIsoWithTimezone(),
+      reviews,
+    };
+    let json: string;
+    try { json = JSON.stringify(project, null, 2); } catch { return { ok: false as const, message: 'Projektdaten konnten nicht serialisiert werden.' }; }
+    const w = await be.write(`projects/${slug}.json`, json, { createOnly: true });
+    if (!w.ok) {
+      if (w.reason === 'exists') return { ok: false as const, message: 'Ein Projekt mit diesem Slug existiert bereits.' };
+      return { ok: false as const, message: w.message };
+    }
+    setProjects(prev => [...prev, { slug, data: project, version: w.version }]
+      .sort((a, b) => (a.data.name || a.slug).localeCompare(b.data.name || b.slug, 'de')));
+    return { ok: true as const };
+  }, [loadProject]);
+
+  // Löschen: nicht, solange eine andere Person/Sitzung das Projekt bearbeitet.
+  // Entfernt die Projektdatei und die eigene Sperrdatei. Kein Papierkorb —
+  // die Bestätigung passiert in der Oberfläche.
+  const deleteProject = useCallback(async (slug: string) => {
+    const be = backendRef.current;
+    if (!be) return { ok: false as const, message: 'Kein Ordner gewählt.' };
+    try {
+      const cur = await be.read(`projects/${slug}.lock.json`);
+      const l = cur ? parseLock(cur.text) : null;
+      if (lockValid(l) && l.session !== sessionId()) {
+        return { ok: false as const, message: `Projekt wird gerade von ${l.user || 'einer anderen Person'} bearbeitet — später nochmals versuchen.` };
+      }
+      const exists = await be.read(`projects/${slug}.json`);
+      if (!exists) return { ok: false as const, message: 'Projektdatei nicht gefunden.' };
+      await be.delete(`projects/${slug}.json`);
+      // Kontrolle: delete meldet «fehlt bereits» nicht als Fehler — deshalb nachlesen
+      const still = await be.read(`projects/${slug}.json`);
+      if (still) return { ok: false as const, message: 'Projekt konnte nicht gelöscht werden (keine Berechtigung?).' };
+      await be.delete(`projects/${slug}.lock.json`);
+      setProjects(prev => prev.filter(p => p.slug !== slug));
+      return { ok: true as const };
+    } catch (e) {
+      return { ok: false as const, message: e instanceof Error ? e.message : String(e) };
+    }
+  }, []);
+
   // Admin-Modus: Stammdaten (Themen/Fragen) zurück in model.json schreiben
   const saveModel = useCallback(async (m: Model): Promise<{ ok: true } | { ok: false; message: string }> => {
     const be = backendRef.current;
@@ -571,7 +640,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       pickDirectory, savedHandleName, reconnectDirectory,
       connectSharePoint, savedSharePoint, reconnectSharePoint, forgetSharePoint, disconnect,
       model, modelError, saveModel,
-      projects, refreshProjects, loadProject, saveProject, createProject,
+      projects, refreshProjects, loadProject, saveProject, createProject, duplicateProject, deleteProject,
       sessionId: sessionId(), readLock, acquireLock, renewLock, releaseLock,
     }}>
       {children}

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Plus, RefreshCw, ChevronRight, FileUp, Lock } from 'lucide-react';
+import { Plus, RefreshCw, ChevronRight, FileUp, Lock, Copy, Trash2 } from 'lucide-react';
 import { useStore } from '../store';
 import { deriveStatus, openMilestone, STATUS_META } from '../status';
 import { extractPdfText, hasMs10Data, Ms10Data, parseMs10Text } from '../ms10';
@@ -16,7 +16,7 @@ function StatusBadge({ status, isDark }: { status: keyof typeof STATUS_META; isD
 }
 
 export default function ProjectsView({ onOpen }: { onOpen: (slug: string) => void }) {
-  const { isDark, model, projects, refreshProjects, createProject } = useStore();
+  const { isDark, model, projects, refreshProjects, createProject, duplicateProject, deleteProject } = useStore();
   const { canEdit } = usePermissions();
 
   // Liste aktuell halten (Sperren, fremde Änderungen): bei Tab-Fokus und jede Minute
@@ -33,6 +33,8 @@ export default function ProjectsView({ onOpen }: { onOpen: (slug: string) => voi
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const [ms10, setMs10] = useState<Ms10Data | null>(null);
+  const [dupSource, setDupSource] = useState<string | null>(null); // Slug des zu kopierenden Projekts
+  const [listErr, setListErr] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
   const border = isDark ? 'border-white/8' : 'border-black/8';
@@ -45,7 +47,7 @@ export default function ProjectsView({ onOpen }: { onOpen: (slug: string) => voi
   const effectiveSlug = slugTouched ? slug : slugify(name);
 
   const resetForm = () => {
-    setAdding(false); setName(''); setSlug(''); setSlugTouched(false); setErr(''); setMs10(null);
+    setAdding(false); setName(''); setSlug(''); setSlugTouched(false); setErr(''); setMs10(null); setDupSource(null);
   };
 
   const create = async () => {
@@ -53,15 +55,40 @@ export default function ProjectsView({ onOpen }: { onOpen: (slug: string) => voi
     if (!name.trim()) { setErr('Name fehlt.'); return; }
     if (!SLUG_RE.test(s)) { setErr('Slug ungültig — nur Kleinbuchstaben, Ziffern und Bindestriche.'); return; }
     setBusy(true);
-    const res = await createProject(name.trim(), s, ms10 ?? undefined);
+    const res = dupSource
+      ? await duplicateProject(dupSource, name.trim(), s)
+      : await createProject(name.trim(), s, ms10 ?? undefined);
     setBusy(false);
     if (res.ok) { resetForm(); onOpen(s); }
     else setErr(res.message);
   };
 
+  // Duplizieren: gleiches Formular wie «Neues Projekt», vorbefüllt mit «… (Kopie)»
+  const startDuplicate = (srcSlug: string, srcName: string) => {
+    setListErr('');
+    setMs10(null);
+    setDupSource(srcSlug);
+    setName(`${srcName || srcSlug} (Kopie)`);
+    setSlug(`${srcSlug}-kopie`); setSlugTouched(true);
+    setErr('');
+    setAdding(true);
+  };
+
+  const remove = async (slug: string, projName: string) => {
+    setListErr('');
+    if (!window.confirm(
+      `Projekt «${projName || slug}» endgültig löschen?\n\n` +
+      `Die Datei projects/${slug}.json wird aus dem Ordner entfernt — es gibt keinen Papierkorb.`)) return;
+    setBusy(true);
+    const res = await deleteProject(slug);
+    setBusy(false);
+    if (!res.ok) setListErr(res.message);
+  };
+
   // MS10-PDF wählen → Felder parsen und das Formular vorbefüllen
   const importMs10 = async (file: File) => {
     setErr('');
+    setDupSource(null);
     try {
       const data = parseMs10Text(await extractPdfText(await file.arrayBuffer()));
       if (!hasMs10Data(data)) {
@@ -124,7 +151,15 @@ export default function ProjectsView({ onOpen }: { onOpen: (slug: string) => voi
 
       {adding && (
         <div className={`p-4 rounded-xl border mb-4 ${isDark ? 'border-white/8 bg-white/3' : 'border-black/8 bg-black/3'}`}>
-          <p className={`text-[10px] uppercase tracking-wider mb-3 ${textMuted}`}>Neues Projekt</p>
+          <p className={`text-[10px] uppercase tracking-wider mb-3 ${textMuted}`}>
+            {dupSource ? `Kopie von «${projects.find(p => p.slug === dupSource)?.data.name ?? dupSource}»` : 'Neues Projekt'}
+          </p>
+          {dupSource && (
+            <p className={`text-[11px] mb-3 flex items-center gap-1.5 ${isDark ? 'text-white/50' : 'text-black/50'}`}>
+              <Copy size={11} className="flex-shrink-0" />
+              Antworten, Bemerkungen und Klassifikation werden übernommen; Freigaben und Prüfvermerke der Meilensteine werden zurückgesetzt.
+            </p>
+          )}
           {ms10 && (
             <p className={`text-[11px] mb-3 flex items-center gap-1.5 ${isDark ? 'text-emerald-400/80' : 'text-emerald-700'}`}>
               <FileUp size={11} className="flex-shrink-0" />
@@ -151,11 +186,13 @@ export default function ProjectsView({ onOpen }: { onOpen: (slug: string) => voi
             </button>
             <button onClick={create} disabled={busy}
               className={`flex-1 text-xs py-2 rounded font-semibold transition-colors disabled:opacity-50 ${isDark ? 'bg-white text-black hover:bg-white/90' : 'bg-black text-white hover:bg-black/80'}`}>
-              Anlegen
+              {dupSource ? 'Duplizieren' : 'Anlegen'}
             </button>
           </div>
         </div>
       )}
+
+      {listErr && <p className={`text-[11px] mb-3 ${isDark ? 'text-rose-400' : 'text-rose-600'}`}>{listErr}</p>}
 
       {projects.length === 0 && !adding && (
         <p className={`text-sm ${textMuted}`}>Noch keine Projekte im Ordner projects/.</p>
@@ -165,9 +202,11 @@ export default function ProjectsView({ onOpen }: { onOpen: (slug: string) => voi
         {projects.map(p => {
           const status = deriveStatus(p.data);
           const ms = status === 'open' ? openMilestone(p.data) : null;
+          const lockedByOther = !!p.lock;
           return (
-            <button key={p.slug} onClick={() => onOpen(p.slug)}
-              className={`w-full text-left rounded-xl border transition-colors ${border} ${isDark ? 'bg-white/2 hover:bg-white/5' : 'bg-black/2 hover:bg-black/5'}`}>
+            <div key={p.slug}
+              className={`w-full rounded-xl border transition-colors flex items-stretch ${border} ${isDark ? 'bg-white/2 hover:bg-white/5' : 'bg-black/2 hover:bg-black/5'}`}>
+              <button onClick={() => onOpen(p.slug)} className="flex-1 min-w-0 text-left">
               <div className="px-4 py-3 flex items-center justify-between gap-4">
                 <div className="min-w-0">
                   <div className="flex items-center gap-3">
@@ -193,7 +232,22 @@ export default function ProjectsView({ onOpen }: { onOpen: (slug: string) => voi
                 </div>
                 <ChevronRight size={14} className={`flex-shrink-0 ${textMuted}`} />
               </div>
-            </button>
+              </button>
+              {canEdit && (
+                <div className={`flex flex-col justify-center gap-1 px-2 border-l ${border}`}>
+                  <button onClick={() => startDuplicate(p.slug, p.data.name)} disabled={busy}
+                    title="Projekt duplizieren (Antworten übernehmen, Freigaben zurücksetzen)"
+                    className={`p-1.5 rounded transition-colors disabled:opacity-40 ${isDark ? 'text-white/25 hover:text-white/80' : 'text-black/25 hover:text-black/80'}`}>
+                    <Copy size={12} />
+                  </button>
+                  <button onClick={() => remove(p.slug, p.data.name)} disabled={busy || lockedByOther}
+                    title={lockedByOther ? `In Bearbeitung durch ${p.lock?.user} — Löschen nicht möglich` : 'Projekt endgültig löschen'}
+                    className={`p-1.5 rounded transition-colors disabled:opacity-40 ${isDark ? 'text-white/25 hover:text-red-400' : 'text-black/25 hover:text-red-500'}`}>
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              )}
+            </div>
           );
         })}
       </div>
