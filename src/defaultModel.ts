@@ -88,10 +88,10 @@ export const DEFAULT_MODEL: Model = {
   "questions": [
     {
       "id": "q9a3zestv5p",
-      "text": "Ist die finale Zielarchitektur dokumentiert und freigegeben?",
+      "text": "Ist die finale Zielarchitektur dokumentiert und freigegeben — inklusive Einordnung in die Unternehmensarchitektur und der Geschäftsfunktionen, die das System unterstützt?",
       "milestone": "M20",
       "themeId": "integration-application",
-      "hint": "Zielarchitektur umfasst alle Integrationspunkte, Datenflüsse und Abhängigkeiten zu Drittsystemen; Freigabe durch alle Beteiligten (Betreiber, Hersteller, Auftraggeber). Insb. relevant, wenn der Betreiber (nicht der Auftraggeber) die finale Architektur definiert - dann muss der Freigabeprozess/das Review explizit geregelt sein."
+      "hint": "Zielarchitektur umfasst alle Integrationspunkte, Datenflüsse und Abhängigkeiten zu Drittsystemen; Freigabe durch alle Beteiligten (Betreiber, Hersteller, Auftraggeber). Insb. relevant, wenn der Betreiber (nicht der Auftraggeber) die finale Architektur definiert - dann muss der Freigabeprozess/das Review explizit geregelt sein. Einordnung in die Unternehmensarchitektur: Zielbild, Applikationslandschaft, Abhängigkeiten; die unterstützten Geschäftsfunktionen und -prozesse sind benannt."
     },
     {
       "id": "SC1",
@@ -99,7 +99,7 @@ export const DEFAULT_MODEL: Model = {
       "milestone": "M20",
       "themeId": "security-compliance",
       "remarksAlwaysOpen": true,
-      "hint": "Die Übergabeliste macht die Arbeitsteilung explizit: je Thema «Architektur liefert» (z. B. Kontextdiagramm und Schnittstellen aus Integration, Schutzklasse M10A5, Datenhaltung, IAM-Muster) und «Security prüft» (Härtung, Verschlüsselung, Zugriffsschutz, Supply Chain). Die Aufforderung zum Review (E-Mail) lässt sich über das Mail-Icon am Thema erzeugen; das Ergebnis trägt die Architektur in M20E2 ein. Empfänger, Datum und Übergabeliste in den Bemerkungen festhalten."
+      "hint": "Die Übergabeliste macht die Arbeitsteilung explizit: je Thema «Architektur liefert» (z. B. Kontextdiagramm und Schnittstellen aus Integration, Schutzklasse M10A5, Datenhaltung, IAM-Muster) und «Security prüft» (Härtung, Verschlüsselung, Zugriffsschutz, Supply Chain). Die Aufforderung zum Review (E-Mail) lässt sich über das Mail-Icon am Thema erzeugen; das Ergebnis trägt die Architektur in M20E2 ein. Empfänger, Datum und Übergabeliste in den Bemerkungen festhalten. Die Übergabeliste enthält auch die von der Architektur definierten Sicherheits- und Datenschutzanforderungen für System und Betriebsumgebung — abgeleitet aus Schutzklasse, Risiken und Vorgaben."
     },
     {
       "id": "SC10",
@@ -123,6 +123,14 @@ export const DEFAULT_MODEL: Model = {
       "minClassification": "wegweisend",
       "text": "Ist die Einstufung/Spezifikation dieses Themas durch das Architektur-Board abgenommen?",
       "hint": "Nur bei wegweisenden Projekten. Traktandum/Protokoll-Referenz in den Bemerkungen festhalten."
+    },
+    {
+      "id": "cat-nist-p9",
+      "themeId": "operations",
+      "milestone": "M20",
+      "text": "Sind die Anspruchsgruppen des Systems benannt — Fachbereich, Architektur, Entwicklung, Betrieb, Security, Datenschutz, Lieferant — über Entwurf, Umsetzung, Betrieb und Ausserbetriebnahme?",
+      "hint": "Spezifikation der Beteiligten; die Betriebsorganisation mit Support-Kette und SLAs weist M40G1 nach. Original: Identify stakeholders who have an interest in the design, development, implementation, assessment, operation, maintenance, or disposal of the system.",
+      "source": "NIST SP 800-37 Rev. 2, RMF Prepare, Task P-9 (System Stakeholders)"
     },
     {
       "id": "B1",
@@ -332,8 +340,8 @@ export const DEFAULT_MODEL: Model = {
       "id": "CI3",
       "themeId": "cloud-infrastructure",
       "milestone": "M20",
-      "text": "Ist für jede Plattformkomponente geklärt, wer sie bereitstellt, betreibt und patcht (Hersteller / Betreiber / Bank)?",
-      "hint": "Beistellpflichten des Betreibers (z. B. Container-Plattform, Datenbanken, Messaging, Suche, Observability, Prozess-Engine), Zuständigkeit für Major- und Minor-Patches, Verantwortung für die Verfügbarkeit jeder Komponente. Unklare Zuständigkeit ist eine Condition, kein Detail für später."
+      "text": "Ist für jede Plattformkomponente geklärt, wer sie bereitstellt, betreibt und patcht (Hersteller / Betreiber / Bank) — und welche Sicherheitsanforderungen das Vorhaben von der Plattform erbt bzw. selbst umsetzt?",
+      "hint": "Beistellpflichten des Betreibers (z. B. Container-Plattform, Datenbanken, Messaging, Suche, Observability, Prozess-Engine), Zuständigkeit für Major- und Minor-Patches, Verantwortung für die Verfügbarkeit jeder Komponente. Unklare Zuständigkeit ist eine Condition, kein Detail für später. Zur Verantwortung gehört auch die Zuordnung der Sicherheits- und Datenschutzanforderungen: Welche Massnahmen erbt das System von Plattform, Betreiber oder Organisation (Common Controls), welche muss es selbst umsetzen?"
     },
     {
       "id": "CI4",
@@ -537,12 +545,20 @@ export const DEFAULT_MODEL: Model = {
       "themeId": "data-storage"
     },
     {
+      "id": "cat-nist-p13",
+      "themeId": "data-storage",
+      "milestone": "M20",
+      "text": "Ist der Lebenszyklus jeder Informationsart beschrieben — Entstehung, Verarbeitung, Speicherung, Übermittlung, Archivierung, Löschung?",
+      "hint": "Ergänzt die Fragen zu Ort, Backup und Exporten um die zeitliche Dimension: Wie lange bleiben Daten, wann und wie werden sie archiviert und gelöscht, auch in Kopien und Exporten (M20B17). Original: Identify and understand all stages of the information life cycle for each information type processed, stored, or transmitted by the system.",
+      "source": "NIST SP 800-37 Rev. 2, RMF Prepare, Task P-13 (Information Life Cycle)"
+    },
+    {
       "id": "cat-dc1",
       "themeId": "data-classification",
       "milestone": "M20",
       "text": "Sind alle Datenkategorien des Vorhabens inventarisiert und klassifiziert?",
       "source": "BSI IT-Grundschutz, CON.2 / Datenschutz",
-      "hint": "Auch Kopien/Repliken ausserhalb des Kernsystems zählen als eigener Datenspeicher (inkl. CID-Relevanz erfassen). Betrifft insb. Read-Replicas/Caches (z. B. MongoDB-Golden-Record ohne Fallback auf den Core) — dort ist Datenverlust nicht durch das Kernsystem abgesichert."
+      "hint": "Alle Informationsarten, die das System verarbeitet, speichert oder übermittelt. Auch Kopien/Repliken ausserhalb des Kernsystems zählen als eigener Datenspeicher (inkl. CID-Relevanz erfassen). Betrifft insb. Read-Replicas/Caches (z. B. MongoDB-Golden-Record ohne Fallback auf den Core) — dort ist Datenverlust nicht durch das Kernsystem abgesichert."
     },
     {
       "id": "cat-dc2",
@@ -587,9 +603,17 @@ export const DEFAULT_MODEL: Model = {
       "id": "cat-ia3",
       "themeId": "integration-application",
       "milestone": "M20",
-      "text": "Liegt ein aktuelles Kontextdiagramm mit allen Nachbarsystemen vor?",
+      "text": "Liegt ein aktuelles Kontextdiagramm mit Systemgrenze und allen Nachbarsystemen vor?",
       "source": "arc42, Kapitel 3 (Kontextabgrenzung)",
-      "hint": "Idealerweise aus LeanIX generiert bzw. dort erfasst — dann ist M40C1 später ein Abgleich statt eine Nacherfassung."
+      "hint": "Idealerweise aus LeanIX generiert bzw. dort erfasst — dann ist M40C1 später ein Abgleich statt eine Nacherfassung. Die Systemgrenze legt fest, welche Komponenten zum System gehören und welche ausserhalb liegen — Nachbarsysteme, Plattformdienste, Lieferanten."
+    },
+    {
+      "id": "cat-nist-p18",
+      "themeId": "integration-application",
+      "milestone": "M20",
+      "text": "Ist das System im Applikationsportfolio registriert (z. B. LeanIX: Applikations-Factsheet angelegt, Verantwortliche eingetragen)?",
+      "hint": "Registrierung schon bei der Spezifikation — die Nachführung auf den Stand der Umsetzung prüft M40C1. Original: Register the system with organizational program or management offices.",
+      "source": "NIST SP 800-37 Rev. 2, RMF Prepare, Task P-18 (System Registration)"
     },
     {
       "hint": "Bei Referenz-/Pilotcharakter dient dieses Muster als Vorlage für spätere Projekte — die getroffene Wahl sollte entsprechend als Vorgabe festgehalten werden, nicht nur als Einzelfallentscheid.",
@@ -672,6 +696,14 @@ export const DEFAULT_MODEL: Model = {
       "milestone": "M40",
       "text": "Werden Berechtigungen regelmässig überprüft und rezertifiziert?",
       "source": "BSI IT-Grundschutz, ORP.4"
+    },
+    {
+      "id": "cat-nist-p14",
+      "themeId": "technical-debt",
+      "milestone": "M20",
+      "text": "Liegt eine systembezogene Risikobeurteilung vor — identifizierte Risiken, Priorisierung, Massnahmen — und wird sie im Projektverlauf nachgeführt?",
+      "hint": "Die Risiken aus dieser Beurteilung sind die Grundlage für Conditions und Risikoakzeptanzen; M40I3 prüft, ob alle offenen Conditions erfasst oder geschlossen sind. Original: Conduct a system-level risk assessment and update the risk assessment results on an ongoing basis.",
+      "source": "NIST SP 800-37 Rev. 2, RMF Prepare, Task P-14 (Risk Assessment – System)"
     },
     {
       "id": "cat-td1",
@@ -818,7 +850,7 @@ export const DEFAULT_MODEL: Model = {
       "id": "finma-relevant",
       "milestone": "M20",
       "label": "FINMA-Prüfung",
-      "hint": "To be defined — Kriterien, wann eine FINMA-Prüfung erforderlich ist, folgen aus der Abstimmung mit der Fachstelle Security & Compliance."
+      "hint": "FINMA-Prüfung erforderlich, wenn (a) das Vorhaben eine wesentliche Änderung der Systemlandschaft ist — FINMA-RS 2023/1 Rz 32: «Vor wesentlichen Änderungen in den Produkten, Aktivitäten, Prozessen und Systemen sind ad hoc Risiko- und Kontrollbeurteilungen durchzuführen. Diese berücksichtigen die mit dem Änderungsprozess einhergehenden operationellen Risiken und die operationellen Risiken des Zielzustands.» — oder (b) Outsourcing-Relevanz besteht — FINMA-RS 2018/3 Rz 2/3: Ein Outsourcing liegt vor, wenn ein Dienstleister beauftragt wird, selbständig und dauernd eine für die Geschäftstätigkeit wesentliche Funktion ganz oder teilweise zu erfüllen; wesentlich sind Funktionen, von denen die Einhaltung der Ziele und Vorschriften der Finanzmarktaufsichtsgesetzgebung signifikant abhängt."
     },
     {
       "id": "new-supplier-check",
