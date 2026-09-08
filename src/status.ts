@@ -1,4 +1,4 @@
-import { MILESTONES, Project, Review } from './types';
+import { MilestoneCheck, MilestoneCheckState, MILESTONES, Project, Review } from './types';
 
 export type ProjectStatus = 'notRelevant' | 'open' | 'ok';
 
@@ -19,6 +19,24 @@ export function getMilestoneReview(project: Project, ms: string): Review {
     ?? project.reviews?.[`ms${ms.slice(1)}`.toLowerCase()]
     ?? (ms === 'M10' ? project.reviews?.foundation : undefined);
   return { ...emptyReview(), milestone: ms, ...(stored ?? {}) };
+}
+
+// Abnahme-Kontrollpunkte: Zustand je id (fehlend = nicht erforderlich)
+export function checkState(review: Review, id: string): MilestoneCheckState {
+  return { required: false, approved: false, approvedBy: '', remarks: '', ...(review.checks?.[id] ?? {}) };
+}
+
+// Erforderliche Prüfung vollständig: abgenommen, mit Prüfer/in und Bemerkung
+export function checkComplete(s: MilestoneCheckState): boolean {
+  return s.approved === true && String(s.approvedBy ?? '').trim() !== '' && String(s.remarks ?? '').trim() !== '';
+}
+
+// Kontrollpunkte, die die Freigabe des Meilensteins noch blockieren
+export function blockingChecks(review: Review, checks: MilestoneCheck[]): MilestoneCheck[] {
+  return checks.filter(c => {
+    const s = checkState(review, c.id);
+    return s.required && !checkComplete(s);
+  });
 }
 
 // Erster nicht freigegebener Meilenstein — das ist der, an dem das Projekt

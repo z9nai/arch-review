@@ -4,7 +4,7 @@ import { marked } from 'marked';
 import { lockValid, ProjectLock, useStore } from '../store';
 import { useAuth, usePermissions } from '../auth';
 import { MILESTONES, MILESTONE_TITLES, Project, Question, QuestionAnswer, Review, Theme } from '../types';
-import { deriveStatus, emptyReview, getMilestoneReview, getThemeReview, STATUS_META } from '../status';
+import { blockingChecks, checkState, deriveStatus, emptyReview, getMilestoneReview, getThemeReview, STATUS_META } from '../status';
 import { applyMs10, extractPdfText, hasMs10Data, Ms10Data, MS10_FIELD_LABELS, parseMs10Text } from '../ms10';
 import { DEFAULT_MODEL } from '../defaultModel';
 import { autoGrow, fmtTimestamp, nowIsoWithTimezone } from '../util';
@@ -797,6 +797,17 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
         approved,
         statusLine: statusParts.join(' · '),
         ...(String(review.approvedBy ?? '').trim() ? { approvedBy: String(review.approvedBy).trim() } : {}),
+        ...(checksFor(ms).length
+          ? { checks: checksFor(ms).map(c => {
+              const s = checkState(review, c.id);
+              if (!s.required) return { line: `${c.label}: nicht erforderlich` };
+              const by = String(s.approvedBy ?? '').trim();
+              return {
+                line: `${c.label}: erforderlich — ${s.approved ? `abgenommen${by ? ` durch ${by}` : ''}` : 'noch nicht abgenommen'}`,
+                ...(String(s.remarks ?? '').trim() ? { remarks: String(s.remarks).trim() } : {}),
+              };
+            }) }
+          : {}),
         ...(String(review.notes ?? '').trim() ? { notes: String(review.notes).trim() } : {}),
         themes: themeRows,
         ...(skippedThemes.length ? { skippedThemesNote: `Kein Review nötig: ${skippedThemes.join(', ')}` } : {}),
@@ -995,8 +1006,12 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
     setAnswersPdfItems(null);
   };
 
+  // Abnahme-Kontrollpunkte eines Meilensteins (aus model.json)
+  const checksFor = (ms: string) => (model.milestoneChecks ?? []).filter(c => c.milestone === ms);
+
   // Kopfbereich eines Meilenstein-Blocks
   const milestoneHeader = (opts: {
+    ms: string;
     chipLabel: string;
     chipValue: boolean | null;
     review: Review;
@@ -1004,6 +1019,15 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
     extra?: React.ReactNode;
   }) => {
     const notesEmpty = String(opts.review.notes ?? '').trim() === '';
+    const checks = checksFor(opts.ms);
+    const blocking = blockingChecks(opts.review, checks);
+    // Änderung an einem Kontrollpunkt; hebt eine bestehende Freigabe auf, wenn
+    // danach eine erforderliche Prüfung nicht mehr vollständig ist
+    const updateCheck = (id: string, patch: Partial<import('../types').MilestoneCheckState>) => {
+      const next = { ...(opts.review.checks ?? {}), [id]: { ...checkState(opts.review, id), ...patch } };
+      const stillBlocked = blockingChecks({ ...opts.review, checks: next }, checks).length > 0;
+      opts.update({ checks: next, ...(stillBlocked && opts.review.approved ? { approved: false, reviewed: false } : {}) });
+    };
     return (
       <div className="px-4 py-3 grid grid-cols-1 md:grid-cols-[minmax(280px,auto)_1fr] gap-x-6 gap-y-3 items-stretch">
         <div className="space-y-3">
@@ -1013,7 +1037,8 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
           </div>
           <div className="flex items-center gap-4 flex-wrap">
             <label className={`flex items-center gap-1.5 text-xs cursor-pointer ${isDark ? 'text-white/70' : 'text-black/70'}`}>
-              <input disabled={ro} type="checkbox" checked={opts.review.approved === true}
+              <input disabled={ro || (blocking.length > 0 && opts.review.approved !== true)} type="checkbox" checked={opts.review.approved === true}
+                title={blocking.length ? `Erst möglich, wenn abgenommen: ${blocking.map(c => c.label).join(', ')}` : undefined}
                 onChange={e => opts.update({
                   reviewed: e.target.checked,
                   approved: e.target.checked,
@@ -1028,6 +1053,55 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
               onChange={e => opts.update({ approvedBy: e.target.value })}
               className={`text-[11px] px-2 py-1.5 rounded border outline-none transition-colors ${inputCls}`} />
           </div>
+          {blocking.length > 0 && opts.review.approved !== true && (
+            <div className={`text-[11px] ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>
+              Freigabe erst möglich, wenn abgenommen: {blocking.map(c => c.label).join(', ')}
+            </div>
+          )}
+          {checks.map(c => {
+            const s = checkState(opts.review, c.id);
+            const byEmpty = String(s.approvedBy ?? '').trim() === '';
+            const remEmpty = String(s.remarks ?? '').trim() === '';
+            return (
+              <div key={c.id} className="space-y-2">
+                <label title={c.hint}
+                  className={`flex items-center gap-1.5 text-xs cursor-pointer ${isDark ? 'text-white/70' : 'text-black/70'}`}>
+                  <input disabled={ro} type="checkbox" checked={s.required}
+                    onChange={e => updateCheck(c.id, { required: e.target.checked })}
+                    className="accent-blue-500 cursor-pointer" />
+                  {c.label} erforderlich
+                  {c.hint && <Info size={11} className="opacity-50" />}
+                </label>
+                {s.required && (
+                  <div className={`ml-5 pl-3 border-l space-y-2 ${border}`}>
+                    <div className="flex items-center gap-4 flex-wrap">
+                      <label className={`flex items-center gap-1.5 text-xs cursor-pointer ${isDark ? 'text-white/70' : 'text-black/70'}`}>
+                        <input disabled={ro} type="checkbox" checked={s.approved === true}
+                          onChange={e => updateCheck(c.id, {
+                            approved: e.target.checked,
+                            ...(e.target.checked && byEmpty && authUser?.name ? { approvedBy: authUser.name } : {}),
+                          })}
+                          className="accent-blue-500 cursor-pointer" />
+                        abgenommen
+                      </label>
+                      <input disabled={ro} value={String(s.approvedBy ?? '')} placeholder="durch wen (erforderlich)"
+                        onChange={e => updateCheck(c.id, { approvedBy: e.target.value })}
+                        className={`text-[11px] px-2 py-1.5 rounded border outline-none transition-colors ${inputCls} ${
+                          byEmpty ? (isDark ? 'border-rose-500/40' : 'border-rose-300') : ''
+                        }`} />
+                    </div>
+                    <textarea disabled={ro} value={String(s.remarks ?? '')} required rows={2}
+                      onChange={e => updateCheck(c.id, { remarks: e.target.value })}
+                      onFocus={autoGrow} onInput={autoGrow}
+                      placeholder={`Bemerkungen ${c.label} (erforderlich)`}
+                      className={`w-full min-h-[52px] text-[11px] px-2 py-1.5 rounded border outline-none resize-none overflow-hidden transition-colors ${inputCls} ${
+                        remEmpty ? (isDark ? 'border-rose-500/40' : 'border-rose-300') : ''
+                      }`} />
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
         <textarea disabled={ro} value={opts.review.notes} required rows={3}
           onChange={e => opts.update({ notes: e.target.value })}
@@ -1158,6 +1232,7 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
           </div>
         </div>
         {milestoneHeader({
+          ms: FOUNDATION_MS,
           chipLabel: 'Architekturrelevant',
           chipValue: proj.architectureRelevant,
           review: getMilestoneReview(proj, FOUNDATION_MS),
@@ -1230,6 +1305,7 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
                 </div>
               </div>
               {milestoneHeader({
+                ms,
                 chipLabel: 'Ergebnis',
                 chipValue: milestoneOutcome(ms),
                 review: getMilestoneReview(proj, ms),

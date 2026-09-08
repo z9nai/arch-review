@@ -16,6 +16,27 @@ export interface Classification {
   label: string;
 }
 
+// Abnahme-Kontrollpunkt eines Meilensteins (z. B. «FINMA-Prüfung» im M20):
+// erscheint im Meilenstein-Kopf als «… erforderlich». Ist er erforderlich,
+// braucht es Abnahme, Prüfer/in und Bemerkung — und der Meilenstein kann erst
+// freigegeben werden, wenn alle erforderlichen Prüfungen abgenommen sind.
+// Zustand im Projekt unter reviews.<ms>.checks[id] (MilestoneCheckState).
+export interface MilestoneCheck {
+  id: string;
+  milestone: string;   // M10 / M20 / M40
+  label: string;       // z. B. «FINMA-Prüfung» — angezeigt als «<label> erforderlich»
+  hint?: string;       // Erläuterung (Tooltip)
+  [key: string]: unknown;
+}
+
+export interface MilestoneCheckState {
+  required: boolean;     // Prüfung ist für dieses Vorhaben nötig
+  approved?: boolean;    // Prüfung abgenommen
+  approvedBy?: string;   // durch wen
+  remarks?: string;      // Bemerkungen (Pflicht, wenn erforderlich)
+  [key: string]: unknown;
+}
+
 // Thema: Titel und Info (Markdown, hinter dem Info-Icon).
 // Die Nummerierung A–Z ergibt sich automatisch aus der Reihenfolge.
 export interface Theme {
@@ -89,6 +110,7 @@ export interface Model {
   classificationInfoMd?: string; // Erklärung der Klassifikation (Markdown)
   themes: Theme[];
   questions: Question[];
+  milestoneChecks?: MilestoneCheck[]; // Abnahme-Kontrollpunkte je Meilenstein
   [key: string]: unknown;
 }
 
@@ -115,6 +137,7 @@ export interface Review {
   answers?: Record<string, QuestionAnswer>; // je Frage-id
   approved?: boolean;   // Freigabe (schaltet den nächsten Meilenstein frei)
   approvedBy?: string;  // Prüfer/in
+  checks?: Record<string, MilestoneCheckState>; // Abnahme-Kontrollpunkte (model.milestoneChecks), je id
   [key: string]: unknown;
 }
 
