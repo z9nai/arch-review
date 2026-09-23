@@ -48,3 +48,22 @@ export function autoGrow(e: React.FocusEvent<HTMLTextAreaElement> | React.FormEv
   t.style.height = 'auto';
   t.style.height = `${t.scrollHeight}px`;
 }
+
+// Dateiname für den geteilten Ordner sicher machen (SharePoint/Windows
+// verbieten \ / : * ? " < > | und führende Punkte).
+export function sanitizeFilename(name: string): string {
+  const cleaned = name.replace(/[\\/:*?"<>|]/g, '_').trim().replace(/^\.+/, '');
+  return cleaned || 'datei';
+}
+
+// Web-Referenz als Quelle: Schema ergänzen, wenn jemand nur "docs.firma.ch/..." tippt.
+export function normalizeUrl(url: string): string {
+  const trimmed = url.trim();
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+}
+
+export function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}

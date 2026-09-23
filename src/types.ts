@@ -1,10 +1,21 @@
 // Meilensteine sind fix (hard coded), Nummerierung M10 / M20 / M40
 export const MILESTONES = ['M10', 'M20', 'M40'];
 
+// Titel = die drei Phasen der Architekturprüfung. Die Nummern folgen dem
+// HERMES-Meilensteinplan der Projekte: M40 ist die Abnahme (Realisierung
+// abgeschlossen, technische und sicherheitsrelevante Freigabe vor Go-Live);
+// MS60 (Projektabschluss) ist bewusst kein Prüfmeilenstein.
 export const MILESTONE_TITLES: Record<string, string> = {
-  M10: 'Foundation-Prüfung',
-  M20: 'Prüfung der Architektur-Factsheets',
-  M40: 'Betriebsnahe Prüfung',
+  M10: 'Architektur-Relevanz',
+  M20: 'Architektur-Vorgaben',
+  M40: 'Architektur-Abnahme',
+};
+
+// Kurzbeschrieb je Meilenstein — im OnePager unter dem Titel und im PDF
+export const MILESTONE_INFO: Record<string, string> = {
+  M10: 'Gate-Fragen je Thema entscheiden, ob und in welcher Klassifikation das Vorhaben architekturrelevant ist — und welche Themen in M20 geprüft werden.',
+  M20: 'Prüfung der Spezifikation gegen die Architektur-Vorgaben je Thema. Die Freigabe schaltet die Abnahme (M40) frei.',
+  M40: 'Nachweis, dass umgesetzt, getestet, betrieben und dokumentiert ist, was in M20 spezifiziert wurde. Die Architektur-Abnahme ist Teil der technischen Freigabe vor dem Go-Live (MS40/MS50) und Voraussetzung für die Projektabnahme bei MS60.',
 };
 
 // Stammdaten aus model.json.
@@ -31,6 +42,8 @@ export interface MilestoneCheck {
 
 export interface MilestoneCheckState {
   required: boolean;     // Prüfung ist für dieses Vorhaben nötig
+  assessment?: string;   // Einschätzung Architektur (Pflicht, wenn erforderlich)
+  // Resultat Abnahme:
   approved?: boolean;    // Prüfung abgenommen
   approvedBy?: string;   // durch wen
   remarks?: string;      // Bemerkungen (Pflicht, wenn erforderlich)
@@ -43,17 +56,6 @@ export interface Theme {
   id: string;
   title: string;
   infoMd?: string;
-  // Übergabe an eine Fachstelle (z. B. Security & Compliance): nur Themen mit
-  // diesem Eintrag bieten im OnePager den Übergabetext (Mail-Icon) an.
-  // E-Mail-Vorlage: to/subject/body mit Platzhaltern {{projekt}}, {{slug}},
-  // {{thema}}, {{ms}}, {{meilenstein}}, {{klassifikation}}, {{termin}},
-  // {{projektblock}}, {{ausloeser}}, {{ausgangslage}} (siehe OnePagerView).
-  handover?: {
-    to?: string;        // Empfänger (E-Mail-Adresse[n])
-    subject?: string;   // Betreff-Vorlage
-    body?: string;      // Text-Vorlage; fehlt sie, gilt der eingebaute Standardtext
-    context?: string[]; // Frage-ids (auch anderer Themen), deren Antworten unter {{ausgangslage}} mitgegeben werden
-  };
   [key: string]: unknown;
 }
 
@@ -102,15 +104,43 @@ export interface AuthSettings {
   viewerRole?: string;
 }
 
+// Vorlage für den Reviewbericht (Admin): ein PDF als Briefpapier, Seite 1 =
+// Deckblatt, Seite 2 = Folgeseiten (nur eine Seite → für alle). Das PDF
+// enthält nur Grafik (Logo, Formen); Titel, Kopf- und Fusszeilentexte zeichnet
+// der Export selbst. Als Base64 in model.json, damit lokaler Ordner und
+// SharePoint gleich funktionieren.
+export interface ReportTemplate {
+  pdfBase64: string;
+  fileName?: string;
+  pageCount?: number;
+  docType?: string;      // Kopfzeile rechts, z. B. «Architekturprüfung · Reviewbericht»
+  footerLeft?: string;   // Fusszeile links; Platzhalter {{datum}}, {{projekt}}, {{nummer}}
+  [key: string]: unknown;
+}
+
 export interface Model {
   version: number;
   company?: string; // Firmenname — wird als Quelle bei eigenen Fragen angezeigt
   auth?: AuthSettings;
+  reportTemplate?: ReportTemplate; // Briefpapier für den Reviewbericht (PDF-Export)
   classifications: Classification[];
   classificationInfoMd?: string; // Erklärung der Klassifikation (Markdown)
   themes: Theme[];
   questions: Question[];
   milestoneChecks?: MilestoneCheck[]; // Abnahme-Kontrollpunkte je Meilenstein
+  // Übergabe an die Fachstelle (Mail): ein Empfänger für den Sicherheits-Review,
+  // ausgelöst von den erforderlichen Abnahme-Kontrollpunkten. Platzhalter:
+  // {{anrede}} {{projekt}} {{slug}} {{pruefungen}} {{ms}} {{meilenstein}}
+  // {{klassifikation}} {{termin}} {{projektblock}} {{einschaetzung}}
+  // {{ausloeser}} {{ausgangslage}} — fehlt die Vorlage, gilt der eingebaute
+  // Standardtext (siehe OnePagerView).
+  handover?: {
+    to?: string;        // Empfänger, z. B. security@firma.ch
+    name?: string;      // Ansprechperson — der Vorname daraus bildet die Anrede
+    subject?: string;
+    body?: string;
+    context?: string[]; // Frage-ids, deren Antworten unter {{ausgangslage}} mitgehen
+  };
   [key: string]: unknown;
 }
 
@@ -122,6 +152,7 @@ export interface QuestionAnswer {
   value: boolean | null;
   remarks: string;
   choice?: string;
+  sources?: string[]; // ids aus Project.sources — Quellen, die diese Antwort stützen
 }
 
 // Review-Eintrag: je Thema (Relevanz + Antworten) oder je Meilenstein
@@ -141,6 +172,23 @@ export interface Review {
   [key: string]: unknown;
 }
 
+// Quelle (Beleg, Referenzdokument) am Projekt — Anhang mit Label und kurzem
+// Beschrieb; jede Person mit Zugriff auf das Projekt kann sie öffnen. Zwei
+// Arten: hochgeladene Datei (filename/size gesetzt, liegt unter
+// projects/<slug>/sources/<id>-<dateiname>, referenziert per id) oder
+// Web-Referenz (url gesetzt, kein Datei-Upload) — genau eines von beiden.
+export interface SourceFile {
+  id: string;
+  label: string;
+  description?: string;
+  filename?: string;   // ursprünglicher Dateiname (für den Download) — Datei-Quelle
+  size?: number;
+  contentType?: string;
+  url?: string;         // externer Link — Web-Referenz statt Datei-Upload
+  uploadedAt: string;   // ISO
+  uploadedBy?: string;
+}
+
 export interface Project {
   version: number;
   slug: string;
@@ -153,5 +201,6 @@ export interface Project {
   createdAt: string;
   updatedAt: string;
   reviews: Record<string, Partial<Review>>;
+  sources?: SourceFile[]; // hochgeladene Belege/Referenzdokumente
   [key: string]: unknown;
 }

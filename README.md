@@ -93,6 +93,12 @@ Zum Ausprobieren kann `sample-data/` als geteilter Ordner gewählt werden
   Pflicht-Bemerkungen; gespeichert unter `reviews.m20` / `reviews.m40`).
   Themen, die laut Foundation keinen Review brauchen (relevant = Nein), sind
   ausgegraut, readonly und auf Nein gesetzt («kein Review nötig»).
+- **Abnahme-Kontrollpunkte** (z. B. FINMA-Prüfung, Lieferanten-Prüfung):
+  Die **Einschätzung Architektur** ist immer sichtbar und Pflicht — sie
+  begründet, warum die Prüfung nötig ist, oder eben warum nicht. Ist der
+  Punkt angekreuzt, kommen Abnahme, Prüfer/in und Bemerkungen dazu. Die
+  Freigabe des Meilensteins bleibt gesperrt, bis jeder Kontrollpunkt
+  entweder abgenommen oder begründet ist; beide Fälle stehen im Review-PDF.
 - **Fragen beantworten**: Ja/Nein sind sich gegenseitig ausschliessende
   Checkboxen; «Bemerkungen …» öffnet beim Klick eine Textarea (bleibt offen,
   solange Text drinsteht). Antworten hängen am stabilen Frage-Schlüssel in
@@ -173,7 +179,7 @@ AWS Well-Architected, OWASP ASVS, BSI IT-Grundschutz, TOGAF, arc42/aim42 und
 CH-DSG in `src/catalog.ts` — jeweils mit Quellenangabe); ein Klick übernimmt
 die Frage; Klick ins leere Feld zeigt sofort alle verfügbaren Fragen des
 Meilensteins. Die **Quelle** ist reiner Text (nicht editierbar); eigene
-Fragen zeigen «Quelle: ‹Firma›» — der Firmenname ist im Admin
+Fragen zeigen «Quelle Frage: ‹Firma›» — der Firmenname ist im Admin
 konfigurierbar (`company` in `model.json`). Jede Frage hat zudem einen
 **aktiv-Schalter**: Deaktivierte Fragen bleiben in `model.json` erhalten,
 werden im OnePager aber nicht gestellt (Nummern bleiben stabil). Dazu:
@@ -219,6 +225,39 @@ Formularfeldern gelesen (gleiche Regeln — Ja und Nein zugleich angekreuzt →
 Frage bleibt unangetastet, leere Felder werden ignoriert) und über dieselbe
 Vorschau übernommen.
 
+## Übergabe an die Fachstelle
+
+Die Übergabe hängt an den **Abnahme-Kontrollpunkten** des Meilensteins
+(z. B. FINMA-Prüfung, Lieferanten-Prüfung): Sobald im Projekt mindestens
+einer als **«erforderlich»** angekreuzt ist, erscheint im Meilenstein-Kopf
+unter den Kontrollpunkten der Button **«Übergabe an Fachstelle»**. Sind
+mehrere erforderlich, ergibt das **ein gemeinsames Mail**.
+
+Der Text enthält die **Einschätzung Architektur** jeder erforderlichen
+Prüfung ({{einschaetzung}} — der eigentliche Auftrag), die Projektangaben,
+die mit Ja beantworteten M10-Fragen als Auslöser, optionale Kontext-Fragen
+und die **Bitte um Rückmeldung** bis zum im Dialog gewählten Termin.
+
+Fragen und Antworten stehen dabei je über zwei Zeilen — Nummer und Frage
+fett, darunter die Antwort mit Pfeil («→ **Ja** — Bemerkung»). Bemerkungen
+gehen vollständig mit, mehrere Absätze bleiben als Zeilenumbrüche erhalten.
+
+Der Text ist **formatiert**: Der Dialog zeigt ihn gerendert (fett, Listen),
+und «Inhalt kopieren» legt ihn als HTML **und** als Klartext in die
+Zwischenablage — eingefügt in Outlook oder Gmail bleibt die Fettschrift,
+Mailprogramme ohne HTML bekommen die Klartextfassung. In der Vorlage macht
+`**Sternchen**` fett.
+
+Der Text ist in der **Ich-Form** gehalten («bitte ich um …», «trage ich
+ein») — er kommt von der Person, die das Review führt.
+
+Im Admin unter **Übergabe an die Fachstelle** werden **ein** Empfänger und
+eine Ansprechperson für den Sicherheits-Review hinterlegt; der Vorname der
+Ansprechperson bildet die Anrede ({{anrede}} → «Hallo Dominik», ohne
+Eintrag «Guten Tag»). Dort lassen sich auch Betreff und Text der Vorlage
+überschreiben sowie Kontext-Fragen für {{ausgangslage}} festlegen. Ohne
+Empfänger funktioniert der Text trotzdem — das Feld bleibt dann leer.
+
 ## Review-PDF (Bericht)
 
 Der Button **«Review-PDF»** im Projektkopf (neben MS10-Import) erzeugt
@@ -228,11 +267,68 @@ jederzeit einen PDF-Bericht des Architektur-Reviews. Zuoberst steht der
 M10 zusätzlich die Architekturrelevanz mit Klassifikation. Noch nicht
 erreichte Meilensteine erscheinen grau mit Grund («folgt nach Freigabe des
 vorherigen Meilensteins» bzw. «entfällt: nicht architekturrelevant»).
-Danach folgen die Details je Meilenstein: Freigabe (Prüfer/in,
-Bemerkungen) und alle Themen mit Fragen und Antworten (Antwort
+Danach folgen die Details je Meilenstein: Freigabe (Prüfer/in), offene
+Fragen und — beim M10 — das Resultat («Architekturrelevant (relevant)»)
+je auf eigener Zeile, das Resultat hervorgehoben. Die Abnahme-Kontrollpunkte
+stehen mit fettem Titel («FINMA-Prüfung — erforderlich · abgenommen durch
+…»), darunter eingerückt und beschriftet die Einschätzung Architektur und
+die Bemerkungen der Abnahme; die Bemerkungen des Meilensteins folgen mit
+eigener Überschrift. Dazu alle Themen mit Fragen und Antworten (Antwort
 rechtsbündig, offene Fragen orange; Bemerkungen eingerückt); nicht
-relevante Themen stehen als «Kein Review nötig»-Zeile. Erzeugt lokal über
-pdf-lib, Dateiname `architektur-review-<slug>.pdf`.
+relevante Themen stehen als «Kein Review nötig»-Zeile. Fragen mit
+zugeordneten Quellen zeigen diese als «Quellen: …»-Zeile unter den
+Bemerkungen; am Schluss folgt der Abschnitt **Quellen** mit Label,
+Beschrieb und Herkunft (Dateiname, Grösse bzw. URL, Datum, hochgeladen
+von). Erzeugt lokal über pdf-lib, Dateiname
+`architektur-review-<slug>.pdf`.
+
+Freitexte (Beschrieb, Notizen, Bemerkungen, Erläuterungen) werden in
+beiden PDF-Exporten (Bericht und Offene-Fragen-Formular) mit einfachem
+Markdown gesetzt: Absätze und Zeilenumbrüche, Aufzählungen (`- `, auch
+eingerückt), nummerierte Listen, `**fett**`, `*kursiv*`, `` `Code` ``,
+Überschriften und Links. Symbole wie ⚠ → ↔ ≥ ☐ ☒, die die
+PDF-Standardschrift nicht kennt, kommen aus DejaVu Sans (nur beim Export
+nachgeladen, im PDF auf die benutzten Zeichen reduziert); farbige Emoji
+ohne Entsprechung entfallen.
+
+## Quellen
+
+Am Projektende steht ein Abschnitt **«Quellen»**: Belege und
+Referenzdokumente (Prüfformulare, Factsheets, Word-Nachweise, …) lassen sich
+mit Label und kurzem Beschrieb hochladen; jede Person mit Zugriff auf das
+Projekt kann sie unabhängig von der Zugriffsstufe herunterladen — Viewer
+sehen nur Liste und Download, Hochladen/Entfernen/Bearbeiten braucht
+Reviewer- oder Admin-Rechte. Die Datei liegt roh unter
+`projects/<slug>/sources/`, die Metadaten (Label, Beschrieb, Grösse, Datum,
+hochgeladen von) im Projekt selbst und laufen über das normale Autosave.
+
+Die Dateiauswahl («Dateien wählen») akzeptiert mehrere Dateien auf einmal:
+bei genau einer Datei gilt das eingetragene Label, bei mehreren erhält jede
+Datei ihren Dateinamen als Label; der eingetragene Beschrieb gilt für alle
+Dateien des Stapels. Über das Stift-Icon lassen sich Label und Beschrieb
+einer bereits hochgeladenen Quelle nachträglich anpassen, ohne die Datei neu
+hochzuladen.
+
+Statt eine Datei hochzuladen, lässt sich auch eine **Web-Referenz**
+hinterlegen: Label ausfüllen, im Feld «Web-Referenz statt Datei» den Link
+eintragen (fehlt `https://`, wird es ergänzt) und «Link hinzufügen» klicken —
+kein Datei-Upload, nur Label/Beschrieb/URL. Solche Quellen zeigen in der
+Liste ein Link-Icon statt Download und öffnen den Link in einem neuen Tab;
+Label, Beschrieb und die URL selbst lassen sich übers Stift-Icon anpassen.
+
+Bei jeder Frage lässt sich zudem auswählen, welche Quellen die Antwort
+stützen — als entfernbare Tags mit dem Quellen-Label. Der Button «+ Quelle»
+öffnet dazu ein Auswahlmenü mit Checkboxen für alle noch nicht zugeordneten
+Quellen; es lassen sich mehrere auf einmal ankreuzen, ohne das Menü
+zwischendurch neu zu öffnen (nur wenn Quellen hochgeladen sind bzw.
+Reviewer/Admin-Rechte bestehen). Das ist unabhängig von der statischen
+«Quelle Frage: …»-Zeile unter jeder Frage, die den Ursprung der Frage selbst
+angibt (Katalog/Prüfformular).
+
+Im SharePoint-Modus gilt das
+Microsoft-Graph-Limit für einfache Uploads von **4 MB** je Datei (grössere
+Dateien bräuchten einen Upload in mehreren Teilen — aktuell nicht
+implementiert); im lokalen Ordner gibt es keine solche Grenze.
 
 ## MS10-Import
 

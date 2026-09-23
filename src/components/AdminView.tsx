@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Archive, ArchiveRestore, ArrowLeft, ChevronDown, ChevronUp, Copy, ExternalLink, Minus, Plus, Save, ShieldCheck, Trash2 } from 'lucide-react';
+import { Archive, ArchiveRestore, ArrowLeft, ChevronDown, ChevronUp, Copy, ExternalLink, Minus, Plus, Save, ShieldCheck, Trash2, Upload } from 'lucide-react';
+import { PDFDocument } from 'pdf-lib';
 import { useStore } from '../store';
 import { MILESTONES, MILESTONE_TITLES, Model, Question } from '../types';
 import { DEFAULT_MODEL } from '../defaultModel';
@@ -28,6 +29,8 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
   const [newClassLabel, setNewClassLabel] = useState('');
   const { user: authUser, status: authStatus, ids: knownIds } = useAuth();
   const [setupCopied, setSetupCopied] = useState(false);
+  const [templateBusy, setTemplateBusy] = useState(false);
+  const [templateError, setTemplateError] = useState('');
   const [pickQuery, setPickQuery] = useState<Record<string, string>>({});
   const [pickOpen, setPickOpen] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -132,6 +135,10 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
   }, [dirty]);
 
   if (!draft) return <div className={`p-6 text-xs ${textMuted}`}>Lade Stammdaten …</div>;
+
+  // ── Übergabe an die Fachstelle ────────────────────────────────────────────
+  const updateHandover = (patch: Partial<NonNullable<Model['handover']>>) =>
+    setDraft(d => d ? { ...d, handover: { ...(d.handover ?? {}), ...patch } } : d);
 
   // ── Themen ────────────────────────────────────────────────────────────────
   const updateTheme = (id: string, patch: Partial<Model['themes'][number]>) =>
@@ -249,6 +256,47 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
     while (draft.classifications.some(c => c.id === id)) id = `${id}-2`;
     setDraft(d => d ? { ...d, classifications: [...d.classifications, { id, label }] } : d);
     setNewClassLabel('');
+  };
+
+  // ── Reviewbericht-Vorlage (Briefpapier) ──────────────────────────────────
+  // PDF wird als Base64 in model.json abgelegt (siehe ReportTemplate) — damit
+  // funktioniert lokaler Ordner und SharePoint gleich, kein zweiter Dateityp.
+  const handleTemplateFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setTemplateError('');
+    if (file.type && file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+      setTemplateError('Bitte eine PDF-Datei wählen.');
+      return;
+    }
+    setTemplateBusy(true);
+    try {
+      const buf = await file.arrayBuffer();
+      const pdf = await PDFDocument.load(buf);
+      const pageCount = pdf.getPageCount();
+      if (pageCount < 1) throw new Error('PDF ohne Seiten.');
+      const bytes = new Uint8Array(buf);
+      let binary = '';
+      const chunk = 0x8000;
+      for (let i = 0; i < bytes.length; i += chunk) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+      }
+      const pdfBase64 = btoa(binary);
+      setDraft(d => d ? {
+        ...d,
+        reportTemplate: { ...(d.reportTemplate ?? {}), pdfBase64, fileName: file.name, pageCount },
+      } : d);
+    } catch (err) {
+      setTemplateError('PDF konnte nicht gelesen werden: ' + (err instanceof Error ? err.message : String(err)));
+    } finally {
+      setTemplateBusy(false);
+    }
+  };
+
+  const removeTemplate = () => {
+    if (!window.confirm('Vorlage entfernen? Der Reviewbericht wird danach wieder ohne Briefpapier erstellt.')) return;
+    setDraft(d => d ? { ...d, reportTemplate: undefined } : d);
   };
 
   // Automatische Nummer: n-te Frage des Themas im Meilenstein → z. B. M10F1
@@ -398,6 +446,62 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
         );
       })()}
 
+      {/* Reviewbericht-Vorlage (Briefpapier) */}
+      <h2 className={`text-sm font-semibold uppercase tracking-widest mb-4 ${isDark ? 'text-white/50' : 'text-black/50'}`}>
+        Reviewbericht-Vorlage
+      </h2>
+      <div className={`${cardCls} mb-8 px-4 py-3 space-y-3`}>
+        <p className={`text-[10px] leading-relaxed ${textMuted}`}>
+          PDF mit Logo und Grafik als Briefpapier für den Reviewbericht-Export — Seite 1 als Deckblatt, Seite 2 (falls vorhanden)
+          für alle Folgeseiten. Die Vorlage sollte nur Grafik enthalten, keinen Text: Titel, Projektangaben, Kopf- und
+          Fusszeile zeichnet der Export selbst darüber.
+        </p>
+        <div className={`flex items-center gap-3 flex-wrap rounded-lg border px-3 py-2 ${
+          draft.reportTemplate
+            ? (isDark ? 'border-emerald-500/30 bg-emerald-500/10' : 'border-emerald-300 bg-emerald-50')
+            : (isDark ? 'border-amber-500/30 bg-amber-500/10' : 'border-amber-300 bg-amber-50')}`}>
+          <span className={`text-[10px] font-bold uppercase tracking-wider ${
+            draft.reportTemplate ? (isDark ? 'text-emerald-300' : 'text-emerald-700') : (isDark ? 'text-amber-300' : 'text-amber-700')}`}>
+            {draft.reportTemplate ? 'Vorlage geladen' : 'Keine Vorlage'}
+          </span>
+          <span className={`text-xs ${isDark ? 'text-white/80' : 'text-black/80'}`}>
+            {draft.reportTemplate
+              ? <>{draft.reportTemplate.fileName ?? 'Vorlage.pdf'} · {draft.reportTemplate.pageCount ?? '?'} Seite{draft.reportTemplate.pageCount === 1 ? '' : 'n'}</>
+              : 'Bericht wird ohne Briefpapier erstellt (einfacher Text-Export)'}
+          </span>
+          <label className={`ml-auto flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border cursor-pointer transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
+            <input type="file" accept="application/pdf" className="hidden" disabled={templateBusy} onChange={handleTemplateFile} />
+            <Upload size={11} /> {templateBusy ? 'Lädt …' : draft.reportTemplate ? 'PDF ersetzen' : 'PDF laden'}
+          </label>
+          {draft.reportTemplate && (
+            <button onClick={removeTemplate}
+              className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-rose-400/50 hover:text-rose-300' : 'border-black/15 text-black/50 hover:border-rose-300 hover:text-rose-600'}`}>
+              <Trash2 size={11} /> Entfernen
+            </button>
+          )}
+        </div>
+        {templateError && (
+          <p className={`text-[11px] ${isDark ? 'text-rose-300' : 'text-rose-600'}`}>{templateError}</p>
+        )}
+        {draft.reportTemplate && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className={`block text-[10px] uppercase tracking-wider mb-1 ${labelCls}`}>Kopfzeile rechts</label>
+              <input value={draft.reportTemplate.docType ?? ''} placeholder="Architekturprüfung · Reviewbericht"
+                onChange={e => setDraft(d => d?.reportTemplate ? { ...d, reportTemplate: { ...d.reportTemplate, docType: e.target.value || undefined } } : d)}
+                className={`w-full text-xs px-3 py-1.5 rounded border outline-none transition-colors ${inputCls}`} />
+            </div>
+            <div>
+              <label className={`block text-[10px] uppercase tracking-wider mb-1 ${labelCls}`}>Fusszeile links</label>
+              <input value={draft.reportTemplate.footerLeft ?? ''} placeholder="{{projekt}} · {{nummer}} · {{datum}}"
+                onChange={e => setDraft(d => d?.reportTemplate ? { ...d, reportTemplate: { ...d.reportTemplate, footerLeft: e.target.value || undefined } } : d)}
+                className={`w-full text-xs px-3 py-1.5 rounded border outline-none transition-colors ${inputCls}`} />
+              <span className={`text-[10px] ${textMuted}`}>Platzhalter: {'{{datum}}'}, {'{{projekt}}'}, {'{{nummer}}'}</span>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Klassifikation */}
       <h2 className={`text-sm font-semibold uppercase tracking-widest mb-4 ${isDark ? 'text-white/50' : 'text-black/50'}`}>
         Klassifikation
@@ -510,59 +614,72 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
                     onFocus={autoGrow} onInput={autoGrow}
                     placeholder={'# Titel\n\nBeschreibung …\n\n- Punkt 1\n- Punkt 2'}
                     className={`w-full text-[11px] px-2 py-1.5 rounded border outline-none resize-y transition-colors ${inputCls}`} />
-                  {/* Übergabe an eine Fachstelle: schaltet das Mail-Icon (Übergabetext) im OnePager frei */}
-                  <label className="flex items-center gap-1.5 text-[11px] cursor-pointer mt-3"
-                    title="Thema wird an eine Fachstelle übergeben (z. B. Security & Compliance). Im OnePager erscheint dann ein Mail-Icon, das den Übergabetext erzeugt.">
-                    <input type="checkbox" checked={!!theme.handover}
-                      onChange={e => updateTheme(theme.id, { handover: e.target.checked ? { ...(theme.handover ?? {}) } : undefined })}
-                      className="accent-blue-500 cursor-pointer" />
-                    Übergabe an Fachstelle (Übergabetext im OnePager)
-                  </label>
-                  {theme.handover && (
-                    <div className="mt-2 space-y-2">
-                      <div className="grid grid-cols-2 gap-2">
-                        <input value={theme.handover.to ?? ''}
-                          onChange={e => updateTheme(theme.id, { handover: { ...theme.handover, to: e.target.value || undefined } })}
-                          placeholder="Empfänger — z. B. security@firma.ch (mehrere mit Komma)"
-                          className={`w-full text-[11px] px-2 py-1.5 rounded border outline-none transition-colors ${inputCls}`} />
-                        <input value={theme.handover.subject ?? ''}
-                          onChange={e => updateTheme(theme.id, { handover: { ...theme.handover, subject: e.target.value || undefined } })}
-                          placeholder={`Betreff — leer = Standard: ${DEFAULT_HANDOVER_SUBJECT}`}
-                          title={`Standard: ${DEFAULT_HANDOVER_SUBJECT}`}
-                          className={`w-full text-[11px] px-2 py-1.5 rounded border outline-none transition-colors ${inputCls}`} />
-                      </div>
-                      <textarea value={theme.handover.body ?? ''} rows={3}
-                        onChange={e => updateTheme(theme.id, { handover: { ...theme.handover, body: e.target.value || undefined } })}
-                        onFocus={autoGrow} onInput={autoGrow}
-                        placeholder={`Text — leer = Standard:\n${DEFAULT_HANDOVER_BODY}`}
-                        className={`w-full text-[11px] px-2 py-1.5 rounded border outline-none resize-none overflow-hidden transition-colors font-mono ${inputCls}`} />
-                      <p className={`text-[10px] ${textMuted}`}>
-                        Platzhalter: {'{{projekt}} {{slug}} {{thema}} {{ms}} {{meilenstein}} {{klassifikation}} {{termin}} {{projektblock}} {{ausloeser}} {{ausgangslage}}'}
-                        {' '}— Blöcke: Projektangaben, M10-Antworten dieses Themas, Antworten der Kontext-Fragen unten.
-                      </p>
-                      <input value={(theme.handover.context ?? []).join(', ')}
-                        onChange={e => {
-                          const ids = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
-                          updateTheme(theme.id, { handover: { ...theme.handover, context: ids.length ? ids : undefined } });
-                        }}
-                        placeholder="Kontext-Fragen (ids, kommagetrennt) — deren Antworten bilden {{ausgangslage}}, z. B. D0, E1, T1"
-                        title="Frage-ids, auch aus anderen Themen. ids sind stabil, die angezeigte Nummer nicht."
-                        className={`w-full text-[11px] px-2 py-1.5 rounded border outline-none transition-colors ${inputCls}`} />
-                      {(theme.handover.context ?? []).length > 0 && (
-                        <p className={`text-[10px] ${textMuted}`}>
-                          {(theme.handover.context ?? []).map(id => {
-                            const q = draft.questions.find(x => x.id === id);
-                            return q ? `${numberOf(q)} ${q.text.slice(0, 40)}${q.text.length > 40 ? '…' : ''}` : `${id}: unbekannt`;
-                          }).join(' · ')}
-                        </p>
-                      )}
-                    </div>
-                  )}
                 </div>
               )}
             </div>
           );
         })}
+      </div>
+
+      {/* Übergabe an die Fachstelle: ein Empfänger + Vorlage für den Übergabetext */}
+      <h2 className={`text-sm font-semibold uppercase tracking-widest mb-4 ${isDark ? 'text-white/50' : 'text-black/50'}`}>
+        Übergabe an die Fachstelle
+      </h2>
+      <div className={`${cardCls} p-4 mb-10 space-y-3`}>
+        <p className={`text-[11px] ${textMuted}`}>
+          Ist im Projekt einer der Abnahme-Kontrollpunkte als «erforderlich» angekreuzt, bietet der
+          Meilenstein einen Übergabetext an die Fachstelle an — mit der Einschätzung Architektur und
+          der Bitte um Rückmeldung. Mehrere erforderliche Prüfungen ergeben ein gemeinsames Mail.
+          {(draft.milestoneChecks ?? []).length > 0 && (
+            <> Ausgelöst durch: {(draft.milestoneChecks ?? []).map(c => `${c.label} (${c.milestone})`).join(', ')}.</>
+          )}
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          <input value={draft.handover?.to ?? ''}
+            onChange={e => updateHandover({ to: e.target.value || undefined })}
+            placeholder="Empfänger — z. B. security@firma.ch"
+            className={`w-full text-[11px] px-2 py-1.5 rounded border outline-none transition-colors ${inputCls}`} />
+          <input value={draft.handover?.name ?? ''}
+            onChange={e => updateHandover({ name: e.target.value || undefined })}
+            placeholder="Ansprechperson — z. B. Dominik Meister (Anrede: «Hallo Dominik»)"
+            title="Der Vorname bildet die Anrede im Übergabetext; ohne Eintrag «Guten Tag»"
+            className={`w-full text-[11px] px-2 py-1.5 rounded border outline-none transition-colors ${inputCls}`} />
+        </div>
+        <div className="pt-2 space-y-2">
+          <label className={`block text-[10px] uppercase tracking-wider ${labelCls}`}>Vorlage Übergabetext</label>
+          <input value={draft.handover?.subject ?? ''}
+            onChange={e => updateHandover({ subject: e.target.value || undefined })}
+            placeholder={`Betreff — leer = Standard: ${DEFAULT_HANDOVER_SUBJECT}`}
+            title={`Standard: ${DEFAULT_HANDOVER_SUBJECT}`}
+            className={`w-full text-[11px] px-2 py-1.5 rounded border outline-none transition-colors ${inputCls}`} />
+          <textarea value={draft.handover?.body ?? ''} rows={3}
+            onChange={e => updateHandover({ body: e.target.value || undefined })}
+            onFocus={autoGrow} onInput={autoGrow}
+            placeholder={`Text — leer = Standard:\n${DEFAULT_HANDOVER_BODY}`}
+            className={`w-full text-[11px] px-2 py-1.5 rounded border outline-none resize-none overflow-hidden transition-colors font-mono ${inputCls}`} />
+          <p className={`text-[10px] ${textMuted}`}>
+            Platzhalter: {'{{anrede}} {{projekt}} {{slug}} {{pruefungen}} {{ms}} {{meilenstein}} {{klassifikation}} {{termin}} {{projektblock}} {{einschaetzung}} {{ausloeser}} {{ausgangslage}}'}
+            {' '}— Blöcke: Projektangaben, Einschätzung Architektur der erforderlichen Prüfungen,
+            {' '}mit Ja beantwortete M10-Fragen, Antworten der Kontext-Fragen unten.
+            {' '}Mit **Sternchen** wird fett — das Mail wird formatiert kopiert.
+          </p>
+          <input value={(draft.handover?.context ?? []).join(', ')}
+            onChange={e => {
+              const ids = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
+              updateHandover({ context: ids.length ? ids : undefined });
+            }}
+            placeholder="Kontext-Fragen (ids, kommagetrennt) — deren Antworten bilden {{ausgangslage}}, z. B. D0, E1, T1"
+            title="Frage-ids, auch aus anderen Themen. ids sind stabil, die angezeigte Nummer nicht."
+            className={`w-full text-[11px] px-2 py-1.5 rounded border outline-none transition-colors ${inputCls}`} />
+          {(draft.handover?.context ?? []).length > 0 && (
+            <p className={`text-[10px] ${textMuted}`}>
+              {(draft.handover?.context ?? []).map(id => {
+                const q = draft.questions.find(x => x.id === id);
+                return q ? `${numberOf(q)} ${q.text.slice(0, 40)}${q.text.length > 40 ? '…' : ''}` : `${id}: unbekannt`;
+              }).join(' · ')}
+            </p>
+          )}
+        </div>
       </div>
 
       {/* Fragen, gruppiert nach (fixem) Meilenstein */}

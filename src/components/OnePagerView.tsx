@@ -1,24 +1,24 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ClipboardPaste, Copy, Eye, FileDown, FileUp, Info, Lock, Mail, Minus, Plus, Save, Unlock, X } from 'lucide-react';
+import { ArrowLeft, Check, ClipboardPaste, Copy, Download, ExternalLink, Eye, FileDown, FileUp, Info, Link2, Lock, Mail, Minus, Pencil, Plus, Save, Trash2, Unlock, X } from 'lucide-react';
 import { marked } from 'marked';
 import { lockValid, ProjectLock, useStore } from '../store';
 import { useAuth, usePermissions } from '../auth';
-import { MILESTONES, MILESTONE_TITLES, Project, Question, QuestionAnswer, Review, Theme } from '../types';
+import { MILESTONES, MILESTONE_INFO, MILESTONE_TITLES, Project, Question, QuestionAnswer, Review, SourceFile, Theme } from '../types';
 import { blockingChecks, checkState, deriveStatus, emptyReview, getMilestoneReview, getThemeReview, STATUS_META } from '../status';
 import { applyMs10, extractPdfText, hasMs10Data, Ms10Data, MS10_FIELD_LABELS, parseMs10Text } from '../ms10';
 import { DEFAULT_MODEL } from '../defaultModel';
-import { autoGrow, fmtTimestamp, nowIsoWithTimezone } from '../util';
+import { autoGrow, fmtTimestamp, formatBytes, normalizeUrl, nowIsoWithTimezone, sanitizeFilename } from '../util';
 
 const FOUNDATION_MS = MILESTONES[0]; // M10
 
-// Standard-Vorlage für die Übergabe an eine Fachstelle (theme.handover);
-// im Admin je Thema überschreibbar. Platzhalter siehe Theme.handover in types.ts.
-export const DEFAULT_HANDOVER_SUBJECT = 'Architekturprüfung «{{projekt}}» — Review {{thema}} für {{ms}}';
-export const DEFAULT_HANDOVER_BODY = `Guten Tag
+// Standard-Vorlage für die Übergabe an die Fachstelle; im Admin
+// überschreibbar (model.handover). Platzhalter siehe Model.handover in types.ts.
+export const DEFAULT_HANDOVER_SUBJECT = 'Architekturprüfung «{{projekt}}» — {{pruefungen}} für {{ms}}';
+export const DEFAULT_HANDOVER_BODY = `{{anrede}}
 
-Für das Projekt «{{projekt}}» bitten wir um den Review {{thema}} zum Meilenstein {{meilenstein}}.
+Für das Projekt «{{projekt}}» bitte ich um {{pruefungen}} zum Meilenstein {{meilenstein}}.
 
-Termin: {{termin}}
+{{einschaetzung}}
 
 {{projektblock}}
 
@@ -26,7 +26,7 @@ Termin: {{termin}}
 
 {{ausgangslage}}
 
-Bitte meldet uns Ergebnis und Auflagen zurück — wir tragen sie in die Architekturprüfung ein.
+Ich bitte um Rückmeldung bis {{termin}} — Ergebnis und allfällige Auflagen trage ich in die Architekturprüfung ein.
 
 Vielen Dank!`;
 
@@ -45,7 +45,8 @@ export function themeLetter(index: number): string {
 }
 
 export default function OnePagerView({ slug, onBack }: { slug: string; onBack: () => void }) {
-  const { isDark, model, loadProject, saveProject, acquireLock, renewLock, releaseLock, readLock, sessionId } = useStore();
+  const { isDark, model, loadProject, saveProject, acquireLock, renewLock, releaseLock, readLock, sessionId,
+    uploadSourceFile, downloadSourceFile, deleteSourceFile } = useStore();
   const { user: authUser } = useAuth();
   const { canEdit } = usePermissions();
   // Bearbeitungssperre: 'mine' = ich halte sie; 'held' = jemand anderes;
@@ -67,7 +68,7 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
   const [infoQuestion, setInfoQuestion] = useState<Question | null>(null);
   const [showClassInfo, setShowClassInfo] = useState(false);
   const [exportMs, setExportMs] = useState<string | null>(null);
-  const [exportTheme, setExportTheme] = useState<string | null>(null); // gesetzt = Übergabetext eines Themas statt offene Fragen des Meilensteins
+  const [exportHandover, setExportHandover] = useState(false); // true = Übergabetext an die Fachstelle statt offene Fragen des Meilensteins
   const [copiedKey, setCopiedKey] = useState<string | null>(null); // welcher Kopieren-Button zuletzt Erfolg hatte
   const [handoverDeadline, setHandoverDeadline] = useState('');
   const [answersMs, setAnswersMs] = useState<string | null>(null);
@@ -79,7 +80,27 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savingRef = useRef(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const sourceFileRef = useRef<HTMLInputElement>(null);
+  const [sourceLabel, setSourceLabel] = useState('');
+  const [sourceDescription, setSourceDescription] = useState('');
+  const [sourceUrl, setSourceUrl] = useState('');
+  const [sourceBusy, setSourceBusy] = useState(false);
+  const [editingSourceId, setEditingSourceId] = useState<string | null>(null);
+  const [editLabel, setEditLabel] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editUrl, setEditUrl] = useState('');
   const syncRef = useRef<(p: Project) => Project>(p => p);
+  // Harte Absicherung gegen ein bereits laufendes Autosave, das erst
+  // NACH dem Verlassen des Projekts abschliesst (Timer bereits ausgeloest,
+  // Schreibvorgang noch nicht: dann darf er die Datei nicht mehr anfassen).
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    // Setup-Zweig noetig, nicht nur Cleanup: React 18 StrictMode fuehrt
+    // Effekte im Dev-Modus doppelt aus (mount -> cleanup -> mount) und
+    // wuerde sonst den Ref dauerhaft auf false stehen lassen.
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   const border = isDark ? 'border-white/8' : 'border-black/8';
   const textMuted = isDark ? 'text-white/30' : 'text-black/30';
@@ -196,6 +217,100 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
 
   const setField = <K extends keyof Project>(k: K, v: Project[K]) =>
     setProj(p => (p ? { ...p, [k]: v } : p));
+
+  // ── Quellen: Belege/Referenzdokumente hoch-/herunterladen ─────────────────
+  // Gespeichert unter projects/<slug>/sources/<id>-<dateiname>; die Metadaten
+  // (proj.sources) laufen wie jedes andere Feld über das normale Autosave.
+  const storedNameOf = (s: { id: string; filename: string }) => `${s.id}-${sanitizeFilename(s.filename)}`;
+
+  // Mehrere Dateien auf einmal: bei genau einer Datei zählt das getippte
+  // Label, sonst dient je Datei ihr eigener Dateiname als Label (der
+  // Beschrieb gilt für alle gemeinsam, z. B. «Nachweise aus dem Kickoff»).
+  const addSources = async (files: FileList | File[]) => {
+    if (!proj || ro) return;
+    const list = Array.from(files);
+    if (list.length === 0) return;
+    setSourceBusy(true);
+    try {
+      const newEntries: SourceFile[] = [];
+      for (const file of list) {
+        const id = 'src' + Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-4) + newEntries.length;
+        const res = await uploadSourceFile(proj.slug, storedNameOf({ id, filename: file.name }), file);
+        if (!res.ok) { showToast(`«${file.name}» fehlgeschlagen: ${res.message}`); continue; }
+        newEntries.push({
+          id, label: list.length === 1 ? (sourceLabel.trim() || file.name) : file.name,
+          ...(sourceDescription.trim() ? { description: sourceDescription.trim() } : {}),
+          filename: file.name, size: file.size,
+          ...(file.type ? { contentType: file.type } : {}),
+          uploadedAt: nowIsoWithTimezone(),
+          ...(authUser?.name ? { uploadedBy: authUser.name } : {}),
+        });
+      }
+      if (newEntries.length > 0) setProj(p => p ? { ...p, sources: [...(p.sources ?? []), ...newEntries] } : p);
+      setSourceLabel(''); setSourceDescription('');
+    } finally {
+      setSourceBusy(false);
+    }
+  };
+
+  // Web-Referenz statt Datei-Upload: nur Label/Beschrieb/URL, kein Blob.
+  const addWebSource = () => {
+    if (!proj || ro) return;
+    const label = sourceLabel.trim();
+    const url = sourceUrl.trim();
+    if (!label || !url) return;
+    const entry: SourceFile = {
+      id: 'src' + Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-4),
+      label, url: normalizeUrl(url),
+      ...(sourceDescription.trim() ? { description: sourceDescription.trim() } : {}),
+      uploadedAt: nowIsoWithTimezone(),
+      ...(authUser?.name ? { uploadedBy: authUser.name } : {}),
+    };
+    setProj(p => p ? { ...p, sources: [...(p.sources ?? []), entry] } : p);
+    setSourceLabel(''); setSourceDescription(''); setSourceUrl('');
+  };
+
+  const removeSource = async (source: SourceFile) => {
+    if (!proj || ro) return;
+    if (!window.confirm(`«${source.label}» endgültig entfernen?`)) return;
+    const filename = source.filename;
+    if (filename) await deleteSourceFile(proj.slug, storedNameOf({ id: source.id, filename }));
+    setProj(p => p ? { ...p, sources: (p.sources ?? []).filter(s => s.id !== source.id) } : p);
+  };
+
+  // Nur Metadaten (Label/Beschrieb/URL) bearbeiten — Datei bleibt unverändert
+  const startEditSource = (s: SourceFile) => {
+    setEditingSourceId(s.id); setEditLabel(s.label); setEditDescription(s.description ?? ''); setEditUrl(s.url ?? '');
+  };
+  const saveEditSource = () => {
+    if (!proj || !editingSourceId) return;
+    const label = editLabel.trim();
+    if (!label) return;
+    const isWebRef = (proj.sources ?? []).find(s => s.id === editingSourceId)?.url !== undefined;
+    if (isWebRef && !editUrl.trim()) return;
+    setProj(p => p ? {
+      ...p,
+      sources: (p.sources ?? []).map(s => s.id === editingSourceId
+        ? { ...s, label, description: editDescription.trim() || undefined, ...(isWebRef ? { url: normalizeUrl(editUrl) } : {}) }
+        : s),
+    } : p);
+    setEditingSourceId(null);
+  };
+
+  const downloadSource = async (source: SourceFile) => {
+    if (!proj) return;
+    if (source.url) { window.open(source.url, '_blank', 'noopener,noreferrer'); return; }
+    const filename = source.filename;
+    if (!filename) return;
+    const blob = await downloadSourceFile(proj.slug, storedNameOf({ id: source.id, filename }));
+    if (!blob) { showToast('Datei konnte nicht geladen werden.'); return; }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  };
 
   // ── Stammdaten-Zugriffe ───────────────────────────────────────────────────
   const themes = model?.themes?.length ? model.themes : DEFAULT_MODEL.themes;
@@ -320,6 +435,9 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
     setSaveError('');
     try {
       const data: Project = { ...proj, updatedAt: nowIsoWithTimezone() };
+      // Nichts mehr synchron passiert seit dem Timer-Feuern/Aufruf oben —
+      // dieser Check ist daher race-frei gegenueber einem Unmount.
+      if (!mountedRef.current) return 'skipped';
       const res = await saveProject(data, force ? null : version);
       if (res.status === 'saved') {
         setProj(data);
@@ -460,8 +578,57 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
             </div>
           )}
         </div>
+        {(() => {
+          // Quellen der Antwort: Tags aus den projektweiten Quellen (Quellen-Abschnitt
+          // am Fusse der Seite) — unabhängig von der statischen «Quelle:»-Zeile unten,
+          // die den Ursprung der Frage selbst angibt (Katalog/Prüfformular).
+          const allSources = proj.sources ?? [];
+          const selectedIds = answer.sources ?? [];
+          if (allSources.length === 0 && selectedIds.length === 0) return null;
+          const available = allSources.filter(s => !selectedIds.includes(s.id));
+          return (
+            <div className={`mt-1 flex items-center gap-1.5 flex-wrap text-[10px] ${textMuted}`}>
+              <span className="flex-shrink-0">Quellen:</span>
+              {selectedIds.length === 0 && disabled && <span>—</span>}
+              {selectedIds.map(id => {
+                const s = allSources.find(x => x.id === id);
+                return (
+                  <span key={id} title={s?.description}
+                    className={`inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full border whitespace-nowrap ${isDark ? 'bg-white/8 border-white/15 text-white/70' : 'bg-black/5 border-black/15 text-black/70'}`}>
+                    {s?.label ?? '(entfernte Quelle)'}
+                    {!disabled && (
+                      <button type="button" title="Quelle entfernen"
+                        onClick={() => updateAnswer(themeId, question.id, { sources: selectedIds.filter(x => x !== id) })}
+                        className={`rounded-full p-0.5 transition-colors ${isDark ? 'hover:text-rose-400' : 'hover:text-rose-500'}`}>
+                        <X size={9} />
+                      </button>
+                    )}
+                  </span>
+                );
+              })}
+              {!disabled && available.length > 0 && (
+                <details className="relative">
+                  <summary title="Quellen auswählen"
+                    className={`list-none [&::-webkit-details-marker]:hidden cursor-pointer text-[10px] px-1.5 py-0.5 rounded border outline-none transition-colors ${inputCls}`}>
+                    + Quelle
+                  </summary>
+                  <div className={`absolute z-10 left-0 mt-1 min-w-[200px] max-h-48 overflow-y-auto rounded border shadow-lg p-1 ${isDark ? 'bg-neutral-900 border-white/15' : 'bg-white border-black/15'}`}>
+                    {available.map(s => (
+                      <label key={s.id}
+                        className={`flex items-center gap-1.5 px-1.5 py-1 rounded text-[10px] cursor-pointer ${isDark ? 'hover:bg-white/10' : 'hover:bg-black/5'}`}>
+                        <input type="checkbox"
+                          onChange={() => updateAnswer(themeId, question.id, { sources: [...selectedIds, s.id] })} />
+                        {s.label}
+                      </label>
+                    ))}
+                  </div>
+                </details>
+              )}
+            </div>
+          );
+        })()}
         <p className={`text-[10px] mt-0.5 ${textMuted}`}>
-          Quelle: {question.source ?? (model?.company ?? DEFAULT_MODEL.company ?? 'Eigene Firma')}
+          Quelle Frage: {question.source ?? (model?.company ?? DEFAULT_MODEL.company ?? 'Eigene Firma')}
           {question.milestone !== FOUNDATION_MS && (
             <>
               {' · Klassifikation: '}
@@ -514,13 +681,6 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
                 className={`p-0.5 rounded flex-shrink-0 transition-colors ${isDark ? 'text-white/25 hover:text-white/70' : 'text-black/25 hover:text-black/70'}`}>
                 <Info size={11} />
               </button>
-              {!isFoundation && !notRelevant && theme.handover && (
-                <button onClick={() => { setExportTheme(theme.id); setExportMs(ms); setCopiedKey(null); }}
-                  title={`Übergabetext an ${theme.title} (E-Mail) — Ausgangslage plus zu klärende Fragen; die Antwort lässt sich über «Antworten importieren» übernehmen`}
-                  className={`p-0.5 rounded flex-shrink-0 transition-colors ${isDark ? 'text-white/25 hover:text-white/70' : 'text-black/25 hover:text-black/70'}`}>
-                  <Mail size={11} />
-                </button>
-              )}
               <span className={`text-[10px] ml-auto flex-shrink-0 ${textMuted}`}>
                 {notRelevant ? 'kein Review nötig' : `${answered}/${yesNoQs.length} beantwortet`}
               </span>
@@ -582,6 +742,26 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
     }
   };
 
+  // Markdown-Marker entfernen — Klartext-Fassung für Mailprogramme ohne HTML
+  const stripMd = (md: string) => md.replace(/\*\*/g, '').replace(/ {2,}\n/g, '\n');
+
+  // Als HTML kopieren, damit Fettschrift beim Einfügen in Outlook/Gmail bleibt;
+  // Klartext fährt als Rückfallebene mit.
+  const copyRich = async (md: string, key: string) => {
+    const plain = stripMd(md);
+    try {
+      const html = marked.parse(md, { async: false }) as string;
+      await navigator.clipboard.write([new ClipboardItem({
+        'text/html': new Blob([html], { type: 'text/html' }),
+        'text/plain': new Blob([plain], { type: 'text/plain' }),
+      })]);
+      setCopiedKey(key);
+      setTimeout(() => setCopiedKey(k => (k === key ? null : k)), 2000);
+    } catch {
+      await copyToClipboard(plain, key);
+    }
+  };
+
   const buildExport = (ms: string): { text: string; count: number } => {
     const title = `${ms} · ${MILESTONE_TITLES[ms] ?? 'Prüfung'}`;
     const lines: string[] = [];
@@ -622,67 +802,83 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
   };
 
   // Übergabe an eine Fachstelle (z. B. Security & Compliance): kurze
-  // Aufforderung, den Review für den Meilenstein bis zu einem Termin zu machen.
-  // Empfänger, Betreff und Text sind je Thema als Vorlage konfigurierbar
-  // (theme.handover, Admin); Platzhalter werden hier ersetzt. Das Ergebnis
-  // trägt die Architektur manuell ein — deshalb kein Ankreuzformat, kein Import.
-  const buildHandoverExport = (themeId: string, ms: string, deadline: string): { to: string; subject: string; text: string } => {
-    const theme = themes.find(t => t.id === themeId)!;
-    const oneLine = (s: string) => s.replace(/\s*\n+\s*/g, ' / ').trim();
-    // Kurzfassung einer Bemerkung: erster Satz, höchstens ~180 Zeichen
-    const brief = (s: string): string => {
-      const t = oneLine(s);
-      const m = t.match(/^(.{20,180}?[.!?])(\s|$)/);
-      const cut = m ? m[1] : t.slice(0, 180);
-      return cut.length < t.length ? `${cut.replace(/[.!?]$/, '')} …` : cut;
-    };
-    const answerText = (tid: string, q: Question): string => {
+  // Übergabe an die Fachstelle: Auftrag für die erforderlichen Abnahme-
+  // Kontrollpunkte des Meilensteins (z. B. FINMA-Prüfung) samt Einschätzung
+  // Architektur und Bitte um Rückmeldung bis zu einem Termin. Empfänger je
+  // Kontrollpunkt (handoverTo), Betreff/Text als Vorlage (model.handover,
+  // Admin). Das Ergebnis trägt die Architektur manuell ein — deshalb kein
+  // Ankreuzformat, kein Import.
+  const buildHandoverExport = (ms: string, deadline: string): { to: string; subject: string; text: string } => {
+    const required = requiredChecks(ms);
+    // Bemerkungen ungekürzt; Absätze werden zu Zeilenumbrüchen («  \n» ist im
+    // Markdown ein Umbruch, im Klartext schlicht eine neue Zeile).
+    const full = (s: string) => s.trim().replace(/\s*\n\s*/g, '  \n');
+    // Frage/Antwort über zwei Zeilen: «M10E2 Frage?» / «→ Ja — Bemerkung»
+    const answerMd = (tid: string, q: Question): string => {
       const a = getThemeReview(proj, tid).answers?.[q.id];
       const kind = q.kind ?? 'yesNo';
       const head = kind === 'yesNo'
         ? (a?.value === true ? 'Ja' : a?.value === false ? 'Nein' : 'offen')
-        : kind === 'choice' ? (a?.choice ?? 'offen') : (String(a?.remarks ?? '').trim() ? '' : 'offen');
-      const rem = brief(String(a?.remarks ?? '')).replace(/^(Ja|Nein)\s*[.:,—–-]\s*/i, (s, w) => (w.toLowerCase() === head.toLowerCase() ? '' : s));
-      return [head, rem].filter(Boolean).join(': ');
+        : kind === 'choice' ? (a?.choice ?? 'offen') : (String(a?.remarks ?? '').trim() ? 'beantwortet' : 'offen');
+      const rem = full(String(a?.remarks ?? '')).replace(/^(Ja|Nein)\s*[.:,—–-]\s*/i, (s, w) => (w.toLowerCase() === head.toLowerCase() ? '' : s));
+      return `→ ${[`**${head}**`, rem].filter(Boolean).join(' — ')}`;
     };
-    const ctxLine = (tid: string, q: Question) => `– ${numberOfQuestion(q)} ${q.text} — ${answerText(tid, q)}`;
+    const ctxLine = (tid: string, q: Question) =>
+      `**${numberOfQuestion(q)}** ${q.text}  \n${answerMd(tid, q)}`;
     const classLabel = model.classifications.find(c => c.id === proj.classification)?.label ?? 'noch nicht klassifiziert';
     const name = proj.name || proj.slug;
 
     const projektblock = [
-      'Projekt',
-      `– Klassifikation: ${classLabel}`,
-      proj.description?.trim() ? `– Kurzbeschrieb: ${brief(proj.description)}` : '',
-      proj.responsibleProject?.trim() ? `– Verantwortlich Projekt: ${proj.responsibleProject.trim()}` : '',
-      proj.responsibleArchitecture?.trim() ? `– Verantwortlich Architektur: ${proj.responsibleArchitecture.trim()}` : '',
+      '**Projekt**',
+      `- Klassifikation: ${classLabel}`,
+      proj.description?.trim() ? `- Kurzbeschrieb: ${full(proj.description)}` : '',
+      proj.responsibleProject?.trim() ? `- Verantwortlich Projekt: ${proj.responsibleProject.trim()}` : '',
+      proj.responsibleArchitecture?.trim() ? `- Verantwortlich Architektur: ${proj.responsibleArchitecture.trim()}` : '',
     ].filter(Boolean).join('\n');
-    const gates = questionsAt(themeId, FOUNDATION_MS);
+    // Auslöser: die im M10 mit Ja beantworteten Gate-Fragen — sie sagen der
+    // Fachstelle, warum das Vorhaben überhaupt geprüft wird.
+    const gates = themes.flatMap(t => questionsAt(t.id, FOUNDATION_MS)
+      .filter(({ q }) => getThemeReview(proj, t.id).answers?.[q.id]?.value === true)
+      .map(({ q }) => ctxLine(t.id, q)));
     const ausloeser = gates.length
-      ? [`Auslöser (${FOUNDATION_MS} · ${MILESTONE_TITLES[FOUNDATION_MS] ?? ''})`, ...gates.map(({ q }) => ctxLine(themeId, q))].join('\n')
+      ? [`**Auslöser** (${FOUNDATION_MS} · ${MILESTONE_TITLES[FOUNDATION_MS] ?? ''})`, '', ...gates].join('\n\n')
       : '';
-    const ctxQs = (theme.handover?.context ?? []).map(id => allQuestions.find(q => q.id === id)).filter((q): q is Question => !!q);
+    const ctxQs = (model.handover?.context ?? []).map(id => allQuestions.find(q => q.id === id)).filter((q): q is Question => !!q);
     const ausgangslage = ctxQs.length
-      ? ['Ausgangslage aus der Architekturprüfung (Kurzfassung — Details im Review-Bericht)', ...ctxQs.map(q => ctxLine(q.themeId, q))].join('\n')
+      ? ['**Ausgangslage aus der Architekturprüfung** (Kurzfassung — Details im Review-Bericht)', '', ...ctxQs.map(q => ctxLine(q.themeId, q))].join('\n\n')
       : '';
+    // Der eigentliche Auftrag: die erforderlichen Prüfungen mit der
+    // Einschätzung der Architektur.
+    const einschaetzung = required.length
+      ? ['**Prüfungen — Einschätzung Architektur**', ...required.map(({ check, state }) => {
+          const a = String(state.assessment ?? '').trim();
+          return `**${check.label}**  \n${a || '(noch keine Einschätzung erfasst)'}`;
+        })].join('\n\n')
+      : '';
+    const pruefungen = required.map(({ check }) => check.label).join(' und ') || 'die Prüfung';
+    // Anrede aus der Ansprechperson der Fachstelle: «Hallo Dominik»
+    const firstName = (model.handover?.name ?? '').trim().split(/\s+/)[0];
+    const anrede = firstName ? `Hallo ${firstName}` : 'Guten Tag';
 
     const vars: Record<string, string> = {
       projekt: name,
       slug: proj.slug,
-      thema: theme.title,
+      pruefungen,
+      anrede,
       ms,
       meilenstein: `${ms} · ${MILESTONE_TITLES[ms] ?? 'Prüfung'}`,
       klassifikation: classLabel,
       termin: /^\d{4}-\d{2}-\d{2}$/.test(deadline) ? deadline.split('-').reverse().join('.') : (deadline.trim() || '[Datum]'),
-      projektblock, ausloeser, ausgangslage,
+      projektblock, ausloeser, ausgangslage, einschaetzung,
     };
     const fill = (tpl: string) => tpl
       .replace(/\{\{\s*(\w+)\s*\}\}/g, (m, k: string) => (k in vars ? vars[k] : m))
       .replace(/\n{3,}/g, '\n\n')
       .trim();
     return {
-      to: theme.handover?.to?.trim() ?? '',
-      subject: fill(theme.handover?.subject?.trim() || DEFAULT_HANDOVER_SUBJECT),
-      text: fill(theme.handover?.body?.trim() || DEFAULT_HANDOVER_BODY),
+      to: (model.handover?.to ?? '').trim(),
+      subject: fill(model.handover?.subject?.trim() || DEFAULT_HANDOVER_SUBJECT),
+      text: fill(model.handover?.body?.trim() || DEFAULT_HANDOVER_BODY),
     };
   };
 
@@ -737,7 +933,8 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
   const downloadReviewPdf = async () => {
     const classRank = model.classifications.findIndex(c => c.id === proj.classification);
     const classLabel = model.classifications.find(c => c.id === proj.classification)?.label ?? null;
-    const answerOf = (themeId: string, q: Question): { answer: string; open: boolean; remarks?: string } => {
+    const sourceLabelOf = (id: string) => (proj.sources ?? []).find(s => s.id === id)?.label ?? '(entfernte Quelle)';
+    const answerOf = (themeId: string, q: Question): { answer: string; open: boolean; remarks?: string; sources?: string[] } => {
       const a = getThemeReview(proj, themeId).answers?.[q.id];
       const open = isQuestionOpen(themeId, q);
       const kind = q.kind ?? 'yesNo';
@@ -747,7 +944,8 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
           ? (a?.choice ?? 'offen')
           : (String(a?.remarks ?? '').trim() ? 'beantwortet' : 'offen');
       const remarks = String(a?.remarks ?? '').trim();
-      return { answer, open, ...(remarks ? { remarks } : {}) };
+      const sources = (a?.sources ?? []).map(sourceLabelOf);
+      return { answer, open, ...(remarks ? { remarks } : {}), ...(sources.length ? { sources } : {}) };
     };
 
     type Report = import('../pdfExport').ReviewReport;
@@ -785,25 +983,31 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
         });
         themeRows.push({ heading, questions });
       });
-      const statusParts = [openCount === 0 ? 'keine offenen Fragen' : `${openCount} offene ${openCount === 1 ? 'Frage' : 'Fragen'}`];
-      if (isFoundation) {
-        statusParts.push(
-          proj.architectureRelevant === true ? `architekturrelevant${classLabel ? ` (${classLabel})` : ''}`
-            : proj.architectureRelevant === false ? 'nicht architekturrelevant'
-            : 'Architekturrelevanz offen');
-      }
+      const openLine = openCount === 0 ? 'keine offenen Fragen' : `${openCount} offene ${openCount === 1 ? 'Frage' : 'Fragen'}`;
+      const result = isFoundation
+        ? (proj.architectureRelevant === true ? `architekturrelevant${classLabel ? ` (${classLabel})` : ''}`
+          : proj.architectureRelevant === false ? 'nicht architekturrelevant'
+          : 'Architekturrelevanz offen')
+        : null;
       milestones.push({
         title,
+        ...(MILESTONE_INFO[ms] ? { info: MILESTONE_INFO[ms] } : {}),
         approved,
-        statusLine: statusParts.join(' · '),
+        statusLine: [openLine, result].filter(Boolean).join(' · '),
+        openLine,
+        ...(result ? { result } : {}),
         ...(String(review.approvedBy ?? '').trim() ? { approvedBy: String(review.approvedBy).trim() } : {}),
         ...(checksFor(ms).length
           ? { checks: checksFor(ms).map(c => {
               const s = checkState(review, c.id);
-              if (!s.required) return { line: `${c.label}: nicht erforderlich` };
+              if (!s.required) return {
+                line: `**${c.label}** — nicht erforderlich`,
+                ...(String(s.assessment ?? '').trim() ? { assessment: String(s.assessment).trim() } : {}),
+              };
               const by = String(s.approvedBy ?? '').trim();
               return {
-                line: `${c.label}: erforderlich — ${s.approved ? `abgenommen${by ? ` durch ${by}` : ''}` : 'noch nicht abgenommen'}`,
+                line: `**${c.label}** — erforderlich · ${s.approved ? `abgenommen${by ? ` durch ${by}` : ''}` : 'noch nicht abgenommen'}`,
+                ...(String(s.assessment ?? '').trim() ? { assessment: String(s.assessment).trim() } : {}),
                 ...(String(s.remarks ?? '').trim() ? { remarks: String(s.remarks).trim() } : {}),
               };
             }) }
@@ -829,7 +1033,13 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
     setPdfBusy(true);
     try {
       const { buildReviewReportPdf } = await import('../pdfExport');
+      const meta: { label: string; value: string }[] = [];
+      if (proj.responsibleProject) meta.push({ label: 'Verantwortlich Projekt', value: proj.responsibleProject });
+      if (proj.responsibleArchitecture) meta.push({ label: 'Verantwortlich Architektur', value: proj.responsibleArchitecture });
+      meta.push({ label: 'Klassifikation', value: classLabel ?? (proj.architectureRelevant === null ? 'offen' : '—') });
+      meta.push({ label: 'Projektstatus', value: STATUS_META[status].label });
       const bytes = await buildReviewReportPdf({
+        meta,
         projectName: proj.name || proj.slug,
         ...(typeof proj.projectNumber === 'string' && proj.projectNumber ? { projectNumber: proj.projectNumber } : {}),
         generated: `${pad(now.getDate())}.${pad(now.getMonth() + 1)}.${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}`,
@@ -837,7 +1047,18 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
         metaLines,
         milestones,
         skipped: skippedMs,
-      });
+        ...((proj.sources ?? []).length ? {
+          sources: (proj.sources ?? []).map(s => ({
+            label: s.label,
+            ...(s.description?.trim() ? { description: s.description.trim() } : {}),
+            detail: [
+              s.url ? s.url : `${s.filename}${typeof s.size === 'number' ? ` · ${formatBytes(s.size)}` : ''}`,
+              fmtTimestamp(s.uploadedAt),
+              s.uploadedBy,
+            ].filter(Boolean).join(' · '),
+          })),
+        } : {}),
+      }, model.reportTemplate);
       const blob = new Blob([bytes as BlobPart], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -1009,6 +1230,16 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
   // Abnahme-Kontrollpunkte eines Meilensteins (aus model.json)
   const checksFor = (ms: string) => (model.milestoneChecks ?? []).filter(c => c.milestone === ms);
 
+  // Die Übergabe an die Fachstelle hängt an den Abnahme-Kontrollpunkten:
+  // Erst wenn einer davon «erforderlich» angekreuzt ist, gibt es den
+  // Übergabetext — und die Einschätzung Architektur darin ist der Auftrag.
+  const requiredChecks = (ms: string) => {
+    const review = getMilestoneReview(proj, ms);
+    return checksFor(ms)
+      .map(check => ({ check, state: checkState(review, check.id) }))
+      .filter(({ state }) => state.required === true);
+  };
+
   // Kopfbereich eines Meilenstein-Blocks
   const milestoneHeader = (opts: {
     ms: string;
@@ -1038,7 +1269,7 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
           <div className="flex items-center gap-4 flex-wrap">
             <label className={`flex items-center gap-1.5 text-xs cursor-pointer ${isDark ? 'text-white/70' : 'text-black/70'}`}>
               <input disabled={ro || (blocking.length > 0 && opts.review.approved !== true)} type="checkbox" checked={opts.review.approved === true}
-                title={blocking.length ? `Erst möglich, wenn abgenommen: ${blocking.map(c => c.label).join(', ')}` : undefined}
+                title={blocking.length ? `Erst möglich, wenn abgenommen bzw. begründet: ${blocking.map(c => c.label).join(', ')}` : undefined}
                 onChange={e => opts.update({
                   reviewed: e.target.checked,
                   approved: e.target.checked,
@@ -1055,13 +1286,22 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
           </div>
           {blocking.length > 0 && opts.review.approved !== true && (
             <div className={`text-[11px] ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>
-              Freigabe erst möglich, wenn abgenommen: {blocking.map(c => c.label).join(', ')}
+              {[
+                blocking.filter(c => checkState(opts.review, c.id).required === true),
+                blocking.filter(c => checkState(opts.review, c.id).required !== true),
+              ].map((group, i) => group.length === 0 ? null : (
+                <p key={i}>
+                  Freigabe erst möglich, wenn {i === 0 ? 'abgenommen' : 'begründet'}: {group.map(c => c.label).join(', ')}
+                </p>
+              ))}
             </div>
           )}
           {checks.map(c => {
             const s = checkState(opts.review, c.id);
             const byEmpty = String(s.approvedBy ?? '').trim() === '';
             const remEmpty = String(s.remarks ?? '').trim() === '';
+            const assEmpty = String(s.assessment ?? '').trim() === '';
+            const sub = `text-[10px] uppercase tracking-wider ${isDark ? 'text-white/40' : 'text-black/40'}`;
             return (
               <div key={c.id} className="space-y-2">
                 <label title={c.hint}
@@ -1072,8 +1312,21 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
                   {c.label} erforderlich
                   {c.hint && <Info size={11} className="opacity-50" />}
                 </label>
-                {s.required && (
-                  <div className={`ml-5 pl-3 border-l space-y-2 ${border}`}>
+                {/* Einschätzung immer: begründet, warum die Prüfung nötig ist — oder warum nicht */}
+                <div className={`ml-5 pl-3 border-l space-y-2 ${border}`}>
+                  <p className={sub}>Einschätzung Architektur</p>
+                  <textarea disabled={ro} value={String(s.assessment ?? '')} required rows={2}
+                    onChange={e => updateCheck(c.id, { assessment: e.target.value })}
+                    onFocus={autoGrow} onInput={autoGrow}
+                    placeholder={s.required
+                      ? 'Warum ist die Prüfung nötig, was ist zu prüfen, was erwartet die Architektur (erforderlich)'
+                      : 'Warum ist die Prüfung nicht nötig (erforderlich)'}
+                    className={`w-full min-h-[52px] text-[11px] px-2 py-1.5 rounded border outline-none resize-none overflow-hidden transition-colors ${inputCls} ${
+                      assEmpty ? (isDark ? 'border-rose-500/40' : 'border-rose-300') : ''
+                    }`} />
+                  {s.required && (
+                    <>
+                    <p className={sub}>Resultat Abnahme</p>
                     <div className="flex items-center gap-4 flex-wrap">
                       <label className={`flex items-center gap-1.5 text-xs cursor-pointer ${isDark ? 'text-white/70' : 'text-black/70'}`}>
                         <input disabled={ro} type="checkbox" checked={s.approved === true}
@@ -1097,11 +1350,20 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
                       className={`w-full min-h-[52px] text-[11px] px-2 py-1.5 rounded border outline-none resize-none overflow-hidden transition-colors ${inputCls} ${
                         remEmpty ? (isDark ? 'border-rose-500/40' : 'border-rose-300') : ''
                       }`} />
-                  </div>
-                )}
+                    </>
+                  )}
+                </div>
               </div>
             );
           })}
+          {/* Übergabe an die Fachstelle — ein Mail für alle erforderlichen Prüfungen */}
+          {requiredChecks(opts.ms).length > 0 && (
+            <button onClick={() => { setExportHandover(true); setExportMs(opts.ms); setCopiedKey(null); }}
+              title="Übergabetext (E-Mail) an die Fachstelle — mit der Einschätzung Architektur und der Bitte um Rückmeldung"
+              className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors ${isDark ? 'border-white/15 text-white/60 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/60 hover:border-black/30 hover:text-black'}`}>
+              <Mail size={12} /> Übergabe an Fachstelle
+            </button>
+          )}
         </div>
         <textarea disabled={ro} value={opts.review.notes} required rows={3}
           onChange={e => opts.update({ notes: e.target.value })}
@@ -1231,6 +1493,9 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
             </button>
           </div>
         </div>
+        {MILESTONE_INFO[FOUNDATION_MS] && (
+          <p className={`px-4 pt-1 text-[11px] ${textMuted}`}>{MILESTONE_INFO[FOUNDATION_MS]}</p>
+        )}
         {milestoneHeader({
           ms: FOUNDATION_MS,
           chipLabel: 'Architekturrelevant',
@@ -1304,6 +1569,9 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
                   </button>
                 </div>
               </div>
+              {MILESTONE_INFO[ms] && (
+                <p className={`px-4 pt-1 text-[11px] ${textMuted}`}>{MILESTONE_INFO[ms]}</p>
+              )}
               {milestoneHeader({
                 ms,
                 chipLabel: 'Ergebnis',
@@ -1323,6 +1591,120 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
         }
         return panels;
       })()}
+
+      {/* Quellen: Belege/Referenzdokumente zum Herunterladen */}
+      <div className={`${cardCls} mb-4`}>
+        <div className="px-4 pt-3 pb-1">
+          <h3 className={`text-[11px] font-semibold uppercase tracking-widest ${isDark ? 'text-white/50' : 'text-black/50'}`}>
+            Quellen
+          </h3>
+        </div>
+        <div className="px-4 pb-3">
+          {(proj.sources ?? []).length === 0 ? (
+            <p className={`text-[11px] ${textMuted}`}>Noch keine Quellen hinterlegt.</p>
+          ) : (
+            <div className="space-y-2">
+              {(proj.sources ?? []).map(s => editingSourceId === s.id ? (
+                <div key={s.id} className={`py-2 border-t ${border} first:border-t-0 first:pt-0 space-y-1.5`}>
+                  <input value={editLabel} onChange={e => setEditLabel(e.target.value)} autoFocus
+                    placeholder="Label"
+                    className={`block w-full text-xs px-2 py-1.5 rounded border outline-none transition-colors ${inputCls} ${!editLabel.trim() ? (isDark ? 'border-rose-500/40' : 'border-rose-300') : ''}`} />
+                  <textarea value={editDescription} rows={1}
+                    onChange={e => setEditDescription(e.target.value)}
+                    onFocus={autoGrow} onInput={autoGrow}
+                    placeholder="Beschrieb (optional)"
+                    className={`block w-full text-xs px-2 py-1.5 rounded border outline-none resize-none overflow-hidden transition-colors ${inputCls}`} />
+                  {s.url !== undefined && (
+                    <input value={editUrl} onChange={e => setEditUrl(e.target.value)}
+                      placeholder="https://…"
+                      className={`block w-full text-xs px-2 py-1.5 rounded border outline-none transition-colors ${inputCls} ${!editUrl.trim() ? (isDark ? 'border-rose-500/40' : 'border-rose-300') : ''}`} />
+                  )}
+                  <div className="flex gap-2">
+                    <button onClick={saveEditSource} disabled={!editLabel.trim() || (s.url !== undefined && !editUrl.trim())}
+                      className={`flex items-center gap-1 text-[11px] px-2.5 py-1 rounded font-semibold transition-colors disabled:opacity-40 ${isDark ? 'bg-white text-black hover:bg-white/90' : 'bg-black text-white hover:bg-black/80'}`}>
+                      <Check size={11} /> Speichern
+                    </button>
+                    <button onClick={() => setEditingSourceId(null)}
+                      className={`text-[11px] px-2.5 py-1 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
+                      Abbrechen
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div key={s.id} className={`flex items-start gap-3 py-2 border-t ${border} first:border-t-0 first:pt-0`}>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-xs font-semibold truncate ${isDark ? 'text-white/80' : 'text-black/80'}`}>{s.label}</p>
+                    {s.description && <p className={`text-[11px] mt-0.5 ${textMuted}`}>{s.description}</p>}
+                    <p className={`text-[10px] mt-0.5 truncate ${textMuted}`}>
+                      {s.url ? s.url : `${s.filename} · ${formatBytes(s.size ?? 0)}`} · {fmtTimestamp(s.uploadedAt)}{s.uploadedBy ? ` · ${s.uploadedBy}` : ''}
+                    </p>
+                  </div>
+                  <button onClick={() => downloadSource(s)} title={s.url ? 'Link öffnen' : 'Herunterladen'}
+                    className={`p-1.5 rounded flex-shrink-0 transition-colors ${isDark ? 'text-white/40 hover:text-white' : 'text-black/40 hover:text-black'}`}>
+                    {s.url ? <ExternalLink size={13} /> : <Download size={13} />}
+                  </button>
+                  {!ro && (
+                    <>
+                      <button onClick={() => startEditSource(s)} title="Label/Beschrieb bearbeiten"
+                        className={`p-1.5 rounded flex-shrink-0 transition-colors ${isDark ? 'text-white/40 hover:text-white' : 'text-black/40 hover:text-black'}`}>
+                        <Pencil size={13} />
+                      </button>
+                      <button onClick={() => removeSource(s)} title="Entfernen"
+                        className={`p-1.5 rounded flex-shrink-0 transition-colors ${isDark ? 'text-white/25 hover:text-red-400' : 'text-black/25 hover:text-red-500'}`}>
+                        <Trash2 size={13} />
+                      </button>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        {!ro && (
+          <div className={`px-4 py-3 border-t ${border} flex items-end gap-2 flex-wrap`}>
+            <div className="flex-1 min-w-[160px]">
+              <label className={`block text-[10px] uppercase tracking-wider mb-1 ${labelCls}`}>Label</label>
+              <input value={sourceLabel} onChange={e => setSourceLabel(e.target.value)}
+                placeholder="z. B. Prüfformular Datenhaltung"
+                title="Bei mehreren Dateien auf einmal wird stattdessen je Datei ihr Dateiname als Label verwendet"
+                className={`block w-full text-xs px-2 py-1.5 rounded border outline-none transition-colors ${inputCls}`} />
+            </div>
+            <div className="flex-1 min-w-[200px]">
+              <label className={`block text-[10px] uppercase tracking-wider mb-1 ${labelCls}`}>Beschrieb (optional)</label>
+              <textarea value={sourceDescription} rows={1}
+                onChange={e => setSourceDescription(e.target.value)}
+                onFocus={autoGrow} onInput={autoGrow}
+                placeholder="Kurzer Hinweis, worum es geht"
+                className={`block w-full text-xs px-2 py-1.5 rounded border outline-none resize-none overflow-hidden transition-colors ${inputCls}`} />
+            </div>
+            <div className="flex-shrink-0">
+              <label className="block text-[10px] uppercase tracking-wider mb-1 opacity-0 select-none" aria-hidden="true">.</label>
+              <button onClick={() => sourceFileRef.current?.click()} disabled={sourceBusy}
+                title="Mehrfachauswahl möglich"
+                className={`block flex items-center gap-1.5 text-[11px] px-3 py-1.5 rounded border transition-colors disabled:opacity-40 ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
+                <FileUp size={12} /> {sourceBusy ? 'Lädt hoch …' : 'Dateien wählen'}
+              </button>
+            </div>
+            <input ref={sourceFileRef} type="file" multiple className="hidden"
+              onChange={e => { const files = e.target.files; e.target.value = ''; if (files && files.length) void addSources(files); }} />
+            <div className="w-full flex items-end gap-2 flex-wrap">
+              <div className="flex-1 min-w-[200px]">
+                <label className={`block text-[10px] uppercase tracking-wider mb-1 ${labelCls}`}>Web-Referenz statt Datei (optional)</label>
+                <input value={sourceUrl} onChange={e => setSourceUrl(e.target.value)}
+                  placeholder="https://…"
+                  className={`block w-full text-xs px-2 py-1.5 rounded border outline-none transition-colors ${inputCls}`} />
+              </div>
+              <div className="flex-shrink-0">
+                <button onClick={addWebSource} disabled={sourceBusy || !sourceLabel.trim() || !sourceUrl.trim()}
+                  title="Label ausfüllen und Link hinzufügen"
+                  className={`block flex items-center gap-1.5 text-[11px] px-3 py-1.5 rounded border transition-colors disabled:opacity-40 ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
+                  <Link2 size={12} /> Link hinzufügen
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Speicherleiste */}
       <div className={`fixed bottom-0 left-0 right-0 border-t ${border} ${isDark ? 'bg-[#0c0d0f]/95' : 'bg-[#eae9e5]/95'} backdrop-blur px-6 py-3`}>
@@ -1414,19 +1796,18 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
 
       {/* Export: offene Fragen als E-Mail-Text */}
       {exportMs && (() => {
-        const handoverTitle = exportTheme ? (themes.find(t => t.id === exportTheme)?.title ?? exportTheme) : null;
-        const handover = exportTheme ? buildHandoverExport(exportTheme, exportMs, handoverDeadline) : null;
+        const handover = exportHandover ? buildHandoverExport(exportMs, handoverDeadline) : null;
         const { text, count } = handover ? { text: handover.text, count: 0 } : buildExport(exportMs);
-        const closeExport = () => { setExportMs(null); setExportTheme(null); setHandoverDeadline(''); };
+        const closeExport = () => { setExportMs(null); setExportHandover(false); setHandoverDeadline(''); };
         return (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-6" onClick={closeExport}>
             <div className={`max-w-2xl w-full max-h-[85vh] flex flex-col rounded-xl border p-6 ${isDark ? 'border-white/15 bg-[#16171a]' : 'border-black/15 bg-white'}`}
               onClick={e => e.stopPropagation()}>
               <div className="flex items-start justify-between gap-4 mb-3">
                 <h3 className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-black'}`}>
-                  {handoverTitle ? `Übergabe an ${handoverTitle} (${exportMs})` : `Offene Fragen ${exportMs}`}
+                  {handover ? `Übergabe an Fachstelle (${exportMs})` : `Offene Fragen ${exportMs}`}
                   <span className={`ml-2 text-[11px] font-normal ${textMuted}`}>
-                    {handoverTitle ? 'Review-Bericht (PDF) beilegen' : `${count} ${count === 1 ? 'Frage' : 'Fragen'}`}
+                    {handover ? 'Review-Bericht (PDF) beilegen' : `${count} ${count === 1 ? 'Frage' : 'Fragen'}`}
                   </span>
                 </h3>
                 <button onClick={closeExport}
@@ -1434,14 +1815,14 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
                   <X size={14} />
                 </button>
               </div>
-              {count === 0 && !handoverTitle ? (
+              {count === 0 && !handover ? (
                 <p className={`text-xs ${textMuted}`}>Alle Fragen dieses Meilensteins sind beantwortet — nichts zu verschicken.</p>
               ) : (
                 <>
                   {handover && (
                     <div className={`grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 items-center text-[11px] mb-3 ${isDark ? 'text-white/70' : 'text-black/70'}`}>
                       <span className={textMuted}>An</span>
-                      <span className="truncate" title={handover.to}>{handover.to || <em className={textMuted}>kein Empfänger konfiguriert (Admin → Thema → Übergabe)</em>}</span>
+                      <span className="truncate" title={handover.to}>{handover.to || <em className={textMuted}>kein Empfänger konfiguriert (Admin → Abnahme-Kontrollpunkte)</em>}</span>
                       <span className={textMuted}>Betreff</span>
                       <span className="truncate" title={handover.subject}>{handover.subject}</span>
                       <span className={textMuted}>Termin</span>
@@ -1449,9 +1830,15 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
                         className={`w-40 text-[11px] px-2 py-1 rounded border outline-none transition-colors ${inputCls}`} />
                     </div>
                   )}
-                  <textarea readOnly value={text}
-                    onFocus={e => e.currentTarget.select()}
-                    className={`w-full flex-1 min-h-[280px] text-[11px] leading-relaxed px-3 py-2 rounded border outline-none resize-none font-mono ${inputCls}`} />
+                  {handover ? (
+                    // Vorschau wie im Mail (Fettschrift), nicht als Rohtext
+                    <div className={`docx-content w-full flex-1 min-h-[280px] overflow-auto px-3 py-2 rounded border ${inputCls}`}
+                      dangerouslySetInnerHTML={{ __html: marked.parse(text, { async: false }) as string }} />
+                  ) : (
+                    <textarea readOnly value={text}
+                      onFocus={e => e.currentTarget.select()}
+                      className={`w-full flex-1 min-h-[280px] text-[11px] leading-relaxed px-3 py-2 rounded border outline-none resize-none font-mono ${inputCls}`} />
+                  )}
                   <div className="flex gap-2 pt-4 flex-wrap">
                     {handover ? (
                       <>
@@ -1464,7 +1851,8 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
                           className={`flex-1 flex items-center justify-center gap-1.5 text-xs py-2 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
                           <Copy size={12} /> {copiedKey === 'subject' ? '✓ Kopiert' : 'Betreff kopieren'}
                         </button>
-                        <button onClick={() => copyToClipboard(text, 'text')}
+                        <button onClick={() => copyRich(text, 'text')}
+                          title="Kopiert den Text mit Formatierung (Fettschrift) — in Outlook/Gmail einfügen"
                           className={`flex-1 flex items-center justify-center gap-1.5 text-xs py-2 rounded font-semibold transition-colors ${isDark ? 'bg-white text-black hover:bg-white/90' : 'bg-black text-white hover:bg-black/80'}`}>
                           <Copy size={12} /> {copiedKey === 'text' ? '✓ Kopiert' : 'Inhalt kopieren'}
                         </button>
@@ -1475,7 +1863,7 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
                         <Copy size={12} /> {copiedKey === 'text' ? '✓ Kopiert' : 'Kopieren'}
                       </button>
                     )}
-                    {!handoverTitle && (
+                    {!handover && (
                       <button onClick={() => downloadPdf(exportMs)} disabled={pdfBusy}
                         className={`flex-1 flex items-center justify-center gap-1.5 text-xs py-2 rounded border transition-colors disabled:opacity-40 ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
                         <FileDown size={12} /> {pdfBusy ? 'Erzeuge PDF …' : 'PDF-Formular'}

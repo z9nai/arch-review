@@ -23,19 +23,27 @@ export function getMilestoneReview(project: Project, ms: string): Review {
 
 // Abnahme-Kontrollpunkte: Zustand je id (fehlend = nicht erforderlich)
 export function checkState(review: Review, id: string): MilestoneCheckState {
-  return { required: false, approved: false, approvedBy: '', remarks: '', ...(review.checks?.[id] ?? {}) };
+  return { required: false, assessment: '', approved: false, approvedBy: '', remarks: '', ...(review.checks?.[id] ?? {}) };
 }
 
-// Erforderliche Prüfung vollständig: abgenommen, mit Prüfer/in und Bemerkung
+// Erforderliche Prüfung vollständig: Einschätzung der Architektur liegt vor,
+// abgenommen, mit Prüfer/in und Bemerkung
 export function checkComplete(s: MilestoneCheckState): boolean {
-  return s.approved === true && String(s.approvedBy ?? '').trim() !== '' && String(s.remarks ?? '').trim() !== '';
+  return String(s.assessment ?? '').trim() !== ''
+    && s.approved === true && String(s.approvedBy ?? '').trim() !== '' && String(s.remarks ?? '').trim() !== '';
 }
 
-// Kontrollpunkte, die die Freigabe des Meilensteins noch blockieren
+// Nicht erforderliche Prüfung: Die Architektur muss begründen, warum nicht.
+export function checkJustified(s: MilestoneCheckState): boolean {
+  return String(s.assessment ?? '').trim() !== '';
+}
+
+// Kontrollpunkte, die die Freigabe des Meilensteins noch blockieren —
+// erforderliche bis zur Abnahme, nicht erforderliche bis zur Begründung
 export function blockingChecks(review: Review, checks: MilestoneCheck[]): MilestoneCheck[] {
   return checks.filter(c => {
     const s = checkState(review, c.id);
-    return s.required && !checkComplete(s);
+    return s.required ? !checkComplete(s) : !checkJustified(s);
   });
 }
 

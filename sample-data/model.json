@@ -33,30 +33,12 @@
     {
       "id": "cloud-infrastructure",
       "title": "Cloud- und Infrastrukturarchitektur",
-      "infoMd": "# Cloud- und Infrastrukturarchitektur\n\n*Zweck und Prüffragen ausformuliert (Entwurf Claude, 02./07.09.2026) — Detailregeln noch offen, brauchen Fachinput.*\n\n## Zweck\n\nPrüft die Wahl der Zielumgebung und Plattform sowie die Einhaltung der Infrastrukturvorgaben, inklusive der damit verbundenen Betriebsaspekte.\n\n## Vorgaben\n\n- Strategie-Leitplanke: «Cloud First im Workplace, risikoorientiert bei Kernbankenapplikationen» (IT-Strategie 2027–2030)\n- Zielumgebung und Plattformwahl (Betreiber, Plattform, Standort, dediziert/geteilt, Umgebungen)\n- Verantwortung je Plattformkomponente (Bereitstellung, Betrieb, Patching)\n- Sizing auf erhobener Basis, Resilienz (Ausfall einer Komponente, RTO/RPO), Infrastructure as Code\n- Exit-Szenario: siehe Thema Security & Compliance (M20E3)\n- Weitere Detailregeln noch offen — brauchen Fachinput\n\n## Ergebnis für den OnePager\n\nEine Zeile: relevant / geprüft / Ergebnis / Risiken, Conditions, offene Punkte."
+      "infoMd": "# Cloud- und Infrastrukturarchitektur\n\n*Zweck und Prüffragen ausformuliert (Entwurf Claude, 02./07.09.2026) — Detailregeln noch offen, brauchen Fachinput.*\n\n## Zweck\n\nPrüft die Wahl der Zielumgebung und Plattform sowie die Einhaltung der Infrastrukturvorgaben, inklusive der damit verbundenen Betriebsaspekte.\n\n## Vorgaben\n\n- Strategie-Leitplanke: «Cloud First im Workplace, risikoorientiert bei Kernbankenapplikationen» (IT-Strategie 2027–2030)\n- Zielumgebung und Plattformwahl (Betreiber, Plattform, Standort, dediziert/geteilt, Umgebungen)\n- Verantwortung je Plattformkomponente (Bereitstellung, Betrieb, Patching)\n- Sizing auf erhobener Basis, Resilienz (Ausfall einer Komponente, RTO/RPO), Infrastructure as Code\n- Exit-Szenario: siehe Thema Security & Compliance (M20E7)\n- Weitere Detailregeln noch offen — brauchen Fachinput\n\n## Ergebnis für den OnePager\n\nEine Zeile: relevant / geprüft / Ergebnis / Risiken, Conditions, offene Punkte."
     },
     {
       "id": "security-compliance",
       "title": "Security & Compliance",
-      "infoMd": "# Security & Compliance\n\n*Zweck und Prüffragen ausformuliert (Entwurf Claude, 02./07.09.2026) — Übergabeliste und Kriterien der Gate-Fragen mit der Fachstelle abstimmen.*\n\n## Zweck\n\nWird nicht von der Architekturprüfung selbst erstellt oder inhaltlich beurteilt, sondern an die zuständige Fachstelle übergeben. Hier wird die Übergabe dokumentiert (an wen, wann, mit welcher Übergabeliste), das Ergebnis der externen Prüfung samt Auflagen entgegengenommen.\n\nZusätzlich prüft die Architektur die dokumentarischen Compliance-Voraussetzungen, die sie ohne Security-Fachwissen beurteilen kann — heute das Exit-Szenario bei ausgelagerten oder Cloud-basierten Plattformen.\n\n## Vorgaben\n\n- Übergabe an die zuständige Stelle mit Übergabeliste («Architektur liefert / Security prüft»)\n- Ergebnis der externen Prüfung entgegennehmen, Auflagen als Conditions führen\n- Vor Produktivsetzung (M40): verlangte Security-Nachweise liegen vor, Auflagen erfüllt\n- Exit-Szenario bei ausgelagerten/Cloud-Plattformen (Outsourcing-Vorgaben)\n\n## Ergebnis für den OnePager\n\nEine Zeile: relevant / geprüft / Ergebnis / Risiken, Conditions, offene Punkte.\n",
-      "handover": {
-        "to": "",
-        "subject": "Architekturprüfung «{{projekt}}» — Review {{thema}} für {{ms}}",
-        "body": "Guten Tag\n\nFür das Projekt «{{projekt}}» bitten wir um den Review {{thema}} zum Meilenstein {{meilenstein}}.\nDie Architektur liefert die Ausgangslage (Datenklassifikation, Datenhaltung, Zielplattform, Integration, IAM-Muster); Security prüft Härtung, Verschlüsselung, Zugriffsschutz, Software-Supply-Chain, Threat Model und die regulatorischen Anforderungen.\n\nTermin: {{termin}}\n\n{{projektblock}}\n\n{{ausloeser}}\n\n{{ausgangslage}}\n\nBitte meldet uns Ergebnis und Auflagen zurück — wir tragen sie in die Architekturprüfung ein.\n\nVielen Dank!",
-        "context": [
-          "D0",
-          "E1",
-          "T1",
-          "T2",
-          "T6",
-          "C2",
-          "CI1",
-          "q9a3zestv5p",
-          "cat-ia3",
-          "qx7q7pxw95o",
-          "A5"
-        ]
-      }
+      "infoMd": "# Security & Compliance\n\n*Zweck und Prüffragen neu gefasst (08.09.2026): Die Architektur beantwortet die sicherheitsrelevanten Architekturfragen selbst. Kriterien je Frage mit der Fachstelle Security & Compliance abstimmen.*\n\n## Zweck\n\nDie Architekturprüfung beurteilt die sicherheits- und compliance-relevanten Aspekte der Architektur selbst: regulatorische Einordnung, Bedrohungsanalyse, Sicherheitsanforderungen, Netzwerkzonierung, Verschlüsselung, Umgang mit Schwachstellen, Exit-Szenario. Die Fachstelle Security & Compliance liefert die Kriterien und wird bei der M20-Abnahme über die Kontrollpunkte «FINMA-Prüfung» und «Lieferanten-Prüfung» einbezogen.\n\n## Vorgaben\n\n- FINMA-RS 2023/1 Rz 32: ad hoc Risiko- und Kontrollbeurteilung vor wesentlichen Änderungen in Produkten, Aktivitäten, Prozessen und Systemen\n- FINMA-RS 2018/3: Outsourcing-Relevanz (Dienstleister erfüllt selbständig und dauernd eine wesentliche Funktion), Exit-Szenario\n- DSG: Personendaten, ggf. Datenschutz-Folgenabschätzung\n- Vor Produktivsetzung (M40): verlangte Security-Nachweise liegen vor, Massnahmen sind belegt, System ist in den Incident-Prozess eingebunden\n- Detailkriterien (Threat Model, Verschlüsselung, Schwachstellen-Regime) noch offen — brauchen Fachinput\n\n## Ergebnis für den OnePager\n\nEine Zeile: relevant / geprüft / Ergebnis / Risiken, Conditions, offene Punkte.\n"
     },
     {
       "id": "idm-iam",
@@ -88,20 +70,50 @@
       "hint": "Zielarchitektur umfasst alle Integrationspunkte, Datenflüsse und Abhängigkeiten zu Drittsystemen; Freigabe durch alle Beteiligten (Betreiber, Hersteller, Auftraggeber). Insb. relevant, wenn der Betreiber (nicht der Auftraggeber) die finale Architektur definiert - dann muss der Freigabeprozess/das Review explizit geregelt sein. Einordnung in die Unternehmensarchitektur: Zielbild, Applikationslandschaft, Abhängigkeiten; die unterstützten Geschäftsfunktionen und -prozesse sind benannt."
     },
     {
-      "id": "SC1",
-      "text": "Wurde das Vorhaben der Fachstelle Security & Compliance übergeben — an wen, wann, mit welcher Übergabeliste (was liefert die Architektur, was prüft Security)?",
-      "milestone": "M20",
+      "id": "SC13",
       "themeId": "security-compliance",
+      "milestone": "M20",
       "remarksAlwaysOpen": true,
-      "hint": "Die Übergabeliste macht die Arbeitsteilung explizit: je Thema «Architektur liefert» (z. B. Kontextdiagramm und Schnittstellen aus Integration, Schutzklasse M10A5, Datenhaltung, IAM-Muster) und «Security prüft» (Härtung, Verschlüsselung, Zugriffsschutz, Supply Chain). Die Aufforderung zum Review (E-Mail) lässt sich über das Mail-Icon am Thema erzeugen; das Ergebnis trägt die Architektur in M20E2 ein. Empfänger, Datum und Übergabeliste in den Bemerkungen festhalten. Die Übergabeliste enthält auch die von der Architektur definierten Sicherheits- und Datenschutzanforderungen für System und Betriebsumgebung — abgeleitet aus Schutzklasse, Risiken und Vorgaben."
+      "text": "Sind die regulatorischen Anforderungen des Vorhabens identifiziert — FINMA-RS 2023/1 Rz 32 (Risikobeurteilung bei wesentlicher Änderung), FINMA-RS 2018/3 (Outsourcing), DSG — und ist geklärt, wer die Einhaltung nachweist?",
+      "hint": "Wesentliche Änderung der Systemlandschaft → ad hoc Risiko- und Kontrollbeurteilung (FINMA-RS 2023/1 Rz 32). Outsourcing im Sinne von FINMA-RS 2018/3, wenn ein Dienstleister selbständig und dauernd eine für die Geschäftstätigkeit wesentliche Funktion erfüllt. DSG: Personendaten, ggf. Datenschutz-Folgenabschätzung. Das Ergebnis fliesst in die Kontrollpunkte «FINMA-Prüfung» und «Lieferanten-Prüfung» der M20-Abnahme. Entwurf — Kriterien mit der Fachstelle Security & Compliance abstimmen."
     },
     {
-      "id": "SC10",
-      "text": "Liegt das Ergebnis der Fachstelle vor — mit Auflagen, die als Conditions übernommen sind?",
-      "milestone": "M20",
+      "id": "SC14",
       "themeId": "security-compliance",
-      "remarksAlwaysOpen": true,
-      "hint": "Ergebnis, Datum und die Auflagen der Fachstelle in den Bemerkungen festhalten; Auflagen mit Termin gehören zusätzlich in die Conditions des OnePagers bzw. ins Thema Technische Schulden / Risiken / Conditions."
+      "milestone": "M20",
+      "text": "Liegt eine Bedrohungsanalyse (Threat Model) vor — Angriffsflächen, Schutzziele je Schutzklasse (M10A5), abgeleitete Massnahmen?",
+      "hint": "Angriffsflächen aus Kontextdiagramm (M20C4) und Zonierung (M20E4); Schutzziele Vertraulichkeit, Integrität, Verfügbarkeit je Schutzklasse; je Bedrohung eine Massnahme oder eine dokumentierte Akzeptanz. Tiefe nach Schutzklasse. Entwurf — Kriterien mit der Fachstelle Security & Compliance abstimmen."
+    },
+    {
+      "id": "cat-nist-p15",
+      "themeId": "security-compliance",
+      "milestone": "M20",
+      "text": "Sind die Sicherheits- und Datenschutzanforderungen für System und Betriebsumgebung definiert — abgeleitet aus Schutzklasse, Bedrohungsanalyse (M20E2) und regulatorischen Vorgaben (M20E1)?",
+      "hint": "Anforderungen benennen, nicht Massnahmen: was das System und was die Betriebsumgebung (Plattform, Betreiber) erfüllen muss. Wer welche Anforderung umsetzt, steht in M20D3. Original: Define the security and privacy requirements for the system and the environment of operation.",
+      "source": "NIST SP 800-37 Rev. 2, RMF Prepare, Task P-15 (Requirements Definition)"
+    },
+    {
+      "id": "SC15",
+      "themeId": "security-compliance",
+      "milestone": "M20",
+      "text": "Ist die Netzwerkzonierung beschrieben — welche Komponenten sind von aussen erreichbar, über welche Eintrittspunkte (API-Gateway, WAF, Reverse Proxy), welche liegen in internen Zonen?",
+      "hint": "Gegenstück zu M10E1. Jede Schnittstelle nach aussen hat genau einen kontrollierten Eintrittspunkt; interne Zonen sind von aussen nicht direkt erreichbar. Das Zugriffsmodell für externe Parteien (Identität, Berechtigung) ist Sache von M20F6."
+    },
+    {
+      "id": "cat-sc1",
+      "themeId": "security-compliance",
+      "milestone": "M20",
+      "text": "Werden Daten bei Übertragung und Speicherung verschlüsselt — passend zur Schutzklasse, mit geklärter Schlüsselverwaltung (wer hält die Schlüssel: Bank, Betreiber, Hersteller)?",
+      "hint": "Transport (TLS auf allen Schnittstellen) und Speicherung (Datenbanken, Backups, Exporte). Bei Cloud-Plattformen ist die Schlüsselverwaltung die eigentliche Frage. Ob Ort und Backup-Ort zur Schutzklasse passen, prüft M20B15.",
+      "source": "AWS Well-Architected, Security"
+    },
+    {
+      "id": "cat-sc3",
+      "themeId": "security-compliance",
+      "milestone": "M20",
+      "text": "Ist geregelt, wie eingesetzte Komponenten und Abhängigkeiten (Hersteller-Software, Container-Images, Bibliotheken) auf bekannte Schwachstellen geprüft und aktualisiert werden?",
+      "hint": "Software-Supply-Chain: Scan vor dem Deployment und laufend; wer reagiert auf kritische Schwachstellen in welcher Frist. Die Patch-Verantwortung je Komponente steht in M20D3, der Release-Prozess in M40G5.",
+      "source": "OWASP ASVS"
     },
     {
       "id": "CI5",
@@ -813,29 +825,45 @@
       "text": "Entstehen neue oder wesentlich veränderte Schnittstellen nach aussen?",
       "milestone": "M10",
       "themeId": "security-compliance",
-      "hint": "Z. B. neue externe Integrationen, neue Identity-/Access-Anbindungen. Entwurf — Formulierung und Kriterienliste mit Security & Compliance abstimmen. Löst bei Ja die Übergabe an die zuständige Stelle aus (s. M20E1)."
+      "hint": "Z. B. neue externe Integrationen, neue Identity-/Access-Anbindungen. Löst bei Ja die Fragen zur Netzwerkzonierung (M20E4) und zur Bedrohungsanalyse (M20E2) aus. Entwurf — Kriterien mit der Fachstelle Security & Compliance abstimmen."
     },
     {
       "id": "SC2",
       "text": "Entsteht neue oder wesentlich veränderte Datenverarbeitung?",
       "milestone": "M10",
       "themeId": "security-compliance",
-      "hint": "Z. B. neue Datenflüsse, neue Speicherorte/-systeme, neue Verarbeitungszwecke. Entwurf — Formulierung und Kriterienliste mit Security & Compliance abstimmen. Löst bei Ja die Übergabe an die zuständige Stelle aus (s. M20E1)."
+      "hint": "Z. B. neue Datenflüsse, neue Speicherorte/-systeme, neue Verarbeitungszwecke. Löst bei Ja Bedrohungsanalyse und Sicherheitsanforderungen aus (M20E2, M20E3). Entwurf — Kriterien mit der Fachstelle Security & Compliance abstimmen."
     },
     {
       "id": "SC3",
       "text": "Bestehen regulatorische Anforderungen an das Vorhaben?",
       "milestone": "M10",
       "themeId": "security-compliance",
-      "hint": "Z. B. FINMA-Vorgaben, DSG. Entwurf — Formulierung und Kriterienliste mit Security & Compliance abstimmen. Löst bei Ja die Übergabe an die zuständige Stelle aus (s. M20E1)."
+      "hint": "Z. B. FINMA-Vorgaben, DSG. Löst bei Ja die Prüfung der regulatorischen Anforderungen aus (M20E1) und ist der Anhaltspunkt für den Kontrollpunkt «FINMA-Prüfung erforderlich» in der M20-Abnahme. Entwurf — Kriterien mit der Fachstelle Security & Compliance abstimmen."
     },
     {
       "id": "SC12",
       "themeId": "security-compliance",
       "milestone": "M40",
       "text": "Liegen die vor Produktivsetzung verlangten Security-Nachweise vor (z. B. Pentest, Security-Audit) und sind die Auflagen erfüllt?",
-      "hint": "Ergebnis entgegennehmen, kein Inhaltsurteil: Welche Nachweise die Fachstelle vor PROD verlangt hat (M20E2), ob sie vorliegen und ob die Auflagen erledigt sind. Nachweise, die erst auf einer Testumgebung möglich sind, gehören als Auflage mit Gate vor die Produktivsetzung.",
+      "hint": "Welche Nachweise vor PROD verlangt sind, ergibt sich aus den regulatorischen Anforderungen (M20E1) und den Sicherheitsanforderungen (M20E3) — z. B. Pentest, Security-Audit. Nachweise, die erst auf einer Testumgebung möglich sind, gehören als Auflage mit Gate vor die Produktivsetzung.",
       "remarksAlwaysOpen": true
+    },
+    {
+      "id": "SC16",
+      "themeId": "security-compliance",
+      "milestone": "M40",
+      "remarksAlwaysOpen": true,
+      "text": "Sind die in M20 spezifizierten Sicherheitsmassnahmen umgesetzt und belegt — Zonierung, Verschlüsselung, Schwachstellen-Scan — und sind Abweichungen als Conditions erfasst?",
+      "hint": "Nachweis je Massnahme aus M20E4 bis M20E6: Konfiguration, Scan-Report, Abnahmeprotokoll. Abweichungen mit Verantwortlichem und Termin, geschlossen über M40I3."
+    },
+    {
+      "id": "cat-sc2",
+      "themeId": "security-compliance",
+      "milestone": "M40",
+      "text": "Ist das System in den Security-Incident-Prozess eingebunden — Meldewege, Ansprechpersonen, Meldepflichten gegenüber der FINMA?",
+      "hint": "Abgrenzung zu M40G3 (technische Alarmierung): Hier geht es um den organisatorischen Umgang mit Sicherheitsvorfällen inklusive Meldepflicht bei Cyberangriffen — wer meldet, wer entscheidet, wer kommuniziert.",
+      "source": "AWS Well-Architected, Security / FINMA-RS 2023/1"
     }
   ],
   "classificationInfoMd": "# Klassifikation\n\nDie Klassifikation ist das Ergebnis der Foundation-Prüfung (M10) und Teil\nder Freigabe:\n\n- **nicht relevant** — alle Relevanz-Fragen sind mit Nein beantwortet.\n  Es findet keine weitere Architekturprüfung statt (kein M20/M40).\n- **relevant** — das Projekt berührt die Architektur; die Fragenkataloge\n  M20 und M40 werden geprüft.\n- **wegweisend** — das Projekt prägt die Architektur; zusätzlich werden\n  die als «ab wegweisend» markierten Fragen gestellt.\n\nOb ein Projekt architekturrelevant ist, ergibt sich automatisch aus den\nJa/Nein-Fragen im M10 (mindestens eine Frage mit Ja → relevant; alle Nein\n→ nicht relevant).\n\nOb ein relevantes Projekt zusätzlich **wegweisend** ist, entscheidet\nder/die Architekt/in anhand folgender Kriterien (mindestens eines trifft zu):\n\n- **Referenz-/Pilotcharakter** — das Projekt führt ein Muster, eine\n  Technologie oder eine Plattform ein, die anschliessend als Vorlage für\n  weitere Projekte dient.\n- **Wirkung über das Projekt hinaus** — Entscheide betreffen mehrere\n  Systeme, mehrere Mandanten/Banken oder die gemeinsame Plattform, nicht\n  nur die Applikation des Projekts selbst.\n- **Abweichung von bestehenden Vorgaben** — das Projekt weicht bewusst von\n  einem etablierten Standard ab, und diese Abweichung soll künftig als\n  Präzedenzfall/neue Richtlinie gelten (nicht nur als Einzelfall-Ausnahme).\n- **Hohe Tragweite bei Fehlentscheid** — Risiko, Kosten oder regulatorische\n  Sichtbarkeit sind so hoch, dass ein Fehler in der Architekturprüfung\n  überproportionalen Schaden anrichten würde.\n",

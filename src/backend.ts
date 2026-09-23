@@ -8,6 +8,7 @@
 
 export interface FileInfo { name: string; version: string }
 export interface ReadResult { text: string; version: string }
+export interface BlobReadResult { blob: Blob; version: string }
 export type WriteResult =
   | { ok: true; version: string }
   | { ok: false; reason: 'conflict' | 'exists' | 'forbidden' | 'error'; message: string; currentVersion?: string };
@@ -17,7 +18,11 @@ export interface StorageBackend {
   name: string;
   /** null = Datei existiert nicht */
   read(path: string): Promise<ReadResult | null>;
+  /** wie read, aber als Blob — für Binärdateien (z. B. hochgeladene Quellen) */
+  readBlob(path: string): Promise<BlobReadResult | null>;
   write(path: string, text: string, opts?: { ifMatch?: string; createOnly?: boolean }): Promise<WriteResult>;
+  /** wie write, aber mit einem Blob als Inhalt (z. B. hochgeladene Quellen) */
+  writeBlob(path: string, blob: Blob, opts?: { ifMatch?: string; createOnly?: boolean }): Promise<WriteResult>;
   /** nur Dateien; leer, wenn der Ordner fehlt */
   list(dir: string): Promise<FileInfo[]>;
   ensureDir(dir: string): Promise<void>;
@@ -39,18 +44,28 @@ export class LocalBackend implements StorageBackend {
     return { dir, file };
   }
 
-  async read(path: string): Promise<ReadResult | null> {
+  private async readAny(path: string): Promise<{ file: File; version: string } | null> {
     try {
       const { dir, file } = await this.dirOf(path, false);
       const fh = await dir.getFileHandle(file);
       const f = await fh.getFile();
-      return { text: await f.text(), version: String(f.lastModified) };
+      return { file: f, version: String(f.lastModified) };
     } catch {
       return null;
     }
   }
 
-  async write(path: string, text: string, opts: { ifMatch?: string; createOnly?: boolean } = {}): Promise<WriteResult> {
+  async read(path: string): Promise<ReadResult | null> {
+    const r = await this.readAny(path);
+    return r ? { text: await r.file.text(), version: r.version } : null;
+  }
+
+  async readBlob(path: string): Promise<BlobReadResult | null> {
+    const r = await this.readAny(path);
+    return r ? { blob: r.file, version: r.version } : null;
+  }
+
+  private async writeAny(path: string, body: string | Blob, opts: { ifMatch?: string; createOnly?: boolean }): Promise<WriteResult> {
     try {
       const { dir, file } = await this.dirOf(path, true);
       if (opts.createOnly) {
@@ -66,7 +81,7 @@ export class LocalBackend implements StorageBackend {
         }
       }
       const w = await fh.createWritable();
-      await w.write(text);
+      await w.write(body);
       await w.close();
       const f = await fh.getFile();
       return { ok: true, version: String(f.lastModified) };
@@ -74,6 +89,14 @@ export class LocalBackend implements StorageBackend {
       console.error('[arch-review] LocalBackend.write:', e);
       return { ok: false, reason: 'error', message: 'Schreiben fehlgeschlagen.' };
     }
+  }
+
+  async write(path: string, text: string, opts: { ifMatch?: string; createOnly?: boolean } = {}): Promise<WriteResult> {
+    return this.writeAny(path, text, opts);
+  }
+
+  async writeBlob(path: string, blob: Blob, opts: { ifMatch?: string; createOnly?: boolean } = {}): Promise<WriteResult> {
+    return this.writeAny(path, blob, opts);
   }
 
   async list(dir: string): Promise<FileInfo[]> {

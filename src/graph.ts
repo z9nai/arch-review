@@ -1,7 +1,7 @@
 // SharePoint-Ordner über Microsoft Graph (delegiert, Token aus der
 // Entra-Anmeldung). Konflikterkennung über ETags (If-Match → 412),
 // Anlegen ohne Überschreiben über conflictBehavior=fail (→ 409).
-import type { FileInfo, ReadResult, StorageBackend, WriteResult } from './backend';
+import type { BlobReadResult, FileInfo, ReadResult, StorageBackend, WriteResult } from './backend';
 
 export const GRAPH_SCOPES = ['Files.ReadWrite.All'];
 const DEFAULT_BASE = 'https://graph.microsoft.com/v1.0';
@@ -55,7 +55,7 @@ export class GraphBackend implements StorageBackend {
 
   private f(path: string, init?: RequestInit) { return graphFetch(this.getToken, this.base, path, init); }
 
-  async read(path: string): Promise<ReadResult | null> {
+  private async fetchContent(path: string): Promise<{ res: Response; eTag: string } | null> {
     const meta = await this.f(`${this.itemPath(path)}?$select=id,eTag,@microsoft.graph.downloadUrl`);
     if (meta.status === 404) return null;
     if (!meta.ok) throw new Error(`Lesen fehlgeschlagen (HTTP ${meta.status}).`);
@@ -66,16 +66,28 @@ export class GraphBackend implements StorageBackend {
       ? await fetch(url)
       : await this.f(`${this.itemPath(path)}:/content`);
     if (!body.ok) throw new Error(`Lesen fehlgeschlagen (HTTP ${body.status}).`);
-    return { text: await body.text(), version: String(m.eTag ?? '') };
+    return { res: body, eTag: String(m.eTag ?? '') };
   }
 
-  async write(path: string, text: string, opts: { ifMatch?: string; createOnly?: boolean } = {}): Promise<WriteResult> {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  async read(path: string): Promise<ReadResult | null> {
+    const r = await this.fetchContent(path);
+    return r ? { text: await r.res.text(), version: r.eTag } : null;
+  }
+
+  async readBlob(path: string): Promise<BlobReadResult | null> {
+    const r = await this.fetchContent(path);
+    return r ? { blob: await r.res.blob(), version: r.eTag } : null;
+  }
+
+  private async putContent(path: string, body: string | Blob, opts: { ifMatch?: string; createOnly?: boolean } = {}): Promise<WriteResult> {
+    const headers: Record<string, string> = {};
+    if (typeof body === 'string') headers['Content-Type'] = 'application/json';
+    else if (body.type) headers['Content-Type'] = body.type;
     if (opts.ifMatch) headers['If-Match'] = opts.ifMatch;
     const q = opts.createOnly ? '?@microsoft.graph.conflictBehavior=fail' : '';
     let res: Response;
     try {
-      res = await this.f(`${this.itemPath(path)}:/content${q}`, { method: 'PUT', headers, body: text });
+      res = await this.f(`${this.itemPath(path)}:/content${q}`, { method: 'PUT', headers, body });
     } catch (e) {
       return { ok: false, reason: 'error', message: `Netzwerkfehler: ${e instanceof Error ? e.message : String(e)}` };
     }
@@ -90,6 +102,14 @@ export class GraphBackend implements StorageBackend {
     if (res.status === 409) return { ok: false, reason: 'exists', message: 'Datei existiert bereits.' };
     if (res.status === 403 || res.status === 401) return { ok: false, reason: 'forbidden', message: 'Keine Schreibberechtigung in SharePoint (nur Lesen?).' };
     return { ok: false, reason: 'error', message: `Schreiben fehlgeschlagen (HTTP ${res.status}).` };
+  }
+
+  async write(path: string, text: string, opts: { ifMatch?: string; createOnly?: boolean } = {}): Promise<WriteResult> {
+    return this.putContent(path, text, opts);
+  }
+
+  async writeBlob(path: string, blob: Blob, opts: { ifMatch?: string; createOnly?: boolean } = {}): Promise<WriteResult> {
+    return this.putContent(path, blob, opts);
   }
 
   async list(dir: string): Promise<FileInfo[]> {

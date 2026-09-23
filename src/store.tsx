@@ -66,6 +66,12 @@ interface StoreCtx {
   duplicateProject: (sourceSlug: string, name: string, slug: string) => Promise<{ ok: true } | { ok: false; message: string }>;
   /** projects/<slug>.json (und eine allfällige eigene Sperre) endgültig entfernen */
   deleteProject: (slug: string) => Promise<{ ok: true } | { ok: false; message: string }>;
+  // Quelldateien (Belege/Referenzdokumente) je Projekt — die Metadaten
+  // (Label, Beschrieb, …) liegen in Project.sources und laufen über
+  // saveProject/setProj wie jedes andere Feld; hier nur die Rohdatei.
+  uploadSourceFile: (slug: string, storedName: string, file: File) => Promise<{ ok: true } | { ok: false; message: string }>;
+  downloadSourceFile: (slug: string, storedName: string) => Promise<Blob | null>;
+  deleteSourceFile: (slug: string, storedName: string) => Promise<void>;
   // Bearbeitungssperre
   sessionId: string;
   readLock: (slug: string) => Promise<ProjectLock | null>;
@@ -610,6 +616,36 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // ── Quelldateien ──────────────────────────────────────────────────────────
+  const sourcePath = (slug: string, storedName: string) => `projects/${slug}/sources/${storedName}`;
+
+  const uploadSourceFile = useCallback(async (slug: string, storedName: string, file: File) => {
+    const be = backendRef.current;
+    if (!be) return { ok: false as const, message: 'Kein Ordner gewählt.' };
+    try { await be.ensureDir(`projects/${slug}/sources`); } catch { /* write meldet es */ }
+    const w = await be.writeBlob(sourcePath(slug, storedName), file, { createOnly: true });
+    if (!w.ok) return { ok: false as const, message: w.message };
+    return { ok: true as const };
+  }, []);
+
+  const downloadSourceFile = useCallback(async (slug: string, storedName: string): Promise<Blob | null> => {
+    const be = backendRef.current;
+    if (!be) return null;
+    try {
+      const r = await be.readBlob(sourcePath(slug, storedName));
+      return r?.blob ?? null;
+    } catch (e) {
+      console.error('[arch-review] downloadSourceFile:', e);
+      return null;
+    }
+  }, []);
+
+  const deleteSourceFile = useCallback(async (slug: string, storedName: string): Promise<void> => {
+    const be = backendRef.current;
+    if (!be) return;
+    try { await be.delete(sourcePath(slug, storedName)); } catch (e) { console.warn('[arch-review] deleteSourceFile:', e); }
+  }, []);
+
   // Admin-Modus: Stammdaten (Themen/Fragen) zurück in model.json schreiben
   const saveModel = useCallback(async (m: Model): Promise<{ ok: true } | { ok: false; message: string }> => {
     const be = backendRef.current;
@@ -641,6 +677,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       connectSharePoint, savedSharePoint, reconnectSharePoint, forgetSharePoint, disconnect,
       model, modelError, saveModel,
       projects, refreshProjects, loadProject, saveProject, createProject, duplicateProject, deleteProject,
+      uploadSourceFile, downloadSourceFile, deleteSourceFile,
       sessionId: sessionId(), readLock, acquireLock, renewLock, releaseLock,
     }}>
       {children}
