@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { Model, Project, Review } from './types';
+import { Comment, CommentsFile, Model, Project, Review } from './types';
 import { DEFAULT_MODEL } from './defaultModel';
 import { applyMs10, Ms10Data } from './ms10';
 import { nowIsoWithTimezone, todayIso } from './util';
@@ -72,6 +72,11 @@ interface StoreCtx {
   uploadSourceFile: (slug: string, storedName: string, file: File) => Promise<{ ok: true } | { ok: false; message: string }>;
   downloadSourceFile: (slug: string, storedName: string) => Promise<Blob | null>;
   deleteSourceFile: (slug: string, storedName: string) => Promise<void>;
+  // Kommentare (Sidecar projects/<slug>.comments.json, unabhängig von der
+  // Bearbeitungssperre): lesen und atomar ändern (Lesen → Funktion anwenden →
+  // Schreiben mit ETag; bei Konflikt wird auf dem neuesten Stand wiederholt)
+  loadComments: (slug: string) => Promise<Comment[]>;
+  updateComments: (slug: string, mutate: (prev: Comment[]) => Comment[]) => Promise<{ ok: true; comments: Comment[] } | { ok: false; message: string }>;
   // Bearbeitungssperre
   sessionId: string;
   readLock: (slug: string) => Promise<ProjectLock | null>;
@@ -286,7 +291,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         if (lockValid(l) && l.session !== sessionId()) locks.set(f.name.replace(/\.lock\.json$/, ''), l);
       }
       for (const f of files) {
-        if (!f.name.endsWith('.json') || f.name.endsWith('.lock.json')) continue;
+        if (!f.name.endsWith('.json') || f.name.endsWith('.lock.json') || f.name.endsWith('.comments.json')) continue;
         const read = await be.read(`projects/${f.name}`);
         if (!read) continue;
         const p = parseProject(read.text, read.version);
@@ -609,6 +614,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const still = await be.read(`projects/${slug}.json`);
       if (still) return { ok: false as const, message: 'Projekt konnte nicht gelöscht werden (keine Berechtigung?).' };
       await be.delete(`projects/${slug}.lock.json`);
+      await be.delete(`projects/${slug}.comments.json`);
       setProjects(prev => prev.filter(p => p.slug !== slug));
       return { ok: true as const };
     } catch (e) {
@@ -646,6 +652,50 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     try { await be.delete(sourcePath(slug, storedName)); } catch (e) { console.warn('[arch-review] deleteSourceFile:', e); }
   }, []);
 
+  // ── Kommentare ────────────────────────────────────────────────────────────
+  const commentsPath = (slug: string) => `projects/${slug}.comments.json`;
+  const parseComments = (text: string): Comment[] => {
+    try {
+      const f = JSON.parse(text) as Partial<CommentsFile>;
+      return Array.isArray(f?.comments) ? f.comments.filter(c => c && typeof c.id === 'string' && typeof c.target === 'string') : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const loadComments = useCallback(async (slug: string): Promise<Comment[]> => {
+    const be = backendRef.current;
+    if (!be) return [];
+    try {
+      const read = await be.read(commentsPath(slug));
+      return read ? parseComments(read.text) : [];
+    } catch {
+      return [];
+    }
+  }, []);
+
+  // Read-modify-write mit ETag: Kommentare sind Einzelobjekte mit id, die
+  // Änderungsfunktion ist auf jedem Stand anwendbar (hinzufügen, erledigen,
+  // löschen) — deshalb lässt sich ein Konflikt durch Wiederholen auflösen.
+  const updateComments = useCallback(async (slug: string, mutate: (prev: Comment[]) => Comment[]) => {
+    const be = backendRef.current;
+    if (!be) return { ok: false as const, message: 'Kein Ordner gewählt.' };
+    for (let attempt = 0; attempt < 4; attempt++) {
+      let cur: { text: string; version: string } | null;
+      try { cur = await be.read(commentsPath(slug)); } catch (e) {
+        return { ok: false as const, message: e instanceof Error ? e.message : String(e) };
+      }
+      const prev = cur ? parseComments(cur.text) : [];
+      const comments = mutate(prev);
+      const file: CommentsFile = { version: 1, comments };
+      const w = await be.write(commentsPath(slug), JSON.stringify(file, null, 2), cur ? { ifMatch: cur.version } : { createOnly: true });
+      if (w.ok) return { ok: true as const, comments };
+      if (w.reason === 'conflict' || w.reason === 'exists') continue; // jemand war schneller → auf neuem Stand wiederholen
+      return { ok: false as const, message: w.reason === 'forbidden' ? w.message : 'Kommentar konnte nicht gespeichert werden.' };
+    }
+    return { ok: false as const, message: 'Kommentar konnte nicht gespeichert werden (gleichzeitige Änderungen) — bitte erneut versuchen.' };
+  }, []);
+
   // Admin-Modus: Stammdaten (Themen/Fragen) zurück in model.json schreiben
   const saveModel = useCallback(async (m: Model): Promise<{ ok: true } | { ok: false; message: string }> => {
     const be = backendRef.current;
@@ -678,6 +728,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       model, modelError, saveModel,
       projects, refreshProjects, loadProject, saveProject, createProject, duplicateProject, deleteProject,
       uploadSourceFile, downloadSourceFile, deleteSourceFile,
+      loadComments, updateComments,
       sessionId: sessionId(), readLock, acquireLock, renewLock, releaseLock,
     }}>
       {children}

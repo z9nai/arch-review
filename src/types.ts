@@ -189,6 +189,38 @@ export interface SourceFile {
   uploadedBy?: string;
 }
 
+// Kommentare zu einem Projekt: Diskussion an einer Stelle des OnePagers
+// (Antwort, Bemerkung, Kontrollpunkt, Beschrieb). Liegen NICHT im Projekt-
+// JSON, sondern in der Sidecar-Datei projects/<slug>.comments.json — damit
+// kann kommentieren, wer das Projekt gerade nur lesend sieht (fremde
+// Bearbeitungssperre), und die Kommentare gehen nicht mit einer Projektkopie
+// mit. Antworten hängen über parentId am Wurzelkommentar; «erledigt» gilt
+// für den ganzen Faden (nur Wurzelkommentare).
+export interface CommentAuthor {
+  name: string;
+  initials: string;  // Kürzel, z. B. «PM»
+  email?: string;    // → mailto-Link am Kürzel
+}
+
+export interface Comment {
+  id: string;
+  target: string;     // Anker, z. B. q:<themeId>:<frageId> · ms:M20:notes · check:M20:<checkId> · project:description
+  text: string;
+  author: CommentAuthor;
+  createdAt: string;  // ISO
+  parentId?: string;  // Antwort auf diesen Kommentar
+  resolved?: boolean;
+  resolvedAt?: string;
+  resolvedBy?: CommentAuthor;
+  [key: string]: unknown;
+}
+
+export interface CommentsFile {
+  version: number;
+  comments: Comment[];
+  [key: string]: unknown;
+}
+
 export interface Project {
   version: number;
   slug: string;

@@ -1,15 +1,17 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Check, ClipboardPaste, Copy, Download, ExternalLink, Eye, FileDown, FileUp, Info, Link2, Lock, Mail, Minus, Pencil, Plus, Save, Trash2, Unlock, X } from 'lucide-react';
+import { ArrowLeft, Check, ClipboardPaste, Copy, Download, ExternalLink, Eye, FileDown, FileUp, Info, Link2, Lock, Mail, MessageSquare, Minus, Pencil, Plus, Save, Trash2, Unlock, X } from 'lucide-react';
 import { marked } from 'marked';
 import { lockValid, ProjectLock, useStore } from '../store';
 import { useAuth, usePermissions } from '../auth';
-import { MILESTONES, MILESTONE_INFO, MILESTONE_TITLES, Project, Question, QuestionAnswer, Review, SourceFile, Theme } from '../types';
+import { Comment, CommentAuthor, MILESTONES, MILESTONE_INFO, MILESTONE_TITLES, Project, Question, QuestionAnswer, Review, SourceFile, Theme } from '../types';
+import { authorOf, CommentBubble, CommentsPanel, CommentTargetInfo, countsOf } from './Comments';
 import { blockingChecks, checkState, deriveStatus, emptyReview, getMilestoneReview, getThemeReview, STATUS_META } from '../status';
 import { applyMs10, extractPdfText, hasMs10Data, Ms10Data, MS10_FIELD_LABELS, parseMs10Text } from '../ms10';
 import { DEFAULT_MODEL } from '../defaultModel';
 import { autoGrow, fmtTimestamp, formatBytes, normalizeUrl, nowIsoWithTimezone, sanitizeFilename } from '../util';
 
 const FOUNDATION_MS = MILESTONES[0]; // M10
+const COMMENT_NAME_KEY = 'arch-review.commentName'; // Name für Kommentare ohne Anmeldung (pro Browser)
 
 // Standard-Vorlage für die Übergabe an die Fachstelle; im Admin
 // überschreibbar (model.handover). Platzhalter siehe Model.handover in types.ts.
@@ -46,7 +48,7 @@ export function themeLetter(index: number): string {
 
 export default function OnePagerView({ slug, onBack }: { slug: string; onBack: () => void }) {
   const { isDark, model, loadProject, saveProject, acquireLock, renewLock, releaseLock, readLock, sessionId,
-    uploadSourceFile, downloadSourceFile, deleteSourceFile } = useStore();
+    uploadSourceFile, downloadSourceFile, deleteSourceFile, loadComments, updateComments } = useStore();
   const { user: authUser } = useAuth();
   const { canEdit } = usePermissions();
   // Bearbeitungssperre: 'mine' = ich halte sie; 'held' = jemand anderes;
@@ -89,6 +91,12 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
   const [editLabel, setEditLabel] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [editUrl, setEditUrl] = useState('');
+  // Kommentare (Sidecar-Datei, unabhängig von Sperre und Autosave)
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [commentTarget, setCommentTarget] = useState<string | null>(null); // null = Übersicht
+  const [showResolved, setShowResolved] = useState(false);
+  const [commentName, setCommentName] = useState(() => { try { return localStorage.getItem(COMMENT_NAME_KEY) ?? ''; } catch { return ''; } });
   const syncRef = useRef<(p: Project) => Project>(p => p);
   // Harte Absicherung gegen ein bereits laufendes Autosave, das erst
   // NACH dem Verlassen des Projekts abschliesst (Timer bereits ausgeloest,
@@ -214,6 +222,96 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(''), 2500);
   };
+
+  // ── Kommentare ────────────────────────────────────────────────────────────
+  // Laden beim Öffnen; danach alle 30 s und bei Tab-Fokus nachziehen (andere
+  // Personen kommentieren unabhängig von der Bearbeitungssperre).
+  useEffect(() => {
+    let alive = true;
+    const pull = async () => { const c = await loadComments(slug); if (alive) setComments(c); };
+    void pull();
+    const t = setInterval(() => { void pull(); }, 30_000);
+    const onVis = () => { if (document.visibilityState === 'visible') void pull(); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => { alive = false; clearInterval(t); document.removeEventListener('visibilitychange', onVis); };
+  }, [loadComments, slug]);
+
+  // Autor/in: angemeldete Person (Kürzel + mailto), sonst der manuell
+  // eingegebene Name (ohne Anmeldung, z. B. lokaler Ordner)
+  const commentAuthor: CommentAuthor | null = authUser
+    ? authorOf(authUser.name, authUser.email)
+    : commentName.trim() ? authorOf(commentName) : null;
+  const setCommentNameStored = (v: string) => {
+    setCommentName(v);
+    try { localStorage.setItem(COMMENT_NAME_KEY, v); } catch { /* ignore */ }
+  };
+
+  const mutateComments = async (fn: (prev: Comment[]) => Comment[]): Promise<boolean> => {
+    const res = await updateComments(slug, fn);
+    if (!res.ok) { showToast(res.message); return false; }
+    setComments(res.comments);
+    return true;
+  };
+  const addComment = (target: string, text: string, parentId?: string) => {
+    if (!commentAuthor) { showToast('Bitte zuerst einen Namen eingeben.'); return Promise.resolve(false); }
+    const c: Comment = {
+      id: 'c' + Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-4),
+      target, text, author: commentAuthor, createdAt: nowIsoWithTimezone(),
+      ...(parentId ? { parentId } : {}),
+    };
+    return mutateComments(prev => [...prev, c]);
+  };
+  const resolveComment = async (id: string, resolved: boolean) => {
+    await mutateComments(prev => prev.map(c => c.id !== id ? c : resolved
+      ? { ...c, resolved: true, resolvedAt: nowIsoWithTimezone(), ...(commentAuthor ? { resolvedBy: commentAuthor } : {}) }
+      : (({ resolved: _r, resolvedAt: _a, resolvedBy: _b, ...rest }) => rest)(c)));
+  };
+  const deleteComment = async (id: string) => {
+    await mutateComments(prev => prev.filter(c => c.id !== id && c.parentId !== id));
+  };
+
+  // Stelle im Panel öffnen: Thema aufklappen (falls Frage) und hinscrollen
+  const openCommentTarget = (key: string | null) => {
+    if (key?.startsWith('q:')) {
+      const [, themeId, qId] = key.split(':');
+      const q = allQuestions.find(x => x.id === qId && x.themeId === themeId);
+      if (q) setExpanded(prev => new Set(prev).add(`${q.milestone}:${themeId}`));
+    }
+    setCommentTarget(key);
+    setCommentsOpen(true);
+  };
+  // Aktive Stelle vertikal in die Mitte des Scrollbereichs holen. Bewusst
+  // selbst gerechnet statt scrollIntoView: der Scrollbereich ist der
+  // Hauptbereich der App (nicht das Fenster), und nach dem Aufklappen eines
+  // Themas muss das Layout erst stehen (zwei Frames warten).
+  useEffect(() => {
+    if (!commentsOpen || !commentTarget) return;
+    let id2 = 0;
+    const id = requestAnimationFrame(() => {
+      id2 = requestAnimationFrame(() => {
+        const el = document.querySelector<HTMLElement>(`[data-comment-target="${CSS.escape(commentTarget)}"]`);
+        if (!el) return;
+        let sc: HTMLElement | null = el.parentElement;
+        while (sc && !/(auto|scroll)/.test(getComputedStyle(sc).overflowY)) sc = sc.parentElement;
+        const er = el.getBoundingClientRect();
+        if (!sc) { window.scrollBy({ top: er.top + er.height / 2 - window.innerHeight / 2, behavior: 'smooth' }); return; }
+        const cr = sc.getBoundingClientRect();
+        sc.scrollTo({ top: sc.scrollTop + (er.top + er.height / 2) - (cr.top + cr.height / 2), behavior: 'smooth' });
+      });
+    });
+    return () => { cancelAnimationFrame(id); cancelAnimationFrame(id2); };
+  }, [commentsOpen, commentTarget]);
+
+  // Sprechblase an einer Stelle
+  const bubble = (key: string) => {
+    const c = countsOf(comments, key);
+    const active = commentsOpen && commentTarget === key;
+    return <CommentBubble open={c.open} resolved={c.resolved} active={active} isDark={isDark}
+      onClick={() => (active ? setCommentsOpen(false) : openCommentTarget(key))} />;
+  };
+  const anchorCls = (key: string) => commentsOpen && commentTarget === key
+    ? (isDark ? 'rounded-md ring-1 ring-blue-400/50 bg-blue-500/5 -mx-2 px-2 py-1' : 'rounded-md ring-1 ring-blue-400/60 bg-blue-50/60 -mx-2 px-2 py-1')
+    : '';
 
   const setField = <K extends keyof Project>(k: K, v: Project[K]) =>
     setProj(p => (p ? { ...p, [k]: v } : p));
@@ -519,10 +617,12 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
     const answer: QuestionAnswer = { value: null, remarks: '', ...r.answers?.[question.id] };
     const remarksKey = `${themeId}:${question.id}`;
     const remarksOpen = answer.remarks.trim() !== '' || openRemarks.has(remarksKey) || question.remarksAlwaysOpen === true;
+    const commentKey = `q:${themeId}:${question.id}`;
     return (
-      <div key={question.id} className={question.archived ? 'opacity-70' : ''}>
+      <div key={question.id} data-comment-target={commentKey} className={`transition-colors ${question.archived ? 'opacity-70' : ''} ${anchorCls(commentKey)}`}>
         <p className={`text-[11px] font-semibold flex items-start gap-1 ${isDark ? 'text-white/80' : 'text-black/80'}`}>
           <span>{number} {question.text}</span>
+          {bubble(commentKey)}
           {question.archived && (
             <span title="Diese Frage wurde archiviert — sie wird in neuen Reviews nicht mehr gestellt; die erfasste Antwort bleibt als Nachweis erhalten."
               className={`inline-block text-[9px] px-1.5 py-0.5 rounded-full border whitespace-nowrap font-normal flex-shrink-0 ${isDark ? 'bg-white/8 text-white/50 border-white/15' : 'bg-black/5 text-black/50 border-black/15'}`}>
@@ -1302,16 +1402,20 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
             const remEmpty = String(s.remarks ?? '').trim() === '';
             const assEmpty = String(s.assessment ?? '').trim() === '';
             const sub = `text-[10px] uppercase tracking-wider ${isDark ? 'text-white/40' : 'text-black/40'}`;
+            const checkKey = `check:${opts.ms}:${c.id}`;
             return (
-              <div key={c.id} className="space-y-2">
-                <label title={c.hint}
-                  className={`flex items-center gap-1.5 text-xs cursor-pointer ${isDark ? 'text-white/70' : 'text-black/70'}`}>
-                  <input disabled={ro} type="checkbox" checked={s.required}
-                    onChange={e => updateCheck(c.id, { required: e.target.checked })}
-                    className="accent-blue-500 cursor-pointer" />
-                  {c.label} erforderlich
-                  {c.hint && <Info size={11} className="opacity-50" />}
-                </label>
+              <div key={c.id} data-comment-target={checkKey} className={`space-y-2 transition-colors ${anchorCls(checkKey)}`}>
+                <div className="flex items-center gap-1.5">
+                  <label title={c.hint}
+                    className={`flex items-center gap-1.5 text-xs cursor-pointer ${isDark ? 'text-white/70' : 'text-black/70'}`}>
+                    <input disabled={ro} type="checkbox" checked={s.required}
+                      onChange={e => updateCheck(c.id, { required: e.target.checked })}
+                      className="accent-blue-500 cursor-pointer" />
+                    {c.label} erforderlich
+                    {c.hint && <Info size={11} className="opacity-50" />}
+                  </label>
+                  {bubble(checkKey)}
+                </div>
                 {/* Einschätzung immer: begründet, warum die Prüfung nötig ist — oder warum nicht */}
                 <div className={`ml-5 pl-3 border-l space-y-2 ${border}`}>
                   <p className={sub}>Einschätzung Architektur</p>
@@ -1365,25 +1469,92 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
             </button>
           )}
         </div>
-        <textarea disabled={ro} value={opts.review.notes} required rows={3}
-          onChange={e => opts.update({ notes: e.target.value })}
-          onFocus={autoGrow} onInput={autoGrow}
-          placeholder="Bemerkungen (erforderlich)"
-          className={`w-full h-full min-h-[76px] text-[11px] px-2 py-1.5 rounded border outline-none resize-none overflow-hidden transition-colors ${inputCls} ${
-            notesEmpty ? (isDark ? 'border-rose-500/40' : 'border-rose-300') : ''
-          }`} />
+        {(() => {
+          const notesKey = `ms:${opts.ms}:notes`;
+          return (
+            <div data-comment-target={notesKey} className={`flex flex-col transition-colors ${anchorCls(notesKey)}`}>
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <span className={`text-[10px] uppercase tracking-wider ${labelCls}`}>Bemerkungen</span>
+                {bubble(notesKey)}
+              </div>
+              <textarea disabled={ro} value={opts.review.notes} required rows={3}
+                onChange={e => opts.update({ notes: e.target.value })}
+                onFocus={autoGrow} onInput={autoGrow}
+                placeholder="Bemerkungen (erforderlich)"
+                className={`w-full flex-1 min-h-[76px] text-[11px] px-2 py-1.5 rounded border outline-none resize-none overflow-hidden transition-colors ${inputCls} ${
+                  notesEmpty ? (isDark ? 'border-rose-500/40' : 'border-rose-300') : ''
+                }`} />
+            </div>
+          );
+        })()}
       </div>
     );
   };
 
+  // Kommentierbare Stellen in Dokumentreihenfolge (= Schrittfolge im Panel).
+  // Stellen, die gerade nicht sichtbar sind (z. B. M20 nach zurückgenommener
+  // Freigabe, per Klassifikation ausgeblendete Frage), aber Kommentare haben,
+  // kommen am Schluss dazu, damit die Übersicht vollständig bleibt.
+  const commentTargets = (): CommentTargetInfo[] => {
+    const out: CommentTargetInfo[] = [{ key: 'project:description', label: 'Beschrieb', group: 'Projekt' }];
+    const visibleMs: string[] = [FOUNDATION_MS];
+    if (model.classifications.findIndex(c => c.id === proj.classification) >= 1) {
+      let prevApproved = getMilestoneReview(proj, FOUNDATION_MS).approved === true;
+      for (const ms of MILESTONES.slice(1)) {
+        if (!prevApproved) break;
+        visibleMs.push(ms);
+        prevApproved = getMilestoneReview(proj, ms).approved === true;
+      }
+    }
+    for (const ms of visibleMs) {
+      const group = `${ms} · ${MILESTONE_TITLES[ms] ?? 'Prüfung'}`;
+      out.push({ key: `ms:${ms}:notes`, label: 'Bemerkungen', group });
+      for (const c of checksFor(ms)) out.push({ key: `check:${ms}:${c.id}`, label: `${c.label} erforderlich`, group });
+      for (const theme of themes) {
+        if (ms !== FOUNDATION_MS && derivedRelevant(proj, theme.id) === false) continue;
+        for (const { q, number } of questionsAt(theme.id, ms)) {
+          out.push({ key: `q:${theme.id}:${q.id}`, label: `${number} ${q.text}`, group });
+        }
+      }
+    }
+    const known = new Set(out.map(t => t.key));
+    for (const c of comments) {
+      if (c.parentId || known.has(c.target)) continue;
+      known.add(c.target);
+      const parts = c.target.split(':');
+      let label = c.target;
+      if (parts[0] === 'q') {
+        const q = allQuestions.find(x => x.themeId === parts[1] && x.id === parts[2]);
+        label = q ? `${numberOfQuestion(q)} ${q.text}` : c.target;
+      } else if (parts[0] === 'ms') label = `${parts[1]} · Bemerkungen`;
+      else if (parts[0] === 'check') label = `${parts[1]} · ${(model.milestoneChecks ?? []).find(x => x.id === parts[2])?.label ?? parts[2]}`;
+      out.push({ key: c.target, label, group: 'Zurzeit nicht sichtbar' });
+    }
+    return out;
+  };
+  const openCommentCount = comments.filter(c => !c.parentId && c.resolved !== true).length;
+
   return (
-    <div className="p-6 max-w-5xl mx-auto pb-24">
+    <div className={`p-6 pb-24 mx-auto flex items-start gap-4 ${commentsOpen ? 'max-w-[1424px]' : 'max-w-5xl'}`}>
+    <div className="flex-1 min-w-0 max-w-5xl mx-auto">
       {/* Kopfzeile */}
       <div className="flex items-center justify-between mb-4">
         <button onClick={back} className={`flex items-center gap-1.5 text-xs ${textMuted} hover:opacity-70`}>
           <ArrowLeft size={12} /> Projekte
         </button>
-        <div className={`text-[11px] ${textMuted}`}>Stand: {fmtTimestamp(proj.updatedAt)}</div>
+        <div className="flex items-center gap-3">
+          <button onClick={() => { if (commentsOpen && commentTarget === null) setCommentsOpen(false); else openCommentTarget(null); }}
+            title="Alle Kommentare — Übersicht und Schritt für Schritt durchgehen"
+            className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors ${
+              commentsOpen
+                ? (isDark ? 'border-blue-500/40 text-blue-300 bg-blue-500/10' : 'border-blue-300 text-blue-700 bg-blue-50')
+                : openCommentCount > 0
+                  ? (isDark ? 'border-blue-500/30 text-blue-300 hover:bg-blue-500/10' : 'border-blue-300 text-blue-700 hover:bg-blue-50')
+                  : (isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black')}`}>
+            <MessageSquare size={11} /> Kommentare{openCommentCount > 0 ? ` (${openCommentCount})` : ''}
+          </button>
+          <div className={`text-[11px] ${textMuted}`}>Stand: {fmtTimestamp(proj.updatedAt)}</div>
+        </div>
       </div>
 
       {/* Bearbeitungssperre */}
@@ -1452,8 +1623,11 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
           </div>
         </div>
         {/* Beschrieb über die gesamte Breite */}
-        <div className="mb-3">
-          <label className={`block text-[10px] uppercase tracking-wider mb-1 ${labelCls}`}>Beschrieb</label>
+        <div className={`mb-3 transition-colors ${anchorCls('project:description')}`} data-comment-target="project:description">
+          <div className="flex items-center gap-2 mb-1">
+            <label className={`block text-[10px] uppercase tracking-wider ${labelCls}`}>Beschrieb</label>
+            {bubble('project:description')}
+          </div>
           <textarea disabled={ro} value={proj.description ?? ''} rows={3}
             onChange={e => setField('description', e.target.value)}
             onFocus={autoGrow} onInput={autoGrow}
@@ -2019,6 +2193,17 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
           {toast}
         </div>
       )}
+    </div>
+
+    {/* Kommentar-Panel: Faden der aktiven Stelle bzw. Übersicht; bleibt beim Scrollen stehen */}
+    {commentsOpen && (
+      <CommentsPanel isDark={isDark} comments={comments} targets={commentTargets()}
+        active={commentTarget} showResolved={showResolved} onToggleResolved={setShowResolved}
+        onSelect={openCommentTarget} onClose={() => setCommentsOpen(false)}
+        canComment={canEdit} author={commentAuthor}
+        {...(authUser ? {} : { askName: { value: commentName, onChange: setCommentNameStored } })}
+        onAdd={addComment} onResolve={resolveComment} onDelete={deleteComment} />
+    )}
     </div>
   );
 }

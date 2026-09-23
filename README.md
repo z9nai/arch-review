@@ -59,7 +59,9 @@ Entwicklung: `?graph=http://localhost:3999/v1.0` leitet Graph auf einen Mock um.
 <geteilter Ordner>/
 ├── model.json              Stammdaten (Katalog), nur gelesen
 ├── projects/
-│   └── <slug>.json         eine Datei pro Projekt (Review-Zustand)
+│   ├── <slug>.json         eine Datei pro Projekt (Review-Zustand)
+│   ├── <slug>.lock.json    Bearbeitungssperre (Sidecar, temporär)
+│   └── <slug>.comments.json Kommentare zum Projekt (Sidecar)
 ├── factsheets/             Word-Vorgaben (nur verlinkt)
 └── projekte/               Word-Nachweise (nur verlinkt)
 ```
@@ -292,6 +294,37 @@ nachgeladen, im PDF auf die benutzten Zeichen reduziert); farbige Emoji
 ohne Entsprechung entfallen.
 
 ## Quellen
+
+## Kommentare
+
+Jede Antwort, die Bemerkungen eines Meilensteins, jeder Abnahme-Kontrollpunkt
+und der Beschrieb haben eine **Sprechblase**. Sie öffnet rechts ein
+Kommentar-Panel mit dem Faden dieser Stelle: neuer Kommentar, Antworten,
+**als erledigt markieren** (und wieder öffnen), löschen (Wurzelkommentar
+samt Antworten). Die Sprechblase zeigt die Zahl der offenen Kommentare;
+sind nur erledigte da, ein Häkchen. Der Button **«Kommentare»** in der
+Kopfzeile öffnet die Übersicht aller Stellen mit Kommentaren (gruppiert nach
+Meilenstein); «Alle durchgehen» bzw. die Pfeile ‹ › im Panel-Kopf springen
+in Dokumentreihenfolge von Stelle zu Stelle (nach der letzten wieder die
+erste) — der OnePager klappt das Thema auf, scrollt die Stelle vertikal in
+die Bildschirmmitte und markiert sie. «Erledigte einblenden» nimmt
+erledigte Fäden in Übersicht und Schrittfolge auf. Esc schliesst das Panel,
+Ctrl/Cmd+Enter sendet.
+
+Autor/in ist die angemeldete Person: **Kürzel** (z. B. «PM») als Chip mit
+`mailto:`-Link auf ihre E-Mail-Adresse, daneben Name und Zeitpunkt. Ohne
+Anmeldung (lokaler Ordner ohne Login-Pflicht) fragt das Panel einmalig nach
+einem Namen (im Browser gemerkt). Kommentieren, Erledigen und Löschen
+brauchen Reviewer- oder Admin-Rechte, Viewer lesen nur.
+
+Die Kommentare liegen in der Sidecar-Datei `projects/<slug>.comments.json`,
+**nicht** im Projekt-JSON: Kommentieren geht deshalb auch, während eine
+andere Person das Projekt bearbeitet (Sperre), läuft nicht über das
+Autosave des Projekts und geht bei einer Projektkopie nicht mit. Schreiben
+ist Lesen → Ändern → Schreiben mit ETag; bei gleichzeitigen Änderungen wird
+auf dem neuesten Stand wiederholt. Andere Sitzungen sehen neue Kommentare
+alle 30 s bzw. beim Tab-Fokus. Mit dem Projekt wird auch die Kommentar-Datei
+gelöscht.
 
 Am Projektende steht ein Abschnitt **«Quellen»**: Belege und
 Referenzdokumente (Prüfformulare, Factsheets, Word-Nachweise, …) lassen sich
