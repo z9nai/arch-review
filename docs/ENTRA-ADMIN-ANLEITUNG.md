@@ -122,6 +122,14 @@ Ein Ordner in einer SharePoint-Dokumentbibliothek (z. B. Teams-Team
 der Site: Admins und Reviewer **Bearbeiten**, Viewer **Lesen** — oder
 **Bearbeiten**, falls Viewer in der App kommentieren sollen (Kommentare sind
 Dateien im Ordner; die App hält Viewer am Review trotzdem auf Nur-Lesen).
+
+Der Unterordner `config/` (enthält die Stammdaten `model.json` inkl.
+Rollenkonfiguration) braucht **eigene Berechtigungen**: Vererbung beenden,
+nur Admins **Bearbeiten**, Reviewer und Viewer **Lesen**. Sonst könnte
+jede Person mit Schreibrecht im Ordner sich über die Datei selbst zum
+Admin machen. Anleitung: SHAREPOINT-SETUP.md, Teil 3b. Die App prüft das
+im Admin-Bereich («Sicherheit (Stammdaten)»).
+
 Den Link zum Ordner bitte ebenfalls zurückmelden.
 
 ## Schritt 7 · Rückmeldung

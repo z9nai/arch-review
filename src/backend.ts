@@ -1,7 +1,7 @@
 // Speicher-Backend: lokaler Ordner (File System Access API) oder
 // SharePoint-Ordner (Microsoft Graph). Der Store arbeitet nur über diese
 // Schnittstelle; Pfade sind relativ zum gewählten Ordner
-// (`model.json`, `projects/<slug>.json`).
+// (`config/model.json`, `projects/<slug>.json`).
 //
 // «version» ist ein opaker String für die Konflikterkennung: beim lokalen
 // Ordner lastModified, bei Graph das ETag.
@@ -12,6 +12,21 @@ export interface BlobReadResult { blob: Blob; version: string }
 export type WriteResult =
   | { ok: true; version: string }
   | { ok: false; reason: 'conflict' | 'exists' | 'forbidden' | 'error'; message: string; currentVersion?: string };
+
+// Berechtigungseintrag einer Datei/eines Ordners (nur SharePoint), auf das
+// Nötigste reduziert. key identifiziert die berechtigte Stelle über Dateien
+// hinweg (Gruppe/Person/Link), damit sich Ordner und Datei vergleichen lassen.
+export interface ItemPermission {
+  key: string;
+  name: string;
+  kind: 'siteGroup' | 'group' | 'user' | 'application' | 'link' | 'other';
+  roles: string[];          // Graph-Rollen, z. B. read / write / owner
+  inherited: boolean;       // vom übergeordneten Ordner geerbt
+  linkScope?: string;       // bei Freigabelinks: anonymous / organization / users
+}
+export type PermissionsResult =
+  | { ok: true; permissions: ItemPermission[] }
+  | { ok: false; reason: 'notFound' | 'forbidden' | 'error'; message: string };
 
 export interface StorageBackend {
   kind: 'local' | 'sharepoint';
@@ -28,6 +43,8 @@ export interface StorageBackend {
   ensureDir(dir: string): Promise<void>;
   /** Datei löschen; fehlt sie, ist das kein Fehler */
   delete(path: string, opts?: { keepalive?: boolean }): Promise<void>;
+  /** Berechtigungen einer Datei/eines Ordners ('' = gewählter Ordner) — nur SharePoint */
+  permissions?(path: string): Promise<PermissionsResult>;
 }
 
 // ── Lokaler Ordner ───────────────────────────────────────────────────────────

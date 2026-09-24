@@ -5,8 +5,8 @@ ohne Backend — die Daten liegen als JSON-Dateien in einem geteilten Ordner:
 entweder in **SharePoint** (direkt über Microsoft Graph mit der
 Entra-Anmeldung, jeder Browser) oder in einem **lokalen Ordner** (File System
 Access API, Chrome/Edge; auch OneDrive-/Drive-Sync-Ordner). Die App liest
-`model.json` (Stammdaten) und schreibt `projects/*.json`; Admins schreiben
-auch `model.json`.
+`config/model.json` (Stammdaten) und schreibt `projects/*.json`; Admins schreiben
+auch `config/model.json`.
 
 Gleiche Technologie und gleiches Design wie
 [z9nai-hours](https://github.com/z9nai/z9nai-hours):
@@ -25,7 +25,7 @@ npm run build      # tsc --noEmit && vite build
 Optional meldet die App Benutzer über **Microsoft Entra ID** an (MSAL im
 Browser, Authorization Code Flow + PKCE, kein eigener Server). Konfiguriert
 wird im **Admin → Anmeldung** (Tenant-ID, Client-ID, Rollen, aktiv);
-die Einstellung liegt als `auth` in der `model.json` und gilt für alle
+die Einstellung liegt als `auth` in der `config/model.json` und gilt für alle
 Benutzer des Ordners. Für den SharePoint-Modus müssen Tenant-/Client-ID
 schon vor dem Ordner bekannt sein — sie werden einmalig pro Browser
 hinterlegt: per **Einrichtungs-Link** (`?tenant=…&client=…&folder=…`,
@@ -58,7 +58,8 @@ Entwicklung: `?graph=http://localhost:3999/v1.0` leitet Graph auf einen Mock um.
 
 ```
 <geteilter Ordner>/
-├── model.json              Stammdaten (Katalog), nur gelesen
+├── config/
+│   └── model.json          Stammdaten (Katalog, Rollen) — in SharePoint nur Admins schreibbar
 ├── users.json              wer hier gearbeitet hat (Name, E-Mail) — für @-Erwähnungen
 ├── projects/
 │   ├── <slug>.json         eine Datei pro Projekt (Review-Zustand)
@@ -68,12 +69,22 @@ Entwicklung: `?graph=http://localhost:3999/v1.0` leitet Graph auf einen Mock um.
 └── projekte/               Word-Nachweise (nur verlinkt)
 ```
 
-Fehlen `model.json` oder `projects/` im gewählten Ordner, legt die App sie an
-(`model.json` mit dem Standard-Katalog aus `src/defaultModel.ts`). Eine
-vorhandene, aber defekte `model.json` wird nie überschrieben.
+Fehlen `config/model.json` oder `projects/` im gewählten Ordner, legt die App sie an
+(`config/model.json` mit dem Standard-Katalog aus `src/defaultModel.ts`). Eine
+vorhandene, aber defekte `model.json` wird nie überschrieben. Ältere Ordner
+mit `model.json` im Hauptordner funktionieren weiter (die App liest und
+schreibt sie dort), bis ein Admin sie nach `config/` verschiebt.
+
+**Sicherheit:** Die Rollen prüft die App nur im Browser, die Rollennamen
+stehen in der `model.json`. Deshalb bekommt `config/` in SharePoint eigene
+Berechtigungen (nur Admins schreiben) — [SHAREPOINT-SETUP.md, Teil
+3b](docs/SHAREPOINT-SETUP.md#teil-3b--stammdaten-schützen-config). Der
+Abschnitt **Admin → Sicherheit (Stammdaten)** vergleicht über Graph die
+Berechtigungen von Datenordner und `model.json` und warnt, wenn Reviewer
+sie ändern können. Echte Geheimnisse gehören nie in den Ordner.
 
 Zum Ausprobieren kann `sample-data/` als geteilter Ordner gewählt werden
-(enthält `model.json` und das Beispielprojekt «Core Datenbank Migration»).
+(enthält `config/model.json` und das Beispielprojekt «Core Datenbank Migration»).
 
 ## Fachregeln (V1)
 

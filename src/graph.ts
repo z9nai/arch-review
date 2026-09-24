@@ -1,7 +1,7 @@
 // SharePoint-Ordner über Microsoft Graph (delegiert, Token aus der
 // Entra-Anmeldung). Konflikterkennung über ETags (If-Match → 412),
 // Anlegen ohne Überschreiben über conflictBehavior=fail (→ 409).
-import type { BlobReadResult, FileInfo, ReadResult, StorageBackend, WriteResult } from './backend';
+import type { BlobReadResult, FileInfo, ItemPermission, PermissionsResult, ReadResult, StorageBackend, WriteResult } from './backend';
 
 export const GRAPH_SCOPES = ['Files.ReadWrite.All'];
 const DEFAULT_BASE = 'https://graph.microsoft.com/v1.0';
@@ -41,6 +41,36 @@ export async function resolveFolderLink(getToken: TokenProvider, link: string, b
   const driveId = item.parentReference?.driveId;
   if (!driveId || !item.id) throw new Error('Unerwartete Antwort von Microsoft Graph.');
   return { driveId, itemId: item.id, name: item.name ?? 'SharePoint-Ordner', webUrl: item.webUrl ?? link };
+}
+
+// Graph-Berechtigung → ItemPermission. SharePoint liefert Site-Gruppen
+// (Besitzer/Mitglieder/Besucher) als grantedToV2.siteGroup, Freigabelinks
+// mit link.scope; roles z. B. ['owner'] / ['write'] / ['read'].
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toItemPermission(p: any): ItemPermission {
+  const roles: string[] = Array.isArray(p?.roles) ? p.roles.map((r: unknown) => String(r).toLowerCase()) : [];
+  const inherited = !!p?.inheritedFrom;
+  if (p?.link) {
+    const scope = String(p.link.scope ?? 'users');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const who = (p.grantedToIdentitiesV2 ?? p.grantedToIdentities ?? []).map((g: any) =>
+      g?.user?.displayName ?? g?.siteUser?.displayName ?? g?.user?.email).filter(Boolean);
+    return {
+      key: `link:${p.id ?? p.link.webUrl ?? scope}`,
+      name: `Freigabelink (${scope === 'anonymous' ? 'jede Person mit dem Link' : scope === 'organization' ? 'ganze Organisation' : who.length ? who.join(', ') : 'bestimmte Personen'})`,
+      kind: 'link', roles, inherited, linkScope: scope,
+    };
+  }
+  const g = p?.grantedToV2 ?? p?.grantedTo ?? {};
+  const pick: [ItemPermission['kind'], unknown][] = [
+    ['siteGroup', g.siteGroup], ['group', g.group], ['user', g.user ?? g.siteUser], ['application', g.application],
+  ];
+  const [kind, principal] = pick.find(([, v]) => v) ?? ['other', null];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const pr = (principal ?? {}) as any;
+  const name = String(pr.displayName ?? pr.email ?? pr.loginName ?? pr.id ?? 'unbekannt');
+  const id = String(pr.id ?? pr.loginName ?? pr.email ?? name);
+  return { key: `${kind}:${id}`, name, kind, roles, inherited };
 }
 
 export class GraphBackend implements StorageBackend {
@@ -131,6 +161,30 @@ export class GraphBackend implements StorageBackend {
   async delete(path: string, opts: { keepalive?: boolean } = {}): Promise<void> {
     const res = await this.f(this.itemPath(path), { method: 'DELETE', keepalive: opts.keepalive === true });
     if (!res.ok && res.status !== 404) throw new Error(`Löschen fehlgeschlagen (HTTP ${res.status}).`);
+  }
+
+  async permissions(path: string): Promise<PermissionsResult> {
+    const item = path
+      ? `${this.itemPath(path)}:`
+      : `/drives/${enc(this.folder.driveId)}/items/${enc(this.folder.itemId)}`;
+    const out: ItemPermission[] = [];
+    let next: string | null = `${item}/permissions`;
+    try {
+      while (next) {
+        const res: Response = await this.f(next.startsWith('http') ? next.slice(this.base.length) : next);
+        if (res.status === 404) return { ok: false, reason: 'notFound', message: 'Datei nicht gefunden.' };
+        if (res.status === 403 || res.status === 401) {
+          return { ok: false, reason: 'forbidden', message: 'Berechtigungen nicht lesbar — nur Besitzer/innen der Site dürfen sie sehen.' };
+        }
+        if (!res.ok) return { ok: false, reason: 'error', message: `Berechtigungen konnten nicht gelesen werden (HTTP ${res.status}).` };
+        const page = await res.json();
+        for (const p of page.value ?? []) out.push(toItemPermission(p));
+        next = page['@odata.nextLink'] ?? null;
+      }
+    } catch (e) {
+      return { ok: false, reason: 'error', message: `Netzwerkfehler: ${e instanceof Error ? e.message : String(e)}` };
+    }
+    return { ok: true, permissions: out };
   }
 
   async ensureDir(dir: string): Promise<void> {

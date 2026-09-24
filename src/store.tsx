@@ -6,6 +6,7 @@ import { nowIsoWithTimezone, todayIso } from './util';
 import { LocalBackend, StorageBackend } from './backend';
 import { GRAPH_SCOPES, GraphBackend, resolveFolderLink, SharePointFolder } from './graph';
 import { PENDING_FOLDER_KEY, useAuth } from './auth';
+import { assessModelSecurity, LEGACY_MODEL_PATH, MODEL_PATH, SecurityReport } from './security';
 
 export interface ProjectListItem {
   slug: string;
@@ -49,6 +50,12 @@ export type DirectorySearchResult =
   | { ok: false; reason: 'noLogin' | 'consent' | 'forbidden' | 'error'; message: string };
 export const DIRECTORY_SCOPES = ['User.ReadBasic.All'];
 
+// Sicherheitscheck der Stammdaten: Bericht — oder warum keiner möglich ist
+// ('local' = lokaler Ordner, dort gelten die Rechte des Dateisystems)
+export type SecurityCheckResult =
+  | { ok: true; report: SecurityReport }
+  | { ok: false; reason: 'local' | 'forbidden' | 'error'; message: string };
+
 interface StoreCtx {
   isDark: boolean;
   toggleTheme: () => void;
@@ -66,7 +73,11 @@ interface StoreCtx {
   // Daten
   model: Model | null;
   modelError: string | null;
+  /** Pfad der geladenen Stammdaten: config/model.json oder (alt) model.json */
+  modelPath: string;
   saveModel: (m: Model) => Promise<{ ok: true } | { ok: false; message: string }>;
+  /** Admin: wer darf die model.json ändern? (SharePoint-Berechtigungen) */
+  checkModelSecurity: () => Promise<SecurityCheckResult>;
   projects: ProjectListItem[];
   refreshProjects: () => Promise<void>;
   loadProject: (slug: string) => Promise<{ data: Project; version: string } | null>;
@@ -257,6 +268,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [storage, setStorage] = useState<StorageInfo | null>(null);
   const [model, setModel] = useState<Model | null>(null);
   const [modelError, setModelError] = useState<string | null>(null);
+  const [modelPath, setModelPath] = useState(MODEL_PATH);
+  const modelPathRef = useRef(MODEL_PATH);
   const [projects, setProjects] = useState<ProjectListItem[]>([]);
   const [savedHandleName, setSavedHandleName] = useState<string | null>(null);
   const [savedSharePoint, setSavedSharePoint] = useState<SharePointFolder | null>(() => loadSharePoint());
@@ -271,9 +284,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const idsRef = useRef(auth.ids);
   idsRef.current = auth.ids;
 
+  // Stammdaten liegen in config/model.json — der Ordner config/ bekommt in
+  // SharePoint eigene Berechtigungen (nur Admins schreiben, siehe
+  // security.ts). Ältere Ordner haben die model.json noch im Hauptordner:
+  // dann wird sie dort gelesen und geschrieben, bis ein Admin sie verschiebt.
   const loadModel = useCallback(async (be: StorageBackend) => {
+    const usePath = (p: string) => { modelPathRef.current = p; setModelPath(p); };
     try {
-      const read = await be.read('model.json');
+      let read = await be.read(MODEL_PATH);
+      usePath(MODEL_PATH);
+      if (!read) {
+        read = await be.read(LEGACY_MODEL_PATH);
+        if (read) usePath(LEGACY_MODEL_PATH);
+      }
       if (!read) {
         // model.json fehlt → mit dem Standard-Katalog anlegen; Anmelde-IDs
         // und Standardrollen gleich eintragen, wenn bekannt (SharePoint-Modus)
@@ -281,29 +304,37 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         const fresh: Model = ids
           ? { ...DEFAULT_MODEL, auth: { enabled: false, tenantId: ids.tenantId, clientId: ids.clientId, adminRole: 'ArchReview.Admin', reviewerRole: 'ArchReview.Reviewer', viewerRole: 'ArchReview.Viewer' } }
           : DEFAULT_MODEL;
-        const w = await be.write('model.json', JSON.stringify(fresh, null, 2), { createOnly: true });
+        // Ordner vorab anlegen; fehlt das Schreibrecht, meldet es gleich write
+        try { await be.ensureDir('config'); } catch { /* s. u. */ }
+        const w = await be.write(MODEL_PATH, JSON.stringify(fresh, null, 2), { createOnly: true });
         if (!w.ok && w.reason !== 'exists') {
           setModel(null); modelRef.current = null;
           setModelError(w.reason === 'forbidden'
-            ? 'model.json fehlt und kann nicht angelegt werden (keine Schreibberechtigung).'
-            : 'model.json fehlt und konnte nicht angelegt werden.');
+            ? `${MODEL_PATH} fehlt und kann nicht angelegt werden (keine Schreibberechtigung).`
+            : `${MODEL_PATH} fehlt und konnte nicht angelegt werden.`);
           return;
         }
-        setModel(fresh); modelRef.current = fresh; setModelError(null);
-        return;
+        if (!w.ok) {
+          // gleichzeitig von jemand anderem angelegt → deren Stand laden
+          read = await be.read(MODEL_PATH);
+        } else {
+          setModel(fresh); modelRef.current = fresh; setModelError(null);
+          return;
+        }
       }
+      if (!read) throw new Error(`${MODEL_PATH} nicht gefunden.`);
       try {
         const m = normalizeModel(JSON.parse(read.text));
         setModel(m); modelRef.current = m; setModelError(null);
       } catch {
         // vorhandene, aber defekte Datei NICHT überschreiben
         setModel(null); modelRef.current = null;
-        setModelError('model.json ist unlesbar (kein gültiges JSON).');
+        setModelError(`${modelPathRef.current} ist unlesbar (kein gültiges JSON).`);
       }
     } catch (e) {
       console.error('[arch-review] loadModel:', e);
       setModel(null); modelRef.current = null;
-      setModelError(`model.json konnte nicht gelesen werden: ${e instanceof Error ? e.message : String(e)}`);
+      setModelError(`${modelPathRef.current} konnte nicht gelesen werden: ${e instanceof Error ? e.message : String(e)}`);
     }
   }, []);
 
@@ -809,7 +840,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return { ok: false as const, message: 'Kommentar konnte nicht gespeichert werden (gleichzeitige Änderungen) — bitte erneut versuchen.' };
   }, []);
 
-  // Admin-Modus: Stammdaten (Themen/Fragen) zurück in model.json schreiben
+  // Admin-Modus: Stammdaten (Themen/Fragen) zurück in die model.json schreiben
+  // (dorthin, wo sie geladen wurde)
   const saveModel = useCallback(async (m: Model): Promise<{ ok: true } | { ok: false; message: string }> => {
     const be = backendRef.current;
     if (!be) return { ok: false, message: 'Kein Ordner gewählt.' };
@@ -819,11 +851,34 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     } catch {
       return { ok: false, message: 'Stammdaten konnten nicht serialisiert werden.' };
     }
-    const w = await be.write('model.json', json);
-    if (!w.ok) return { ok: false, message: w.reason === 'forbidden' || w.reason === 'error' ? `model.json konnte nicht geschrieben werden: ${w.message}` : 'model.json konnte nicht geschrieben werden.' };
+    const path = modelPathRef.current;
+    const w = await be.write(path, json);
+    if (!w.ok) return { ok: false, message: w.reason === 'forbidden' || w.reason === 'error' ? `${path} konnte nicht geschrieben werden: ${w.message}` : `${path} konnte nicht geschrieben werden.` };
     setModel(m);
     modelRef.current = m;
     return { ok: true };
+  }, []);
+
+  // Admin: Berechtigungen der model.json mit denen des Datenordners vergleichen
+  const checkModelSecurity = useCallback(async (): Promise<SecurityCheckResult> => {
+    const be = backendRef.current;
+    if (!be) return { ok: false, reason: 'error', message: 'Kein Ordner gewählt.' };
+    if (!be.permissions) {
+      return { ok: false, reason: 'local', message: 'Lokaler Ordner: Wer die model.json ändern darf, bestimmen die Rechte des Dateisystems bzw. der Sync-Freigabe — keine automatische Prüfung.' };
+    }
+    const path = modelPathRef.current;
+    const [root, model, legacy] = await Promise.all([
+      be.permissions(''),
+      be.permissions(path),
+      path === MODEL_PATH ? be.permissions(LEGACY_MODEL_PATH) : Promise.resolve(null),
+    ]);
+    for (const r of [root, model]) {
+      if (!r.ok) return { ok: false, reason: r.reason === 'forbidden' ? 'forbidden' : 'error', message: r.message };
+    }
+    if (!root.ok || !model.ok) return { ok: false, reason: 'error', message: 'Berechtigungen konnten nicht gelesen werden.' };
+    // alte Datei im Hauptordner: existiert, wenn sich ihre Berechtigungen lesen lassen (404 = weg)
+    const legacyLeftover = !!legacy && (legacy.ok || legacy.reason !== 'notFound');
+    return { ok: true, report: assessModelSecurity({ modelPath: path, root: root.permissions, model: model.permissions, legacyLeftover }) };
   }, []);
 
   const toggleTheme = () => setIsDark(d => !d);
@@ -838,7 +893,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       isDark, toggleTheme, storage,
       pickDirectory, savedHandleName, reconnectDirectory,
       connectSharePoint, savedSharePoint, reconnectSharePoint, forgetSharePoint, disconnect,
-      model, modelError, saveModel,
+      model, modelError, modelPath, saveModel, checkModelSecurity,
       projects, refreshProjects, loadProject, saveProject, createProject, duplicateProject, deleteProject,
       uploadSourceFile, downloadSourceFile, deleteSourceFile,
       loadComments, updateComments,

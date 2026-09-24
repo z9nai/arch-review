@@ -1,6 +1,6 @@
 # SharePoint als gemeinsamer Ordner — Einrichtung (Testumgebung und Produktion)
 
-Die App kann ihre Daten (`model.json`, `projects/*.json`) direkt in einer
+Die App kann ihre Daten (`config/model.json`, `projects/*.json`) direkt in einer
 SharePoint-Dokumentbibliothek lesen und schreiben — über Microsoft Graph, mit
 dem Token der Entra-Anmeldung. Kein Sync-Client, keine Konfliktkopien,
 Berechtigungen werden von SharePoint pro Person durchgesetzt.
@@ -42,8 +42,9 @@ Ohne Teams: <https://<tenant>.sharepoint.com> → **Website erstellen →
 Teamwebsite**, Name `Architekturprüfung`, dann in **Dokumente** den Ordner
 `arch-review` anlegen und den Link kopieren.
 
-Die App legt `model.json` und den Unterordner `projects/` beim ersten
-Verbinden selbst an, falls sie fehlen.
+Die App legt `config/model.json` und den Unterordner `projects/` beim ersten
+Verbinden selbst an, falls sie fehlen. Danach dem Ordner `config/` eigene
+Berechtigungen geben (Teil 3b).
 
 ## Teil 3 · Berechtigungen = Zugriffsstufen
 
@@ -68,6 +69,67 @@ Websiteberechtigungen → Mitglieder hinzufügen → Websitebesucher**.
 Wer in SharePoint nur lesen darf, kann in der App nichts speichern — auch
 dann nicht, wenn die App-Rolle etwas anderes sagt. Wer in SharePoint gar
 keinen Zugriff hat, kann den Ordner nicht einmal öffnen.
+
+## Teil 3b · Stammdaten schützen (`config/`)
+
+**Warum:** Die App prüft die Rollen nur im Browser — und welche Entra-Rolle
+als Admin gilt, steht in der `model.json` selbst (`auth.adminRole` usw.).
+Wer die Datei ändern kann, kann also die Rollennamen leeren (dann ist jede
+angemeldete Person Admin), den Empfänger der Sicherheits-Übergabe
+(`handover.to`) auf sich umbiegen oder den Katalog verändern — direkt in
+SharePoint, an der App vorbei. Reviewer brauchen «Bearbeiten» im
+Datenordner (Projekte, Kommentare, `users.json`). Deshalb liegen die
+Stammdaten im Unterordner `config/` mit eigenen Berechtigungen:
+
+| Ordner | Admins | Reviewer | Viewer |
+|---|---|---|---|
+| `arch-review/` (Datenordner) | Bearbeiten | Bearbeiten | Lesen (Bearbeiten, wenn sie kommentieren sollen) |
+| `arch-review/config/` (`model.json`) | **Bearbeiten** / Vollzugriff | **Lesen** | **Lesen** |
+
+Alle brauchen mindestens «Lesen» auf `config/` — ohne die `model.json`
+startet die App nicht.
+
+**Einrichten** (neuer Ordner: `config/` hat die App schon angelegt, weiter
+bei 3; bestehender Ordner mit `model.json` im Hauptordner: ab 1):
+
+1. Im Datenordner **Neu → Ordner** → `config`.
+2. `model.json` markieren → **Verschieben nach** → `config`. (Verschieben
+   behält den Versionsverlauf.) Solange sie noch im Hauptordner liegt, liest
+   die App sie dort und warnt im Admin; liegen beide Dateien da, gilt
+   `config/model.json` — die alte im Hauptordner dann löschen. Während des
+   Verschiebens sollte niemand im Admin-Modus arbeiten.
+3. Ordner `config` → **… → Zugriff verwalten → Erweitert** (öffnet die
+   klassische Berechtigungsseite) → **Vererbung von Berechtigungen beenden**.
+4. Gruppe **Mitglieder** anhaken → **Berechtigungen bearbeiten** → nur
+   **Lesen**. **Besucher** bleiben bei **Lesen**, **Besitzer** bei
+   **Vollzugriff**. Bei einem Teams-Team heisst das: Admins sind
+   **Besitzer** des Teams, Reviewer **Mitglieder**. Admins, die keine
+   Besitzer sein sollen, einzeln mit **Bearbeiten** hinzufügen.
+5. Unter **Zugriff verwalten → Links** prüfen, dass es auf `config/` bzw.
+   der `model.json` keinen Freigabelink mit «Bearbeiten» gibt.
+6. In der App: **Admin → Sicherheit (Stammdaten) → Erneut prüfen**. Grün
+   heisst: Mindestens eine Gruppe, die im Datenordner schreiben darf, kann
+   die `model.json` nur lesen. Die Liste «Schreibberechtigt auf der
+   model.json» sollte nur Admins enthalten.
+7. Gegenprobe mit einem Reviewer-Konto: `config/model.json` in SharePoint
+   bearbeiten → muss scheitern.
+
+**Was der Check in der App prüft:** Er liest über Microsoft Graph die
+Berechtigungen des Datenordners und der `model.json` und vergleicht, wer
+jeweils schreiben darf. Rot, wenn beide gleich sind (nichts eingeschränkt)
+oder ein Bearbeitungslink für die ganze Organisation/anonym existiert; gelb,
+wenn die Datei noch im Hauptordner liegt, eine alte Kopie herumliegt oder
+jemand zwar den Datenordner, aber nicht die `model.json` sieht. Die
+Berechtigungen lesen dürfen nur Besitzer/innen der Site — sonst meldet der
+Check «nicht lesbar». Welche Gruppe in Entra welche App-Rolle hat, sieht
+der Check nicht; die Zuordnung Besitzer = Admin bleibt Aufgabe des Admins.
+
+**Echte Geheimnisse** (Passwörter, API-Keys, Client-Secrets, Webhook-URLs)
+gehören weder in die `model.json` noch in den Ordner: Die App ist eine reine
+Browser-App, alles was sie lädt, kann die angemeldete Person in den
+Entwicklertools sehen. Tenant- und Client-ID sind keine Geheimnisse. Braucht
+es später ein Secret, dann in einem Backend (z. B. Azure Function mit Key
+Vault), nie im Browser.
 
 ## Teil 4 · Entra: Graph-Berechtigung für die App
 
@@ -118,7 +180,7 @@ Tests mit `sample-data/`).
 **Für Admins:** Unter **Admin → Anmeldung → Für Benutzer** gibt es
 **«Einrichtungs-Link kopieren»** — mit verbundenem SharePoint-Ordner enthält
 der Link IDs und Ordner. Per Teams-Nachricht verteilen, fertig. Rollen und
-die Login-Pflicht für lokale Ordner stehen weiterhin in der `model.json`.
+die Login-Pflicht für lokale Ordner stehen weiterhin in der `config/model.json`.
 
 ## Typische Probleme
 
@@ -129,5 +191,8 @@ die Login-Pflicht für lokale Ordner stehen weiterhin in der `model.json`.
 | Popup «Teams-Benachrichtigung nicht möglich» | Teil 4: `Chat.Create` / `ChatMessage.Send` fehlen (Admin) oder die Person hat noch nicht zugestimmt; der Kommentar ist gespeichert, die Nachricht geht später raus |
 | «Link konnte nicht aufgelöst werden» | Link zeigt nicht auf einen Ordner, oder die Person hat keinen Zugriff auf die Site |
 | Speichern schlägt fehl (403) | Person hat in SharePoint nur Lesen (Teil 3) |
+| Admin: «config/model.json konnte nicht geschrieben werden» | Admin ist auf `config/` nicht Besitzer/Bearbeiten (Teil 3b, Schritt 4) |
+| App startet nicht: «config/model.json konnte nicht gelesen werden (HTTP 403)» | Person hat auf `config/` gar keinen Zugriff — mindestens «Lesen» geben (Teil 3b) |
+| Admin → Sicherheit: «Berechtigungen nicht lesbar» | Nur Site-Besitzer/innen dürfen Berechtigungen lesen — Admin als Besitzer eintragen |
 | Konflikt-Meldung in der App | Jemand anderes hat dieselbe Projektdatei gleichzeitig gespeichert — neu laden oder überschreiben (ETag-Prüfung) |
 | Testversion abgelaufen | SharePoint ist weg, Daten 30 Tage wiederherstellbar durch erneutes Lizenzieren |

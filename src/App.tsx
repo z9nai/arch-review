@@ -224,7 +224,7 @@ export default function App() {
                 Architekturprüfung
               </h1>
               <p className={`text-xs leading-relaxed mb-6 ${textMuted}`}>
-                Wo liegen <span className="font-semibold">model.json</span> und der Unterordner{' '}
+                Wo liegen <span className="font-semibold">config/model.json</span> und der Unterordner{' '}
                 <span className="font-semibold">projects/</span>? Fehlen sie, werden sie automatisch angelegt.
                 Kein eigener Server — die Daten bleiben im gewählten Ordner.
               </p>
@@ -347,7 +347,7 @@ export default function App() {
             </div>
             <p className={`text-[11px] leading-relaxed mb-3 ${textMuted}`}>
               Link zum Ordner aus SharePoint oder Teams einfügen (Ordner öffnen → «Link kopieren» bzw. die Adresse aus der
-              Browserzeile). In diesem Ordner liegen model.json und projects/ — fehlen sie, legt die App sie an.
+              Browserzeile). In diesem Ordner liegen config/model.json und projects/ — fehlen sie, legt die App sie an.
             </p>
             <input value={spLink} autoFocus disabled={spBusy}
               onChange={e => setSpLink(e.target.value)}

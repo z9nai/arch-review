@@ -9,6 +9,7 @@ import { CATALOG_QUESTIONS } from '../catalog';
 import { DEFAULT_HANDOVER_BODY, DEFAULT_HANDOVER_SUBJECT } from './OnePagerView';
 import { autoGrow, slugify } from '../util';
 import { GUID_RE, LEVEL_LABELS, setupLink, useAuth } from '../auth';
+import SecurityPanel from './SecurityPanel';
 
 function genId(): string {
   return 'q' + Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-4);
@@ -20,9 +21,9 @@ function themeLetter(index: number): string {
 
 // Admin-Modus: Themen (Titel + Info-Markdown, Nummerierung A–Z) und Fragen
 // (Text, Meilenstein- und Themen-Zuordnung, Nummer automatisch z. B. M10F1).
-// Schreibt in model.json im geteilten Ordner (Autosave).
+// Schreibt in die model.json im geteilten Ordner (config/model.json; Autosave).
 export default function AdminView({ onBack }: { onBack: () => void }) {
-  const { isDark, model, saveModel, storage } = useStore();
+  const { isDark, model, modelPath, saveModel, storage } = useStore();
   const [draft, setDraft] = useState<Model | null>(null);
   const [baseline, setBaseline] = useState('');
   const [openInfo, setOpenInfo] = useState<Set<string>>(new Set());
@@ -321,6 +322,9 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
         </div>
       </div>
 
+      {/* Wer darf die Stammdaten ändern? (SharePoint-Berechtigungen) */}
+      <SecurityPanel />
+
       {/* Firma: erscheint als Quelle bei eigenen Fragen */}
       <div className={`${cardCls} mb-8 px-4 py-3 flex items-center gap-3 flex-wrap`}>
         <label className={`text-[10px] uppercase tracking-wider ${labelCls}`}>Firma</label>
@@ -428,7 +432,7 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
                 </p>
                 <p>
                   Achtung: Mit falschen IDs sperrt man sich aus — dann <span className="font-mono">auth.enabled</span> in der
-                  model.json von Hand auf <span className="font-mono">false</span> setzen.
+                  {' '}<span className="font-mono">{modelPath}</span> von Hand auf <span className="font-mono">false</span> setzen.
                   {authStatus === 'signedIn' && authUser && (
                     <> Angemeldet als <span className="font-semibold">{authUser.name}</span> · Stufe:
                       {' '}<span className="font-semibold">{LEVEL_LABELS[authUser.level]}</span>
@@ -912,7 +916,7 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
                     : 'Keine Änderungen'}
           </div>
           <div className={`flex items-center gap-1.5 text-[11px] ${textMuted}`}>
-            <Save size={11} /> schreibt model.json
+            <Save size={11} /> schreibt {modelPath}
           </div>
         </div>
       </div>

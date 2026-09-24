@@ -12,15 +12,18 @@ mit MSAL im Browser (Authorization Code Flow + PKCE), ohne eigenen Server.
 - ✅ Drei Zugriffsstufen über App-Rollen: **Admin** (alles inkl.
   Stammdaten), **Reviewer** (Reviews bearbeiten, Projekte anlegen,
   importieren/exportieren), **Viewer** (alles nur lesen, PDFs exportieren).
-- ❌ Die Anmeldung schützt **nicht die Daten**: `model.json` und die
+- ❌ Die Anmeldung schützt **nicht die Daten**: `config/model.json` und die
   Projektdateien liegen im geteilten Ordner — deren Berechtigung (SharePoint/
   Google Drive/Netzlaufwerk) entscheidet, wer lesen und schreiben darf. Die
-  App hat kein Backend, das Zugriffe prüfen könnte.
+  App hat kein Backend, das Zugriffe prüfen könnte. Weil auch die
+  Rollennamen in der `model.json` stehen, dürfen nur Admins sie ändern
+  können: eigener Ordner `config/` mit Schreibrecht nur für Admins —
+  [SHAREPOINT-SETUP.md, Teil 3b](SHAREPOINT-SETUP.md#teil-3b--stammdaten-schützen-config).
 
 Benötigt werden am Ende genau **zwei IDs** (keine Geheimnisse): die
 **Verzeichnis-ID (Tenant)** und die **Anwendungs-ID (Client)**. Diese werden
 in der App unter **Admin → Anmeldung (Microsoft Entra ID)** eingetragen und
-landen in der `model.json` des geteilten Ordners — sie gelten damit für alle
+landen in der `config/model.json` des geteilten Ordners — sie gelten damit für alle
 Benutzer dieses Ordners.
 
 ---
@@ -66,7 +69,7 @@ braucht sie nicht.
 | Berechtigung | Wofür | Funktion in der App | Admin-Zustimmung | Wenn sie fehlt |
 |---|---|---|---|---|
 | `openid`, `profile`, `email` (in *User.Read* enthalten, Standard) | Anmeldung; Name, E-Mail und App-Rollen aus dem ID-Token | Login-Gate, Zugriffsstufe, Name oben rechts, Kürzel in Kommentaren, Vorbelegung «Prüfer/in» | nein | keine Anmeldung möglich |
-| `Files.ReadWrite.All` | Dateien lesen/schreiben, die die Person in SharePoint ohnehin sieht | **SharePoint-Modus**: `model.json`, `projects/`, Sperren, Kommentare, Quellen, `users.json` | empfohlen (laut Graph nicht zwingend; viele Tenants verbieten aber die Benutzerzustimmung → `AADSTS65001`) | nur lokaler Ordner möglich |
+| `Files.ReadWrite.All` | Dateien lesen/schreiben, die die Person in SharePoint ohnehin sieht | **SharePoint-Modus**: `config/model.json`, `projects/`, Sperren, Kommentare, Quellen, `users.json`; Admin: Berechtigungen von Ordner und `model.json` lesen (Sicherheitscheck) | empfohlen (laut Graph nicht zwingend; viele Tenants verbieten aber die Benutzerzustimmung → `AADSTS65001`) | nur lokaler Ordner möglich |
 | `User.ReadBasic.All` | Name und E-Mail der Personen im Tenant lesen — mehr nicht | **@-Erwähnungen**: Entra-Suche beim Tippen von «@» in einem Kommentar | nein — jede Person stimmt beim ersten «@» selbst zu (Popup «Berechtigung erteilen») | «@» schlägt nur Personen vor, die im Ordner schon gearbeitet oder kommentiert haben (`users.json`); einmal pro Sitzung ein Hinweis-Popup |
 | `Chat.Create`, `ChatMessage.Send` | 1:1-Chat mit einer Person anlegen, Nachricht darin senden — im Namen der Person | **Teams-Benachrichtigung** bei @-Erwähnung und bei Antworten auf den eigenen Kommentar (Admin → Benachrichtigungen) | nein — Zustimmung beim ersten Versand (Popup) | Kommentar bleibt gespeichert, Benachrichtigung bleibt «ausstehend» und wird nachgeholt, sobald die Berechtigung da ist |
 
@@ -112,6 +115,7 @@ gesetzt, erhalten Personen ohne passende Rolle **keinen Zugriff** (Meldung
 | Teams-Benachrichtigung auslösen (aus dem eigenen Konto) | ✓ | ✓ | ✓ |
 | Admin-Modus: Themen, Fragen, Klassifikation, Kontrollpunkte, Anmeldung, Übergabe, Benachrichtigungen, Briefpapier | ✓ | – | – |
 | **SharePoint-Berechtigung auf dem Ordner** (Teil 3 in SHAREPOINT-SETUP.md) | Bearbeiten | Bearbeiten | Lesen ¹ |
+| **SharePoint-Berechtigung auf `config/`** (Teil 3b) | Bearbeiten | **Lesen** | Lesen |
 
 ¹ Kommentare liegen als Datei im Ordner (`projects/<slug>.comments.json`).
 Eine Viewerin mit **Lesen** in SharePoint kann deshalb nicht kommentieren
@@ -124,7 +128,7 @@ Welche Dateien die App im Namen welcher Rolle schreibt:
 
 | Datei | Wer schreibt |
 |---|---|
-| `model.json` | Admin (Admin-Modus) |
+| `config/model.json` | Admin (Admin-Modus) — in SharePoint nur für Admins schreibbar (Teil 3b) |
 | `projects/<slug>.json`, `projects/<slug>.lock.json`, `projects/<slug>/sources/*` | Admin, Reviewer |
 | `projects/<slug>.comments.json` | alle, die kommentieren (auch Viewer, s. o.) |
 | `users.json` | jede angemeldete Person beim Öffnen des Ordners (ohne Schreibrecht still übersprungen) |
@@ -172,7 +176,7 @@ App öffnen → geteilten Ordner wählen → **Admin** → Abschnitt
   `ArchReview.Viewer`).
 - **Anmeldung aktiv** anhaken — das geht erst, wenn beide IDs gültig sind.
 
-Der Autosave schreibt die Einstellung als `auth` in die `model.json`; sie
+Der Autosave schreibt die Einstellung als `auth` in die `config/model.json`; sie
 gilt sofort (das Login-Gate erscheint direkt) und für alle, die diesen
 Ordner verwenden. Der Abschnitt zeigt auch die Umleitungs-URIs an, die in
 A1/A2 eingetragen sein müssen, und — wenn angemeldet — die Rollen aus dem
@@ -197,8 +201,8 @@ Anmeldung → Für Benutzer; enthält auch den Ordner).
 
 - Entwicklung: `http://localhost:3001/arch-review/?noauth` (nur im
   Dev-Server) → Admin → Anmeldung deaktivieren oder IDs korrigieren.
-- Produktion: in der `model.json` des geteilten Ordners `"auth": { "enabled":
-  false, … }` setzen — die Datei ist ja direkt zugänglich.
+- Produktion: in der `config/model.json` des geteilten Ordners `"auth": { "enabled":
+  false, … }` setzen — als Besitzer/in der Site ist die Datei direkt zugänglich.
 
 ## Portal auf Englisch — die Stationen
 
@@ -234,7 +238,7 @@ nennen noch «Identity → Applications → …» — gemeint ist dasselbe.
 | Viewer kann nicht kommentieren (403) | SharePoint-Berechtigung «Lesen» — siehe Fussnote ¹ in A4. |
 | Admin-Button fehlt trotz Rolle / falsche Stufe | Rolle in A5 der Person zugewiesen? Rollenfeld im Admin = **Wert** der Rolle (A4)? Einmal ab- und wieder anmelden (Rollen stehen im ID-Token). Der Admin-Abschnitt zeigt die Token-Rollen und die erkannte Stufe. |
 | «Keine Berechtigung für diese App» | Angemeldet, aber keine der drei Rollen zugewiesen (A5). |
-| «Tenant-ID/Client-ID sind keine gültigen IDs» | `auth` in der model.json von Hand unvollständig editiert — im Admin korrigieren (oder `enabled: false`). |
+| «Tenant-ID/Client-ID sind keine gültigen IDs» | `auth` in der config/model.json von Hand unvollständig editiert — im Admin korrigieren (oder `enabled: false`). |
 
 ## Technische Notizen
 
