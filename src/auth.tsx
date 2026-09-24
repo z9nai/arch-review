@@ -59,6 +59,11 @@ interface AuthContextValue {
   logout: () => Promise<void>;
   /** Access-Token für die angegebenen Scopes (still, sonst Redirect) */
   getToken: (scopes: string[]) => Promise<string>;
+  /** Wie getToken, aber NIE ein Redirect: 'interaction' = Zustimmung fehlt (per
+   *  requestConsent nachholbar), 'noAccount' = nicht angemeldet */
+  tryToken: (scopes: string[]) => Promise<{ ok: true; token: string } | { ok: false; reason: 'noAccount' | 'interaction' | 'error'; message: string }>;
+  /** Zustimmung für zusätzliche Scopes interaktiv einholen (Redirect, Seite lädt neu) */
+  requestConsent: (scopes: string[]) => Promise<void>;
   /** Konfiguration aus der model.json übernehmen (beim Laden und nach Admin-Änderungen) */
   applyConfig: (cfg: AuthSettings | null | undefined) => void;
 }
@@ -337,11 +342,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const tryToken = useCallback(async (scopes: string[]) => {
+    if (devBypass()) return { ok: false as const, reason: 'noAccount' as const, message: 'Entwicklung ohne Anmeldung.' };
+    const pca = pcaRef.current;
+    const account = pca?.getActiveAccount() ?? accountRef.current;
+    if (!pca || !account) return { ok: false as const, reason: 'noAccount' as const, message: 'Nicht angemeldet.' };
+    try {
+      const res = await pca.acquireTokenSilent({ scopes, account });
+      return { ok: true as const, token: res.accessToken };
+    } catch (e) {
+      const code = (e as { errorCode?: string })?.errorCode ?? '';
+      const name = e instanceof Error ? e.name : '';
+      const interaction = name === 'InteractionRequiredAuthError' || /interaction_required|consent_required|invalid_grant/i.test(code);
+      return { ok: false as const, reason: interaction ? 'interaction' as const : 'error' as const, message: e instanceof Error ? e.message : String(e) };
+    }
+  }, []);
+
+  const requestConsent = useCallback(async (scopes: string[]) => {
+    const pca = pcaRef.current;
+    const account = pca?.getActiveAccount() ?? accountRef.current;
+    if (!pca || !account) return;
+    await pca.acquireTokenRedirect({ scopes, account, loginHint: account.username });
+  }, []);
+
   const ids = effectiveIds(config);
   const loginAvailable = !!ids;
 
   return (
-    <AuthContext.Provider value={{ status, user, error, config, loginAvailable, ids, setLocalIds, login, loginForSharePoint, logout, getToken, applyConfig }}>
+    <AuthContext.Provider value={{ status, user, error, config, loginAvailable, ids, setLocalIds, login, loginForSharePoint, logout, getToken, tryToken, requestConsent, applyConfig }}>
       {children}
     </AuthContext.Provider>
   );

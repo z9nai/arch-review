@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Plus, RefreshCw, ChevronRight, FileUp, Lock, Copy, Trash2 } from 'lucide-react';
+import { Plus, RefreshCw, ChevronRight, FileUp, Lock, Copy, Trash2, MessageSquare, Search, X } from 'lucide-react';
 import { useStore } from '../store';
 import { deriveStatus, openMilestone, STATUS_META } from '../status';
 import { extractPdfText, hasMs10Data, Ms10Data, parseMs10Text } from '../ms10';
@@ -19,8 +19,10 @@ export default function ProjectsView({ onOpen }: { onOpen: (slug: string) => voi
   const { isDark, model, projects, refreshProjects, createProject, duplicateProject, deleteProject } = useStore();
   const { canEdit } = usePermissions();
 
-  // Liste aktuell halten (Sperren, fremde Änderungen): bei Tab-Fokus und jede Minute
+  // Liste aktuell halten (Sperren, Kommentare, fremde Änderungen): beim
+  // Öffnen der Liste, bei Tab-Fokus und jede Minute
   useEffect(() => {
+    void refreshProjects();
     const t = setInterval(() => { void refreshProjects(); }, 60_000);
     const onVis = () => { if (document.visibilityState === 'visible') void refreshProjects(); };
     document.addEventListener('visibilitychange', onVis);
@@ -36,6 +38,17 @@ export default function ProjectsView({ onOpen }: { onOpen: (slug: string) => voi
   const [dupSource, setDupSource] = useState<string | null>(null); // Slug des zu kopierenden Projekts
   const [listErr, setListErr] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
+  // Suche nach Projekttitel: filtert die Liste live; ab 2 Zeichen zusätzlich
+  // eine Vorschlagsliste (Pfeiltasten/Enter öffnen das Projekt, Esc leert)
+  const [query, setQuery] = useState('');
+  const [suggestOpen, setSuggestOpen] = useState(false);
+  const [suggestSel, setSuggestSel] = useState(0);
+  const q = query.trim().toLowerCase();
+  const matches = (p: { slug: string; data: { name: string } }) =>
+    !q || (p.data.name || p.slug).toLowerCase().includes(q) || p.slug.toLowerCase().includes(q);
+  const visibleProjects = projects.filter(matches);
+  const suggestions = q.length >= 2 ? visibleProjects.slice(0, 8) : [];
+  useEffect(() => { setSuggestSel(0); }, [q]);
 
   const border = isDark ? 'border-white/8' : 'border-black/8';
   const textMuted = isDark ? 'text-white/30' : 'text-black/30';
@@ -123,6 +136,43 @@ export default function ProjectsView({ onOpen }: { onOpen: (slug: string) => voi
       <div className="flex items-center justify-between mb-6">
         <h2 className={`text-sm font-semibold uppercase tracking-widest ${isDark ? 'text-white/50' : 'text-black/50'}`}>Projekte</h2>
         <div className="flex items-center gap-2">
+          {/* Suche nach Titel mit Vorschlägen */}
+          <div className="relative">
+            <div className={`flex items-center gap-1.5 px-2 rounded border transition-colors ${inputCls}`}>
+              <Search size={11} className={textMuted} />
+              <input value={query} placeholder="Projekt suchen …"
+                onChange={e => { setQuery(e.target.value); setSuggestOpen(true); }}
+                onFocus={() => setSuggestOpen(true)}
+                onBlur={() => setTimeout(() => setSuggestOpen(false), 150)}
+                onKeyDown={e => {
+                  if (e.key === 'Escape') { setQuery(''); setSuggestOpen(false); return; }
+                  if (!suggestions.length) return;
+                  if (e.key === 'ArrowDown') { e.preventDefault(); setSuggestSel(s => Math.min(s + 1, suggestions.length - 1)); }
+                  else if (e.key === 'ArrowUp') { e.preventDefault(); setSuggestSel(s => Math.max(s - 1, 0)); }
+                  else if (e.key === 'Enter') { e.preventDefault(); onOpen(suggestions[suggestSel].slug); }
+                }}
+                className="w-44 text-xs py-1.5 bg-transparent outline-none placeholder:opacity-60" />
+              {query && (
+                <button onClick={() => setQuery('')} title="Suche leeren"
+                  className={`p-0.5 rounded transition-colors ${isDark ? 'text-white/30 hover:text-white/70' : 'text-black/30 hover:text-black/70'}`}>
+                  <X size={10} />
+                </button>
+              )}
+            </div>
+            {suggestOpen && q.length >= 2 && (
+              <div className={`absolute right-0 mt-1 w-80 z-20 rounded border shadow-lg overflow-hidden ${isDark ? 'bg-neutral-900 border-white/15' : 'bg-white border-black/15'}`}>
+                {suggestions.length === 0 ? (
+                  <p className={`px-3 py-2 text-[11px] ${textMuted}`}>Kein Projekt passt zu «{query.trim()}».</p>
+                ) : suggestions.map((p, i) => (
+                  <button key={p.slug} type="button" onMouseDown={e => { e.preventDefault(); onOpen(p.slug); }}
+                    className={`w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors ${i === suggestSel ? (isDark ? 'bg-white/10' : 'bg-black/5') : ''}`}>
+                    <span className={`text-xs truncate ${isDark ? 'text-white/85' : 'text-black/85'}`}>{p.data.name || p.slug}</span>
+                    <span className={`ml-auto text-[10px] truncate flex-shrink-0 ${textMuted}`}>{p.slug}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <button onClick={refreshProjects} title="Liste neu laden"
             className={`p-1.5 rounded transition-colors ${isDark ? 'text-white/25 hover:text-white/70' : 'text-black/25 hover:text-black/70'}`}>
             <RefreshCw size={12} />
@@ -197,9 +247,12 @@ export default function ProjectsView({ onOpen }: { onOpen: (slug: string) => voi
       {projects.length === 0 && !adding && (
         <p className={`text-sm ${textMuted}`}>Noch keine Projekte im Ordner projects/.</p>
       )}
+      {projects.length > 0 && visibleProjects.length === 0 && (
+        <p className={`text-sm ${textMuted}`}>Kein Projekt passt zu «{query.trim()}».</p>
+      )}
 
       <div className="space-y-3">
-        {projects.map(p => {
+        {visibleProjects.map(p => {
           const status = deriveStatus(p.data);
           const ms = status === 'open' ? openMilestone(p.data) : null;
           const lockedByOther = !!p.lock;
@@ -215,6 +268,12 @@ export default function ProjectsView({ onOpen }: { onOpen: (slug: string) => voi
                     {ms && (
                       <span className={`inline-block text-[10px] px-2 py-0.5 rounded-full border whitespace-nowrap ${isDark ? 'bg-amber-500/15 text-amber-300 border-amber-500/30' : 'bg-amber-50 text-amber-700 border-amber-300'}`}>
                         {ms} offen
+                      </span>
+                    )}
+                    {!!p.openComments && (
+                      <span title={`${p.openComments} offene${p.openComments === 1 ? 'r Kommentar' : ' Kommentare'}`}
+                        className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border whitespace-nowrap ${isDark ? 'bg-blue-500/15 text-blue-300 border-blue-500/30' : 'bg-blue-50 text-blue-700 border-blue-300'}`}>
+                        <MessageSquare size={9} /> {p.openComments}
                       </span>
                     )}
                     {p.lock && (

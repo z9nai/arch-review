@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { Comment, CommentsFile, Model, Project, Review } from './types';
+import { Comment, CommentsFile, DirectoryUser, Model, Project, Review, UsersFile } from './types';
 import { DEFAULT_MODEL } from './defaultModel';
 import { applyMs10, Ms10Data } from './ms10';
 import { nowIsoWithTimezone, todayIso } from './util';
@@ -12,6 +12,7 @@ export interface ProjectListItem {
   data: Project;
   version: string;
   lock?: ProjectLock; // gültige Bearbeitungssperre einer anderen Person/Sitzung
+  openComments?: number; // offene Kommentar-Fäden (aus projects/<slug>.comments.json)
 }
 
 // Bearbeitungssperre (Lease): gilt bis «letzte Änderung + LOCK_LEASE_MS»,
@@ -38,6 +39,15 @@ export type SaveResult =
   | { status: 'error'; message: string };
 
 export interface StorageInfo { kind: 'local' | 'sharepoint'; name: string; webUrl?: string }
+
+// Entra-Suche: Treffer — oder warum sie nicht möglich ist. 'consent' lässt
+// sich per requestDirectoryConsent nachholen; 'forbidden' = die Berechtigung
+// User.ReadBasic.All fehlt in der App-Registrierung (Admin in Entra);
+// 'noLogin' = keine Anmeldung (lokaler Ordner ohne Login).
+export type DirectorySearchResult =
+  | { ok: true; users: DirectoryUser[] }
+  | { ok: false; reason: 'noLogin' | 'consent' | 'forbidden' | 'error'; message: string };
+export const DIRECTORY_SCOPES = ['User.ReadBasic.All'];
 
 interface StoreCtx {
   isDark: boolean;
@@ -77,6 +87,12 @@ interface StoreCtx {
   // Schreiben mit ETag; bei Konflikt wird auf dem neuesten Stand wiederholt)
   loadComments: (slug: string) => Promise<Comment[]>;
   updateComments: (slug: string, mutate: (prev: Comment[]) => Comment[]) => Promise<{ ok: true; comments: Comment[] } | { ok: false; message: string }>;
+  // Personen für @-Erwähnungen: users.json im geteilten Ordner (jede
+  // angemeldete Person trägt sich beim Öffnen ein) und Entra-Suche über Graph
+  knownUsers: DirectoryUser[];
+  searchDirectory: (query: string) => Promise<DirectorySearchResult>;
+  /** Zustimmung für die Entra-Suche einholen (Redirect) */
+  requestDirectoryConsent: () => Promise<void>;
   // Bearbeitungssperre
   sessionId: string;
   readLock: (slug: string) => Promise<ProjectLock | null>;
@@ -218,6 +234,15 @@ function parseLock(text: string): ProjectLock | null {
 export const lockValid = (l: ProjectLock | null | undefined): l is ProjectLock =>
   !!l && Date.parse(l.until) > Date.now();
 
+function parseComments(text: string): Comment[] {
+  try {
+    const f = JSON.parse(text) as Partial<CommentsFile>;
+    return Array.isArray(f?.comments) ? f.comments.filter(c => c && typeof c.id === 'string' && typeof c.target === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
 function parseProject(text: string, version: string): { data: Project; version: string } | null {
   try {
     return { data: JSON.parse(text) as Project, version };
@@ -235,11 +260,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [projects, setProjects] = useState<ProjectListItem[]>([]);
   const [savedHandleName, setSavedHandleName] = useState<string | null>(null);
   const [savedSharePoint, setSavedSharePoint] = useState<SharePointFolder | null>(() => loadSharePoint());
+  const [knownUsers, setKnownUsers] = useState<DirectoryUser[]>([]);
   const backendRef = useRef<StorageBackend | null>(null);
   const modelRef = useRef<Model | null>(null);
   const savedHandleRef = useRef<FileSystemDirectoryHandle | null>(null);
   const getTokenRef = useRef(auth.getToken);
   getTokenRef.current = auth.getToken;
+  const authRef = useRef(auth);
+  authRef.current = auth;
   const idsRef = useRef(auth.ids);
   idsRef.current = auth.ids;
 
@@ -284,11 +312,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     try {
       const files = await be.list('projects');
       const locks = new Map<string, ProjectLock>();
+      const openComments = new Map<string, number>();
       for (const f of files) {
-        if (!f.name.endsWith('.lock.json')) continue;
-        const read = await be.read(`projects/${f.name}`);
-        const l = read ? parseLock(read.text) : null;
-        if (lockValid(l) && l.session !== sessionId()) locks.set(f.name.replace(/\.lock\.json$/, ''), l);
+        if (f.name.endsWith('.lock.json')) {
+          const read = await be.read(`projects/${f.name}`);
+          const l = read ? parseLock(read.text) : null;
+          if (lockValid(l) && l.session !== sessionId()) locks.set(f.name.replace(/\.lock\.json$/, ''), l);
+        } else if (f.name.endsWith('.comments.json')) {
+          // offene Fäden = Wurzelkommentare ohne «erledigt»
+          const read = await be.read(`projects/${f.name}`);
+          const cs = read ? parseComments(read.text) : [];
+          openComments.set(f.name.replace(/\.comments\.json$/, ''), cs.filter(c => !c.parentId && c.resolved !== true).length);
+        }
       }
       for (const f of files) {
         if (!f.name.endsWith('.json') || f.name.endsWith('.lock.json') || f.name.endsWith('.comments.json')) continue;
@@ -298,7 +333,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         if (!p) continue;
         const slug = f.name.replace(/\.json$/, '');
         const lock = locks.get(slug);
-        items.push({ slug, ...p, ...(lock ? { lock } : {}) });
+        const open = openComments.get(slug) ?? 0;
+        items.push({ slug, ...p, ...(lock ? { lock } : {}), ...(open ? { openComments: open } : {}) });
       }
     } catch (e) {
       console.error('[arch-review] refreshProjects:', e);
@@ -311,15 +347,99 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (backendRef.current) await refreshProjectsIn(backendRef.current);
   }, [refreshProjectsIn]);
 
+  // ── users.json: wer arbeitet in diesem Ordner (für @-Erwähnungen) ──────────
+  const parseUsers = (text: string): DirectoryUser[] => {
+    try {
+      const f = JSON.parse(text) as Partial<UsersFile>;
+      return Array.isArray(f?.users) ? f.users.filter(u => u && typeof u.email === 'string' && typeof u.name === 'string') : [];
+    } catch {
+      return [];
+    }
+  };
+  const loadUsersIn = useCallback(async (be: StorageBackend) => {
+    try {
+      const read = await be.read('users.json');
+      setKnownUsers(read ? parseUsers(read.text) : []);
+    } catch {
+      setKnownUsers([]);
+    }
+  }, []);
+  // Angemeldete Person eintragen bzw. «zuletzt gesehen» nachziehen (ETag,
+  // bei Konflikt wiederholen; ohne Schreibrecht still überspringen)
+  const registerUser = useCallback(async (be: StorageBackend, u: { name: string; email: string }) => {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      let cur: { text: string; version: string } | null = null;
+      try { cur = await be.read('users.json'); } catch { return; }
+      const prev = cur ? parseUsers(cur.text) : [];
+      const me = { name: u.name, email: u.email, lastSeen: nowIsoWithTimezone() };
+      const users = [...prev.filter(x => x.email.toLowerCase() !== u.email.toLowerCase()), { ...(prev.find(x => x.email.toLowerCase() === u.email.toLowerCase()) ?? {}), ...me }]
+        .sort((a, b) => a.name.localeCompare(b.name, 'de'));
+      const file: UsersFile = { version: 1, users };
+      const w = await be.write('users.json', JSON.stringify(file, null, 2), cur ? { ifMatch: cur.version } : { createOnly: true });
+      if (w.ok) { setKnownUsers(users); return; }
+      if (w.reason !== 'conflict' && w.reason !== 'exists') return;
+    }
+  }, []);
+  const registeredRef = useRef('');
+  useEffect(() => {
+    const be = backendRef.current;
+    const u = auth.user;
+    if (!storage || !be || !u?.email) return;
+    const key = `${storage.kind}:${storage.name}:${u.email}`;
+    if (registeredRef.current === key) return;
+    registeredRef.current = key;
+    void registerUser(be, { name: u.name, email: u.email });
+  }, [storage, auth.user, registerUser]);
+
+  // Entra-Suche (Graph /users?$search) — nur mit Anmeldung; Zustimmung zu
+  // User.ReadBasic.All holt sich jede Person selbst (requestDirectoryConsent)
+  const searchDirectory = useCallback(async (query: string): Promise<DirectorySearchResult> => {
+    const q = query.trim().replace(/"/g, '');
+    if (!q) return { ok: true, users: [] };
+    // Entwicklung: ?dirfail=consent|forbidden simuliert eine fehlende Berechtigung
+    const simulate = import.meta.env.DEV ? new URLSearchParams(location.search).get('dirfail') : null;
+    if (simulate === 'consent') return { ok: false, reason: 'consent', message: 'Für die Suche im Verzeichnis fehlt noch deine Zustimmung zur Berechtigung «Grundlegende Profile aller Benutzer lesen» (User.ReadBasic.All).' };
+    if (simulate === 'forbidden') return { ok: false, reason: 'forbidden', message: 'Microsoft Graph verweigert die Benutzersuche: Die Berechtigung User.ReadBasic.All fehlt in der App-Registrierung (Entra → App-Registrierungen → API-Berechtigungen).' };
+    const t = await authRef.current.tryToken(DIRECTORY_SCOPES);
+    if (!t.ok) {
+      if (t.reason === 'noAccount') return { ok: false, reason: 'noLogin', message: 'Keine Anmeldung — die Entra-Suche steht nur mit Microsoft-Anmeldung zur Verfügung.' };
+      if (t.reason === 'interaction') return { ok: false, reason: 'consent', message: 'Für die Suche im Verzeichnis fehlt noch deine Zustimmung zur Berechtigung «Grundlegende Profile aller Benutzer lesen» (User.ReadBasic.All).' };
+      return { ok: false, reason: 'error', message: t.message };
+    }
+    const base = graphBase() ?? 'https://graph.microsoft.com/v1.0';
+    const search = encodeURIComponent(`"displayName:${q}" OR "mail:${q}" OR "userPrincipalName:${q}"`);
+    try {
+      const res = await fetch(`${base}/users?$search=${search}&$select=displayName,mail,userPrincipalName&$top=8`, {
+        headers: { Authorization: `Bearer ${t.token}`, ConsistencyLevel: 'eventual' },
+      });
+      if (res.status === 403 || res.status === 401) {
+        return { ok: false, reason: 'forbidden', message: 'Microsoft Graph verweigert die Benutzersuche: Die Berechtigung User.ReadBasic.All fehlt in der App-Registrierung (Entra → App-Registrierungen → API-Berechtigungen).' };
+      }
+      if (!res.ok) return { ok: false, reason: 'error', message: `Benutzersuche fehlgeschlagen (HTTP ${res.status}).` };
+      const data = await res.json();
+      const users: DirectoryUser[] = (data.value ?? [])
+        .map((u: { displayName?: string; mail?: string; userPrincipalName?: string }) => ({
+          name: String(u.displayName ?? '').trim(), email: String(u.mail ?? u.userPrincipalName ?? '').trim(),
+        }))
+        .filter((u: DirectoryUser) => u.name && u.email);
+      return { ok: true, users };
+    } catch (e) {
+      return { ok: false, reason: 'error', message: e instanceof Error ? e.message : String(e) };
+    }
+  }, []);
+  const requestDirectoryConsent = useCallback(() => authRef.current.requestConsent(DIRECTORY_SCOPES), []);
+
   const activate = useCallback(async (be: StorageBackend, info: StorageInfo) => {
     backendRef.current = be;
+    registeredRef.current = '';
     setStorage(info);
     setSavedHandleName(null);
     savedHandleRef.current = null;
     await loadModel(be);
+    await loadUsersIn(be);
     try { await be.ensureDir('projects'); } catch { /* readonly? Liste bleibt leer */ }
     await refreshProjectsIn(be);
-  }, [loadModel, refreshProjectsIn]);
+  }, [loadModel, loadUsersIn, refreshProjectsIn]);
 
   // ── lokaler Ordner ────────────────────────────────────────────────────────
   const pickDirectory = useCallback(async () => {
@@ -378,7 +498,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const disconnect = useCallback(() => {
     backendRef.current = null;
-    setStorage(null); setModel(null); modelRef.current = null; setProjects([]);
+    setStorage(null); setModel(null); modelRef.current = null; setProjects([]); setKnownUsers([]);
   }, []);
 
   // Beim Start: gemerkten Ordner wiederherstellen. SharePoint sobald die
@@ -454,7 +574,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
     setProjects(prev => {
       const rest = prev.filter(p => p.slug !== data.slug);
-      const next = [...rest, { slug: data.slug, data, version: w.version }];
+      const old = prev.find(p => p.slug === data.slug);
+      const next = [...rest, { slug: data.slug, data, version: w.version, ...(old?.openComments ? { openComments: old.openComments } : {}) }];
       next.sort((a, b) => (a.data.name || a.slug).localeCompare(b.data.name || b.slug, 'de'));
       return next;
     });
@@ -654,14 +775,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   // ── Kommentare ────────────────────────────────────────────────────────────
   const commentsPath = (slug: string) => `projects/${slug}.comments.json`;
-  const parseComments = (text: string): Comment[] => {
-    try {
-      const f = JSON.parse(text) as Partial<CommentsFile>;
-      return Array.isArray(f?.comments) ? f.comments.filter(c => c && typeof c.id === 'string' && typeof c.target === 'string') : [];
-    } catch {
-      return [];
-    }
-  };
 
   const loadComments = useCallback(async (slug: string): Promise<Comment[]> => {
     const be = backendRef.current;
@@ -729,6 +842,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       projects, refreshProjects, loadProject, saveProject, createProject, duplicateProject, deleteProject,
       uploadSourceFile, downloadSourceFile, deleteSourceFile,
       loadComments, updateComments,
+      knownUsers, searchDirectory, requestDirectoryConsent,
       sessionId: sessionId(), readLock, acquireLock, renewLock, releaseLock,
     }}>
       {children}

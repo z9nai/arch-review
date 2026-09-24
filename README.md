@@ -58,6 +58,7 @@ Entwicklung: `?graph=http://localhost:3999/v1.0` leitet Graph auf einen Mock um.
 ```
 <geteilter Ordner>/
 ├── model.json              Stammdaten (Katalog), nur gelesen
+├── users.json              wer hier gearbeitet hat (Name, E-Mail) — für @-Erwähnungen
 ├── projects/
 │   ├── <slug>.json         eine Datei pro Projekt (Review-Zustand)
 │   ├── <slug>.lock.json    Bearbeitungssperre (Sidecar, temporär)
@@ -312,10 +313,37 @@ erledigte Fäden in Übersicht und Schrittfolge auf. Esc schliesst das Panel,
 Ctrl/Cmd+Enter sendet.
 
 Autor/in ist die angemeldete Person: **Kürzel** (z. B. «PM») als Chip mit
-`mailto:`-Link auf ihre E-Mail-Adresse, daneben Name und Zeitpunkt. Ohne
+`mailto:`-Link auf ihre E-Mail-Adresse, daneben Name und Zeitpunkt. Die
+Kürzel sind pro Projekt eindeutig: ein Buchstabe Vorname plus einer vom
+Nachnamen (Namensteile trennen Leerzeichen, Punkt oder Bindestrich, ein
+einzelnes Wort liefert zwei Buchstaben); ist das Kürzel schon vergeben,
+kommt je ein Buchstabe mehr vom Nachnamen dazu (PM › PME › PMEN). Wer
+zuerst kommentiert hat, behält das kurze Kürzel. Ohne
 Anmeldung (lokaler Ordner ohne Login-Pflicht) fragt das Panel einmalig nach
-einem Namen (im Browser gemerkt). Kommentieren, Erledigen und Löschen
-brauchen Reviewer- oder Admin-Rechte, Viewer lesen nur.
+einem Namen (im Browser gemerkt). Kommentieren, Antworten und Erledigen
+kann jede Person mit Zugriff, auch Viewer; löschen kann man die eigenen
+Kommentare, Reviewer und Admins alle.
+
+**@-Erwähnungen**: Ein `@` im Kommentarfeld öffnet eine Personenauswahl
+(Pfeiltasten, Enter/Tab, Esc). Vorgeschlagen werden zuerst die Personen aus
+`users.json` — dort trägt sich jede angemeldete Person beim Öffnen des
+Ordners automatisch ein (Name, E-Mail, zuletzt gesehen) — sowie Autoren
+bestehender Kommentare; ab zwei Zeichen zusätzlich Treffer aus dem
+Entra-Verzeichnis (Microsoft Graph, Berechtigung `User.ReadBasic.All`, siehe
+[docs/SHAREPOINT-SETUP.md](docs/SHAREPOINT-SETUP.md)). Erwähnte Personen
+werden im Kommentar gespeichert und als `@Name` mit mailto-Link
+hervorgehoben. Ist die Entra-Suche nicht möglich (Berechtigung fehlt in der
+App-Registrierung oder die Person hat noch nicht zugestimmt), erscheint
+einmal pro Sitzung ein Hinweis-Popup, bei fehlender Zustimmung mit
+«Berechtigung erteilen»; die bekannten Personen bleiben wählbar. Ohne
+Anmeldung gibt es nur die bekannten Personen. Entwicklung:
+`?dirfail=consent|forbidden` simuliert die beiden Fälle. Ein E-Mail-Versand
+an erwähnte Personen ist bewusst noch nicht eingebaut.
+
+In der **Projektliste** zeigt ein blaues Sprechblasen-Badge die Zahl der
+offenen Kommentar-Fäden je Projekt. Das Suchfeld in der Kopfzeile filtert
+die Liste nach Titel oder Slug; ab zwei Zeichen erscheint eine
+Vorschlagsliste (Pfeiltasten, Enter öffnet das Projekt, Esc leert).
 
 Die Kommentare liegen in der Sidecar-Datei `projects/<slug>.comments.json`,
 **nicht** im Projekt-JSON: Kommentieren geht deshalb auch, während eine

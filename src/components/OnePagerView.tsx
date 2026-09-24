@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Check, ClipboardPaste, Copy, Download, ExternalLink, Eye, FileDown, FileUp, Info, Link2, Lock, Mail, MessageSquare, Minus, Pencil, Plus, Save, Trash2, Unlock, X } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Check, ClipboardPaste, Copy, Download, ExternalLink, Eye, FileDown, FileUp, Info, Link2, Lock, Mail, MessageSquare, Minus, Pencil, Plus, Save, Trash2, Unlock, X } from 'lucide-react';
 import { marked } from 'marked';
-import { lockValid, ProjectLock, useStore } from '../store';
+import { DirectorySearchResult, lockValid, ProjectLock, useStore } from '../store';
 import { useAuth, usePermissions } from '../auth';
-import { Comment, CommentAuthor, MILESTONES, MILESTONE_INFO, MILESTONE_TITLES, Project, Question, QuestionAnswer, Review, SourceFile, Theme } from '../types';
-import { authorOf, CommentBubble, CommentsPanel, CommentTargetInfo, countsOf } from './Comments';
+import { Comment, CommentAuthor, DirectoryUser, MILESTONES, MILESTONE_INFO, MILESTONE_TITLES, Project, Question, QuestionAnswer, Review, SourceFile, Theme } from '../types';
+import { assignInitials, authorOf, CommentBubble, CommentsPanel, CommentTargetInfo, countsOf, initialsOf, personKey } from './Comments';
 import { blockingChecks, checkState, deriveStatus, emptyReview, getMilestoneReview, getThemeReview, STATUS_META } from '../status';
 import { applyMs10, extractPdfText, hasMs10Data, Ms10Data, MS10_FIELD_LABELS, parseMs10Text } from '../ms10';
 import { DEFAULT_MODEL } from '../defaultModel';
@@ -12,6 +12,8 @@ import { autoGrow, fmtTimestamp, formatBytes, normalizeUrl, nowIsoWithTimezone, 
 
 const FOUNDATION_MS = MILESTONES[0]; // M10
 const COMMENT_NAME_KEY = 'arch-review.commentName'; // Name für Kommentare ohne Anmeldung (pro Browser)
+// Warnung «Entra-Suche nicht möglich» nur einmal pro Sitzung zeigen
+let directoryWarned = false;
 
 // Standard-Vorlage für die Übergabe an die Fachstelle; im Admin
 // überschreibbar (model.handover). Platzhalter siehe Model.handover in types.ts.
@@ -48,9 +50,10 @@ export function themeLetter(index: number): string {
 
 export default function OnePagerView({ slug, onBack }: { slug: string; onBack: () => void }) {
   const { isDark, model, loadProject, saveProject, acquireLock, renewLock, releaseLock, readLock, sessionId,
-    uploadSourceFile, downloadSourceFile, deleteSourceFile, loadComments, updateComments } = useStore();
+    uploadSourceFile, downloadSourceFile, deleteSourceFile, loadComments, updateComments,
+    knownUsers, searchDirectory, requestDirectoryConsent } = useStore();
   const { user: authUser } = useAuth();
-  const { canEdit } = usePermissions();
+  const { canEdit, canView } = usePermissions();
   // Bearbeitungssperre: 'mine' = ich halte sie; 'held' = jemand anderes;
   // 'free' = war fremd gesperrt, ist jetzt frei (Bearbeiten anbieten)
   const [lockState, setLockState] = useState<{ kind: 'mine' } | { kind: 'held'; lock: ProjectLock } | { kind: 'free' } | null>(null);
@@ -97,6 +100,7 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
   const [commentTarget, setCommentTarget] = useState<string | null>(null); // null = Übersicht
   const [showResolved, setShowResolved] = useState(false);
   const [commentName, setCommentName] = useState(() => { try { return localStorage.getItem(COMMENT_NAME_KEY) ?? ''; } catch { return ''; } });
+  const [directoryWarning, setDirectoryWarning] = useState<Extract<DirectorySearchResult, { ok: false }> | null>(null);
   const syncRef = useRef<(p: Project) => Project>(p => p);
   // Harte Absicherung gegen ein bereits laufendes Autosave, das erst
   // NACH dem Verlassen des Projekts abschliesst (Timer bereits ausgeloest,
@@ -238,9 +242,17 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
 
   // Autor/in: angemeldete Person (Kürzel + mailto), sonst der manuell
   // eingegebene Name (ohne Anmeldung, z. B. lokaler Ordner)
-  const commentAuthor: CommentAuthor | null = authUser
-    ? authorOf(authUser.name, authUser.email)
-    : commentName.trim() ? authorOf(commentName) : null;
+  // Eindeutige Kürzel: Wer zuerst kommentiert hat, behält das kurze Kürzel;
+  // Namensgleiche danach bekommen einen Buchstaben mehr (PM › PME › PMEN).
+  // Reihenfolge: Kommentar-Autoren chronologisch, dann users.json, dann ich.
+  const me = authUser ? { name: authUser.name, email: authUser.email } : commentName.trim() ? { name: commentName.trim() } : null;
+  const initialsMap = assignInitials([
+    ...[...comments].sort((a, b) => a.createdAt.localeCompare(b.createdAt)).map(c => c.author),
+    ...knownUsers,
+    ...(me ? [me] : []),
+  ]);
+  const initialsFor = (p: { name: string; email?: string }) => initialsMap.get(personKey(p)) ?? initialsOf(p.name);
+  const commentAuthor: CommentAuthor | null = me ? authorOf(me.name, me.email, initialsFor(me)) : null;
   const setCommentNameStored = (v: string) => {
     setCommentName(v);
     try { localStorage.setItem(COMMENT_NAME_KEY, v); } catch { /* ignore */ }
@@ -252,14 +264,39 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
     setComments(res.comments);
     return true;
   };
-  const addComment = (target: string, text: string, parentId?: string) => {
+  const addComment = (target: string, text: string, mentions: DirectoryUser[], parentId?: string) => {
     if (!commentAuthor) { showToast('Bitte zuerst einen Namen eingeben.'); return Promise.resolve(false); }
     const c: Comment = {
       id: 'c' + Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-4),
       target, text, author: commentAuthor, createdAt: nowIsoWithTimezone(),
       ...(parentId ? { parentId } : {}),
+      ...(mentions.length ? { mentions } : {}),
     };
     return mutateComments(prev => [...prev, c]);
+  };
+
+  // Personen für «@»: users.json (alle, die sich hier angemeldet haben) plus
+  // Kommentar-Autoren mit E-Mail plus die eigene Person — ohne Duplikate
+  const mentionUsers: DirectoryUser[] = (() => {
+    const seen = new Set<string>();
+    const out: DirectoryUser[] = [];
+    const add = (u: { name: string; email?: string }) => {
+      const key = (u.email ?? '').toLowerCase();
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      out.push({ name: u.name, email: u.email! });
+    };
+    knownUsers.forEach(add);
+    if (commentAuthor) add(commentAuthor);
+    comments.forEach(c => add(c.author));
+    return out.sort((a, b) => a.name.localeCompare(b.name, 'de'));
+  })();
+  // Entra-Suche nicht möglich: einmal pro Sitzung erklären (Zustimmung
+  // nachholen oder Admin-Hinweis); bekannte Personen bleiben wählbar
+  const onDirectoryProblem = (r: Extract<DirectorySearchResult, { ok: false }>) => {
+    if (r.reason === 'noLogin' || directoryWarned) return;
+    directoryWarned = true;
+    setDirectoryWarning(r);
   };
   const resolveComment = async (id: string, resolved: boolean) => {
     await mutateComments(prev => prev.map(c => c.id !== id ? c : resolved
@@ -2165,6 +2202,35 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
         </div>
       )}
 
+      {/* Entra-Suche für @-Erwähnungen nicht möglich */}
+      {directoryWarning && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-6" onClick={() => setDirectoryWarning(null)}>
+          <div className={`max-w-md w-full rounded-xl border p-6 ${isDark ? 'border-amber-500/30 bg-[#16171a]' : 'border-amber-300 bg-white'}`}
+            onClick={e => e.stopPropagation()}>
+            <h3 className={`flex items-center gap-2 text-sm font-semibold mb-2 ${isDark ? 'text-amber-200' : 'text-amber-800'}`}>
+              <AlertTriangle size={14} /> Entra-Benutzersuche nicht verfügbar
+            </h3>
+            <p className={`text-xs leading-relaxed mb-2 ${isDark ? 'text-white/80' : 'text-black/80'}`}>{directoryWarning.message}</p>
+            <p className={`text-[11px] leading-relaxed mb-5 ${textMuted}`}>
+              Bis dahin schlägt «@» nur Personen vor, die in diesem Ordner schon gearbeitet oder kommentiert haben.
+              {directoryWarning.reason === 'consent' && ' Beim Erteilen lädt die Seite neu — ein angefangener Kommentar geht verloren.'}
+            </p>
+            <div className="flex gap-2">
+              <button onClick={() => setDirectoryWarning(null)}
+                className={`flex-1 text-xs py-2 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
+                Verstanden
+              </button>
+              {directoryWarning.reason === 'consent' && (
+                <button onClick={() => void requestDirectoryConsent()}
+                  className={`flex-1 text-xs py-2 rounded font-semibold transition-colors ${isDark ? 'bg-white text-black hover:bg-white/90' : 'bg-black text-white hover:bg-black/80'}`}>
+                  Berechtigung erteilen
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Konfliktdialog */}
       {conflict && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-6">
@@ -2198,9 +2264,13 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
     {/* Kommentar-Panel: Faden der aktiven Stelle bzw. Übersicht; bleibt beim Scrollen stehen */}
     {commentsOpen && (
       <CommentsPanel isDark={isDark} comments={comments} targets={commentTargets()}
+        users={mentionUsers} searchUsers={searchDirectory} onDirectoryProblem={onDirectoryProblem} initialsFor={initialsFor}
         active={commentTarget} showResolved={showResolved} onToggleResolved={setShowResolved}
         onSelect={openCommentTarget} onClose={() => setCommentsOpen(false)}
-        canComment={canEdit} author={commentAuthor}
+        canComment={canView} author={commentAuthor}
+        canDelete={c => canEdit || (!!commentAuthor && (commentAuthor.email
+          ? (c.author.email ?? '').toLowerCase() === commentAuthor.email.toLowerCase()
+          : c.author.name === commentAuthor.name))}
         {...(authUser ? {} : { askName: { value: commentName, onChange: setCommentNameStored } })}
         onAdd={addComment} onResolve={resolveComment} onDelete={deleteComment} />
     )}

@@ -77,6 +77,14 @@ selbst* sehen darf — nie mehr.)
 
 Ohne diese Zustimmung scheitert der erste Zugriff mit `AADSTS65001`.
 
+**Optional, für @-Erwähnungen in Kommentaren:** zusätzlich die delegierte
+Berechtigung `User.ReadBasic.All` hinzufügen (Name und E-Mail der Personen
+im Tenant lesen — mehr nicht). Fehlt sie, zeigt die App beim ersten «@» ein
+Hinweis-Popup und schlägt nur Personen vor, die in diesem Ordner schon
+gearbeitet oder kommentiert haben (`users.json`). Ohne
+Administratorzustimmung stimmt jede Person beim ersten «@» selbst zu
+(Button «Berechtigung erteilen» im Popup).
+
 ## Teil 5 · In der App verbinden
 
 1. App öffnen → **«SharePoint-Ordner verbinden»**.
@@ -104,6 +112,7 @@ die Login-Pflicht für lokale Ordner stehen weiterhin in der `model.json`.
 | Symptom | Ursache / Lösung |
 |---|---|
 | `AADSTS65001` beim Verbinden | Teil 4: `Files.ReadWrite.All` fehlt oder keine Administratorzustimmung |
+| Popup «Entra-Benutzersuche nicht verfügbar» beim «@» | Teil 4: `User.ReadBasic.All` fehlt (Admin) oder die Person hat noch nicht zugestimmt («Berechtigung erteilen») |
 | «Link konnte nicht aufgelöst werden» | Link zeigt nicht auf einen Ordner, oder die Person hat keinen Zugriff auf die Site |
 | Speichern schlägt fehl (403) | Person hat in SharePoint nur Lesen (Teil 3) |
 | Konflikt-Meldung in der App | Jemand anderes hat dieselbe Projektdatei gleichzeitig gespeichert — neu laden oder überschreiben (ETag-Prüfung) |

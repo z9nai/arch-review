@@ -212,6 +212,23 @@ export interface Comment {
   resolved?: boolean;
   resolvedAt?: string;
   resolvedBy?: CommentAuthor;
+  mentions?: DirectoryUser[]; // per @ erwähnte Personen (im Text steht «@Name»)
+  [key: string]: unknown;
+}
+
+// Bekannte Person für @-Erwähnungen: aus users.json im geteilten Ordner
+// (jede angemeldete Person trägt sich beim Öffnen ein) oder aus der
+// Entra-Suche (Microsoft Graph, Berechtigung User.ReadBasic.All).
+export interface DirectoryUser {
+  name: string;
+  email: string;
+  lastSeen?: string; // ISO — nur in users.json
+  [key: string]: unknown;
+}
+
+export interface UsersFile {
+  version: number;
+  users: DirectoryUser[];
   [key: string]: unknown;
 }
 
