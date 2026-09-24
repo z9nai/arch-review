@@ -461,6 +461,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const requestDirectoryConsent = useCallback(() => authRef.current.requestConsent(DIRECTORY_SCOPES), []);
 
   const activate = useCallback(async (be: StorageBackend, info: StorageInfo) => {
+    // Lokaler Ordner: ein gemerkter SharePoint-Modus darf keine Anmeldung mehr
+    // erzwingen — ob dieser Ordner sie verlangt, sagt allein seine model.json
+    if (be.kind === 'local') { try { localStorage.removeItem(MODE_KEY); } catch { /* ignore */ } }
     backendRef.current = be;
     registeredRef.current = '';
     setStorage(info);

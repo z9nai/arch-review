@@ -41,8 +41,17 @@ export default function App() {
   const auth = useAuth();
   const { canAdmin, canView, level } = usePermissions();
   const [view, setView] = useState<View>({ kind: 'projects' });
-  // Anmeldung aktiv und noch nicht angemeldet → Gate; Admin nur mit Rolle
-  const gated = auth.status !== 'disabled' && auth.status !== 'signedIn';
+  // Anmeldung aktiv und noch nicht angemeldet → Gate; Admin nur mit Rolle.
+  // Ob ein lokaler Ordner die Anmeldung verlangt, steht erst in SEINER
+  // model.json — die beim Start gemerkte Einstellung stammt vom zuletzt
+  // geladenen Ordner. Solange kein Ordner geladen ist (z. B. «Wieder
+  // verbinden» braucht nach dem Neustart einen Klick), daher die Ordnerwahl
+  // zeigen statt des Gates. SharePoint braucht die Anmeldung immer (Graph).
+  const loginPending = auth.status !== 'disabled' && auth.status !== 'signedIn';
+  // model.json verlangt Anmeldung, die Einstellung ist aber noch nicht
+  // übernommen (ein Render vor dem applyConfig-Effekt) → nichts durchlassen
+  const configPending = model?.auth?.enabled === true && auth.config?.enabled !== true && auth.status === 'disabled';
+  const gated = (loginPending && (auth.sharePointMode || !!storage)) || configPending;
   const dirHandle = storage; // Kurzname: verbundener Speicher (lokal oder SharePoint)
 
   // Deep Link einlösen, sobald die App bereit ist
@@ -89,6 +98,11 @@ export default function App() {
 
   const denied = auth.status === 'signedIn' && !canView;
 
+  // Zurück zur Ordnerwahl — auch aus dem Login-Gate, «Keine Berechtigung» und
+  // Fehlerseiten (sonst steckt man in der Login-Pflicht des letzten Ordners fest)
+  const leaveFolder = () => { disconnect(); auth.suspendLogin(); setView({ kind: 'projects' }); };
+  const folderName = storage?.name ?? savedSharePoint?.name ?? savedHandleName;
+
   // Anmelde-Konfiguration kommt aus der model.json des geteilten Ordners
   const applyConfig = auth.applyConfig;
   useEffect(() => { if (model) applyConfig(model.auth); }, [model, applyConfig]);
@@ -98,6 +112,11 @@ export default function App() {
   const topBg = isDark ? 'bg-[#0c0d0f]' : 'bg-[#eae9e5]';
   const textBase = isDark ? 'text-white' : 'text-black';
   const textMuted = isDark ? 'text-white/40' : 'text-black/40';
+  const leaveFolderLink = (
+    <button onClick={leaveFolder} className={`block mx-auto mt-4 text-[11px] ${textMuted} hover:underline`}>
+      {folderName ? <>Ordner «{folderName}» verlassen — anderen Ordner wählen</> : 'Anderen Ordner wählen'}
+    </button>
+  );
 
   return (
     <div className={`flex flex-col h-screen ${bg} ${textBase}`}>
@@ -173,7 +192,10 @@ export default function App() {
                 Architekturprüfung
               </h1>
               {auth.status === 'loading' ? (
-                <p className={`text-xs ${textMuted}`}>Anmeldung wird geprüft …</p>
+                <>
+                  <p className={`text-xs ${textMuted}`}>Anmeldung wird geprüft …</p>
+                  {leaveFolderLink}
+                </>
               ) : auth.status === 'error' ? (
                 <>
                   <p className={`text-xs leading-relaxed mb-4 ${isDark ? 'text-rose-300' : 'text-rose-700'}`}>
@@ -183,17 +205,21 @@ export default function App() {
                     className={`text-xs px-4 py-2 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
                     Erneut versuchen
                   </button>
+                  {leaveFolderLink}
                 </>
               ) : (
                 <>
                   <p className={`text-xs leading-relaxed mb-6 ${textMuted}`}>
-                    Bitte mit dem Microsoft-Konto anmelden. Die Anmeldung läuft über
-                    Microsoft Entra ID; die App selbst speichert keine Zugangsdaten.
+                    {storage?.kind === 'local'
+                      ? <>Der Ordner <span className="font-semibold">«{storage.name}»</span> verlangt eine Anmeldung (eingeschaltet unter Admin → Anmeldung).</>
+                      : <>Der SharePoint-Ordner{folderName ? <> <span className="font-semibold">«{folderName}»</span></> : ''} ist nur mit Anmeldung erreichbar — der Dateizugriff läuft über Microsoft Graph.</>}
+                    {' '}Die Anmeldung läuft über Microsoft Entra ID; die App selbst speichert keine Zugangsdaten.
                   </p>
                   <button onClick={auth.login}
                     className={`w-full flex items-center justify-center gap-2 text-xs px-4 py-2.5 rounded font-semibold transition-colors ${isDark ? 'bg-white text-black hover:bg-white/90' : 'bg-black text-white hover:bg-black/80'}`}>
                     <LogIn size={12} /> Mit Microsoft anmelden
                   </button>
+                  {leaveFolderLink}
                 </>
               )}
             </div>
@@ -213,6 +239,7 @@ export default function App() {
                 className={`text-xs px-4 py-2.5 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
                 Abmelden
               </button>
+              {leaveFolderLink}
             </div>
           </div>
         ) : !dirHandle ? (
@@ -272,7 +299,7 @@ export default function App() {
             <div className={`max-w-md w-full rounded-xl border p-8 text-center ${isDark ? 'border-rose-500/30 bg-rose-500/5' : 'border-rose-300 bg-rose-50'}`}>
               <AlertTriangle size={28} className={`mx-auto mb-4 ${isDark ? 'text-rose-400' : 'text-rose-600'}`} />
               <p className={`text-xs leading-relaxed mb-6 ${isDark ? 'text-rose-300' : 'text-rose-700'}`}>{modelError}</p>
-              <button onClick={pickDirectory}
+              <button onClick={() => { disconnect(); setView({ kind: 'projects' }); }}
                 className={`text-xs px-4 py-2.5 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
                 Anderen Ordner wählen
               </button>

@@ -67,6 +67,11 @@ interface AuthContextValue {
   requestConsent: (scopes: string[]) => Promise<void>;
   /** Konfiguration aus der model.json übernehmen (beim Laden und nach Admin-Änderungen) */
   applyConfig: (cfg: AuthSettings | null | undefined) => void;
+  /** Ordner wechseln, ohne sich anzumelden: Login-Pflicht des bisherigen
+   *  Ordners in diesem Browser vergessen (IDs bleiben) */
+  suspendLogin: () => void;
+  /** SharePoint-Modus: Anmeldung ist für den Dateizugriff (Graph) nötig */
+  sharePointMode: boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -241,9 +246,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (accountRef.current) setUser(toUser(accountRef.current, cfg));
     if (devBypass()) { setUser(devUser()); setStatus('disabled'); return; }
     const needLogin = cfg?.enabled === true || sharePointMode();
-    if (!needLogin) { setStatus('disabled'); return; }
+    // eine noch laufende MSAL-Initialisierung (z. B. mit der beim Start
+    // gemerkten Einstellung) darf den Status danach nicht mehr überschreiben
+    if (!needLogin) { runningKeyRef.current = ''; setStatus('disabled'); return; }
     const ids = effectiveIds(cfg);
     if (!ids) {
+      runningKeyRef.current = '';
       if (cfg?.enabled) {
         setError('Anmeldung ist aktiviert, aber Tenant-ID/Client-ID sind keine gültigen IDs (Admin → Anmeldung).');
         setStatus('error');
@@ -254,6 +262,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     void startMsal(ids);
   }, [startMsal]);
+
+  // Aus dem Login-Gate heraus einen anderen Ordner wählen: Die Login-Pflicht
+  // stammt aus der model.json des bisherigen Ordners (bzw. dem SharePoint-
+  // Modus) und ist im Browser gemerkt — ohne diesen Ausweg käme man nie zurück
+  // zur Ordnerwahl. Die IDs bleiben; der nächste Ordner bringt seine eigene
+  // Einstellung mit (model.json → applyConfig), SharePoint verlangt ohnehin
+  // die Anmeldung.
+  const suspendLogin = useCallback(() => {
+    try { localStorage.removeItem(MODE_KEY); localStorage.removeItem(PENDING_FOLDER_KEY); } catch { /* ignore */ }
+    const prev = readCache();
+    const cfg = prev ? { ...prev, enabled: false } : null;
+    writeCache(cfg);
+    setConfig(cfg);
+    configRef.current = cfg;
+    runningKeyRef.current = '';
+    setError(null);
+    setStatus('disabled');
+  }, []);
 
   // IDs für diesen Browser hinterlegen (Einrichtungsdialog / Link / Datei)
   const setLocalIds = useCallback((tenantId: string, clientId: string) => {
@@ -379,7 +405,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const loginAvailable = !!ids;
 
   return (
-    <AuthContext.Provider value={{ status, user, error, config, loginAvailable, ids, setLocalIds, login, loginForSharePoint, logout, getToken, tryToken, requestConsent, applyConfig }}>
+    <AuthContext.Provider value={{ status, user, error, config, loginAvailable, ids, setLocalIds, login, loginForSharePoint, logout, getToken, tryToken, requestConsent, applyConfig, suspendLogin, sharePointMode: sharePointMode() }}>
       {children}
     </AuthContext.Provider>
   );
