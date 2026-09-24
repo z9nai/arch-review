@@ -6,7 +6,30 @@ import ProjectsView from './components/ProjectsView';
 import OnePagerView from './components/OnePagerView';
 import AdminView from './components/AdminView';
 
-type View = { kind: 'projects' } | { kind: 'project'; slug: string } | { kind: 'admin' };
+type View = { kind: 'projects' } | { kind: 'project'; slug: string; commentId?: string } | { kind: 'admin' };
+
+// Deep Link (?project=<slug>&comment=<id>, siehe util.deepLink): beim Start
+// aus der URL nehmen und im Tab merken — so überlebt er den Login-Redirect —
+// und einlösen, sobald Ordner und model.json da sind.
+const DEEP_LINK_KEY = 'arch-review.deepLink';
+function takeDeepLink(): { slug: string; commentId?: string } | null {
+  try {
+    const u = new URL(window.location.href);
+    const slug = (u.searchParams.get('project') ?? '').trim();
+    const commentId = (u.searchParams.get('comment') ?? '').trim();
+    if (slug) {
+      u.searchParams.delete('project'); u.searchParams.delete('comment');
+      window.history.replaceState(null, '', u.toString());
+      const link = { slug, ...(commentId ? { commentId } : {}) };
+      sessionStorage.setItem(DEEP_LINK_KEY, JSON.stringify(link));
+      return link;
+    }
+    const stored = sessionStorage.getItem(DEEP_LINK_KEY);
+    return stored ? JSON.parse(stored) as { slug: string; commentId?: string } : null;
+  } catch {
+    return null;
+  }
+}
 
 export default function App() {
   const { isDark, toggleTheme, storage, pickDirectory, savedHandleName, reconnectDirectory, model, modelError,
@@ -21,6 +44,14 @@ export default function App() {
   // Anmeldung aktiv und noch nicht angemeldet → Gate; Admin nur mit Rolle
   const gated = auth.status !== 'disabled' && auth.status !== 'signedIn';
   const dirHandle = storage; // Kurzname: verbundener Speicher (lokal oder SharePoint)
+
+  // Deep Link einlösen, sobald die App bereit ist
+  const [deepLinkPending] = useState(() => takeDeepLink());
+  useEffect(() => {
+    if (!deepLinkPending || !storage || !model || gated) return;
+    try { sessionStorage.removeItem(DEEP_LINK_KEY); } catch { /* ignore */ }
+    setView({ kind: 'project', slug: deepLinkPending.slug, ...(deepLinkPending.commentId ? { commentId: deepLinkPending.commentId } : {}) });
+  }, [deepLinkPending, storage, model, gated]);
 
   // SharePoint: Link auflösen und verbinden
   const doConnectSharePoint = async () => {
@@ -256,7 +287,7 @@ export default function App() {
             ? <AdminView onBack={() => setView({ kind: 'projects' })} />
             : <ProjectsView onOpen={slug => setView({ kind: 'project', slug })} />
         ) : (
-          <OnePagerView slug={view.slug} onBack={() => setView({ kind: 'projects' })} />
+          <OnePagerView slug={view.slug} focusCommentId={view.commentId} onBack={() => setView({ kind: 'projects' })} />
         )}
       </div>
 

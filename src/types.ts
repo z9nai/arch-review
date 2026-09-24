@@ -141,6 +141,10 @@ export interface Model {
     body?: string;
     context?: string[]; // Frage-ids, deren Antworten unter {{ausgangslage}} mitgehen
   };
+  notifications?: {
+    teams?: TeamsNotifySettings;
+    [key: string]: unknown;
+  };
   [key: string]: unknown;
 }
 
@@ -213,6 +217,23 @@ export interface Comment {
   resolvedAt?: string;
   resolvedBy?: CommentAuthor;
   mentions?: DirectoryUser[]; // per @ erwähnte Personen (im Text steht «@Name»)
+  // Teams-Benachrichtigung (siehe Model.notifications.teams): E-Mails der
+  // Personen, die noch zu benachrichtigen sind bzw. schon benachrichtigt
+  // wurden. Verschickt wird nur vom Browser der Autorin/des Autors.
+  notifyPending?: string[];
+  notified?: string[];
+  [key: string]: unknown;
+}
+
+// Teams-Benachrichtigung bei @-Erwähnung und bei Antworten auf den eigenen
+// Kommentar: Die kommentierende Person schickt der erwähnten Person über
+// Microsoft Graph eine persönliche Chat-Nachricht (1:1-Chat, mit echtem
+// @-Mention und Link in die App) — nach einer Wartezeit, gesammelt, einmalig.
+// Berechtigungen (delegiert): Chat.Create, ChatMessage.Send, User.ReadBasic.All.
+export interface TeamsNotifySettings {
+  enabled: boolean;
+  delayMinutes?: number; // Wartezeit nach dem letzten Kommentar (Standard 5)
+  template?: string;     // Platzhalter: {{empfaenger}} {{von}} {{projekt}} {{anzahl}} {{kommentare}} {{link}}
   [key: string]: unknown;
 }
 

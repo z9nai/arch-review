@@ -19,8 +19,8 @@ Sicherheitsrelevante Eckdaten für die Beurteilung:
 |---|---|
 | Anwendungstyp | Single-Page-App (öffentlicher Client), Authorization Code Flow mit PKCE |
 | Client-Secret / Zertifikat | **keines** (nicht erforderlich, nicht vorgesehen) |
-| Benötigte Berechtigungen | Anmeldung: `openid`, `profile`, `email`; Dateizugriff: `Files.ReadWrite.All` (delegiert, Microsoft Graph) — dafür **Administratorzustimmung** erforderlich |
-| Zugriff auf Unternehmensdaten | nur SharePoint-Dateien, auf die **die angemeldete Person selbst** Zugriff hat (delegiert); die App greift ausschliesslich auf den für sie eingerichteten Ordner zu |
+| Benötigte Berechtigungen | Anmeldung: `openid`, `profile`, `email`; Dateizugriff: `Files.ReadWrite.All`; optional `User.ReadBasic.All` (Personensuche für @-Erwähnungen) und `Chat.Create` + `ChatMessage.Send` (Teams-Benachrichtigung) — alle **delegiert**, Microsoft Graph; Administratorzustimmung empfohlen (Schritt 3) |
+| Zugriff auf Unternehmensdaten | nur SharePoint-Dateien, auf die **die angemeldete Person selbst** Zugriff hat (delegiert); die App greift ausschliesslich auf den für sie eingerichteten Ordner zu. Personensuche liest nur Anzeigename und E-Mail. Teams-Nachrichten werden im Namen der angemeldeten Person in deren 1:1-Chats gesendet |
 | Verwendete Token-Inhalte | Anzeigename, E-Mail (UPN), App-Rollen |
 | Kontotypen | nur dieser Tenant (einzelner Mandant) |
 | Hosting | GitHub Pages (statische Dateien), kein eigener Server/Backend |
@@ -71,15 +71,28 @@ Dateien lesen/schreiben, die die angemeldete Person in SharePoint ohnehin
 sehen bzw. bearbeiten darf. Anwendungsberechtigungen (App-only) werden
 nicht benötigt und sollen nicht erteilt werden.
 
+Optional, im selben Schritt (ebenfalls delegiert, Microsoft Graph):
+
+| Berechtigung | Zweck | Umfang |
+|---|---|---|
+| `User.ReadBasic.All` | Personensuche beim Erwähnen («@») in Kommentaren | liest nur Anzeigename und E-Mail (UPN) der Personen im Tenant |
+| `Chat.Create` | Teams-Benachrichtigung: 1:1-Chat zwischen der kommentierenden und der erwähnten Person anlegen (bestehender wird wiederverwendet) | nur Chats, an denen die angemeldete Person selbst beteiligt ist |
+| `ChatMessage.Send` | Teams-Benachrichtigung: Nachricht in diesem Chat senden | im Namen der angemeldeten Person, wie eine selbst getippte Nachricht |
+
+Diese drei verlangen laut Microsoft Graph keine Administratorzustimmung;
+ist die Benutzerzustimmung im Tenant gesperrt, bitte die
+Administratorzustimmung mit erteilen. Ohne sie funktioniert die App
+weiterhin, nur ohne Verzeichnissuche bzw. Teams-Nachrichten.
+
 ## Schritt 4 · App-Rollen anlegen
 
 In der Registrierung: **App-Rollen → App-Rolle erstellen** — dreimal:
 
 | Anzeigename | Zulässige Mitgliedstypen | Wert | Beschreibung |
 |---|---|---|---|
-| `Arch Review Admin` | Benutzer/Gruppen | `ArchReview.Admin` | Pflegt Themen, Fragen, Klassifikationen und die Anmeldeeinstellungen; alle Rechte |
-| `Arch Review Reviewer` | Benutzer/Gruppen | `ArchReview.Reviewer` | Legt Projekte an, bearbeitet und gibt Reviews frei, importiert und exportiert |
-| `Arch Review Viewer` | Benutzer/Gruppen | `ArchReview.Viewer` | Liest alles, kann PDFs exportieren; keine Änderungen |
+| `Arch Review Admin` | Benutzer/Gruppen | `ArchReview.Admin` | Pflegt Themen, Fragen, Klassifikationen, Anmelde- und Benachrichtigungseinstellungen; alle Rechte |
+| `Arch Review Reviewer` | Benutzer/Gruppen | `ArchReview.Reviewer` | Legt Projekte an, bearbeitet und gibt Reviews frei, importiert und exportiert, kommentiert |
+| `Arch Review Viewer` | Benutzer/Gruppen | `ArchReview.Viewer` | Liest alles, kann PDFs exportieren und kommentieren; keine Änderungen am Review |
 
 Jeweils **«Möchten Sie diese App-Rolle aktivieren?» = Ja**.
 Die Spalte **Wert** muss buchstabengetreu übernommen werden — die
@@ -106,8 +119,10 @@ Eine Person kann mehrere Rollen haben — die höchste gilt.
 
 Ein Ordner in einer SharePoint-Dokumentbibliothek (z. B. Teams-Team
 «Architekturprüfung» → Dateien → Ordner `arch-review`). Berechtigungen auf
-der Site: Admins und Reviewer **Bearbeiten**, Viewer **Lesen**. Den Link zum
-Ordner bitte ebenfalls zurückmelden.
+der Site: Admins und Reviewer **Bearbeiten**, Viewer **Lesen** — oder
+**Bearbeiten**, falls Viewer in der App kommentieren sollen (Kommentare sind
+Dateien im Ordner; die App hält Viewer am Review trotzdem auf Nur-Lesen).
+Den Link zum Ordner bitte ebenfalls zurückmelden.
 
 ## Schritt 7 · Rückmeldung
 

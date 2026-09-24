@@ -5,7 +5,7 @@
 // erledigten — Kommentaren). Die Daten hält OnePagerView (Sidecar-Datei via
 // store.loadComments/updateComments); hier nur Darstellung und Formulare.
 import React, { useEffect, useRef, useState } from 'react';
-import { AtSign, Check, ChevronLeft, ChevronRight, CornerDownRight, List, MessageSquare, RotateCcw, Trash2, X } from 'lucide-react';
+import { AtSign, Check, ChevronLeft, ChevronRight, Clock, CornerDownRight, List, MessageSquare, RotateCcw, Send, Trash2, X } from 'lucide-react';
 import type { Comment, CommentAuthor, DirectoryUser } from '../types';
 import type { DirectorySearchResult } from '../store';
 import { fmtTimestamp } from '../util';
@@ -380,6 +380,14 @@ export function CommentsPanel(p: PanelProps) {
         <div className={`flex items-center gap-2 text-[10px] ${textMuted}`}>
           <span className="truncate" title={c.author.name}>{c.author.name}</span>
           <span className="flex-shrink-0">{fmtTimestamp(c.createdAt)}</span>
+          {/* Teams-Benachrichtigung: gesendet / noch ausstehend */}
+          {(c.notified?.length ?? 0) > 0 && (
+            <Send size={9} className={`flex-shrink-0 ${isDark ? 'text-emerald-400/80' : 'text-emerald-600'}`}
+              aria-label="Teams-Nachricht gesendet" />
+          )}
+          {(c.notifyPending?.length ?? 0) > 0 && (
+            <Clock size={9} className="flex-shrink-0 opacity-70" aria-label="Teams-Nachricht ausstehend" />
+          )}
           <span className="ml-auto flex items-center gap-0.5 flex-shrink-0">
             {p.canComment && !isReply && (
               <button type="button" title="Antworten" className={iconBtn}

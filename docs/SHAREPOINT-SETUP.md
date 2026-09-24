@@ -54,7 +54,11 @@ den App-Rollen. Beides sollte zusammenpassen:
 |---|---|
 | Admin | **Bearbeiten** (Mitglied/Besitzer) |
 | Reviewer | **Bearbeiten** (Mitglied) |
-| Viewer | **Lesen** (Besucher) |
+| Viewer | **Lesen** (Besucher) — oder **Bearbeiten**, wenn Viewer kommentieren sollen (Kommentare sind Dateien; die App hält Viewer am Review trotzdem auf Nur-Lesen) |
+
+Die vollständige Rechte-Matrix je Rolle (Review, Quellen, Kommentare,
+Admin) und die Liste der Graph-Berechtigungen stehen in
+[ENTRA-SETUP.md](ENTRA-SETUP.md), Abschnitte A3 und A4.
 
 Bei einem Teams-Team: Mitglieder haben automatisch «Bearbeiten». Viewer
 **nicht** als Teammitglied aufnehmen, sondern der SharePoint-Site als
@@ -85,6 +89,15 @@ gearbeitet oder kommentiert haben (`users.json`). Ohne
 Administratorzustimmung stimmt jede Person beim ersten «@» selbst zu
 (Button «Berechtigung erteilen» im Popup).
 
+**Optional, für Teams-Benachrichtigungen bei @-Erwähnungen:** zusätzlich die
+delegierten Berechtigungen `Chat.Create` und `ChatMessage.Send` (dazu
+`User.ReadBasic.All` von oben). Damit schickt die kommentierende Person der
+erwähnten Person eine persönliche Chat-Nachricht — aus ihrem eigenen Konto,
+die App braucht kein Dienstkonto. Einschalten im Admin unter
+«Benachrichtigungen (Teams)». Fehlt die Berechtigung, bleibt die
+Benachrichtigung als «ausstehend» am Kommentar stehen und die App zeigt
+einmal pro Sitzung ein Popup.
+
 ## Teil 5 · In der App verbinden
 
 1. App öffnen → **«SharePoint-Ordner verbinden»**.
@@ -113,6 +126,7 @@ die Login-Pflicht für lokale Ordner stehen weiterhin in der `model.json`.
 |---|---|
 | `AADSTS65001` beim Verbinden | Teil 4: `Files.ReadWrite.All` fehlt oder keine Administratorzustimmung |
 | Popup «Entra-Benutzersuche nicht verfügbar» beim «@» | Teil 4: `User.ReadBasic.All` fehlt (Admin) oder die Person hat noch nicht zugestimmt («Berechtigung erteilen») |
+| Popup «Teams-Benachrichtigung nicht möglich» | Teil 4: `Chat.Create` / `ChatMessage.Send` fehlen (Admin) oder die Person hat noch nicht zugestimmt; der Kommentar ist gespeichert, die Nachricht geht später raus |
 | «Link konnte nicht aufgelöst werden» | Link zeigt nicht auf einen Ordner, oder die Person hat keinen Zugriff auf die Site |
 | Speichern schlägt fehl (403) | Person hat in SharePoint nur Lesen (Teil 3) |
 | Konflikt-Meldung in der App | Jemand anderes hat dieselbe Projektdatei gleichzeitig gespeichert — neu laden oder überschreiben (ETag-Prüfung) |

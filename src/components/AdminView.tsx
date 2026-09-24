@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Archive, ArchiveRestore, ArrowLeft, ChevronDown, ChevronUp, Copy, ExternalLink, Minus, Plus, Save, ShieldCheck, Trash2, Upload } from 'lucide-react';
 import { PDFDocument } from 'pdf-lib';
 import { useStore } from '../store';
-import { MILESTONES, MILESTONE_TITLES, Model, Question } from '../types';
+import { MILESTONES, MILESTONE_TITLES, Model, Question, TeamsNotifySettings } from '../types';
+import { DEFAULT_TEAMS_DELAY_MINUTES, DEFAULT_TEAMS_TEMPLATE } from '../teams';
 import { DEFAULT_MODEL } from '../defaultModel';
 import { CATALOG_QUESTIONS } from '../catalog';
 import { DEFAULT_HANDOVER_BODY, DEFAULT_HANDOVER_SUBJECT } from './OnePagerView';
@@ -680,6 +681,55 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
             </p>
           )}
         </div>
+      </div>
+
+      {/* Teams-Benachrichtigung bei @-Erwähnungen in Kommentaren */}
+      <h2 className={`text-sm font-semibold uppercase tracking-widest mb-4 ${isDark ? 'text-white/50' : 'text-black/50'}`}>
+        Benachrichtigungen (Teams)
+      </h2>
+      <div className={`${cardCls} p-4 mb-10 space-y-3`}>
+        {(() => {
+          const t = draft.notifications?.teams ?? { enabled: false };
+          const update = (patch: Partial<TeamsNotifySettings>) =>
+            setDraft(d => d ? { ...d, notifications: { ...(d.notifications ?? {}), teams: { ...t, ...patch } } } : d);
+          return (
+            <>
+              <p className={`text-[11px] ${textMuted}`}>
+                Wer in einem Kommentar per «@» erwähnt wird oder eine Antwort auf den eigenen Kommentar erhält,
+                bekommt eine persönliche Teams-Chat-Nachricht — von der kommentierenden Person selbst (Microsoft
+                Graph, 1:1-Chat, mit @-Mention und Link auf den Kommentar). Gesendet wird nach der Wartezeit,
+                gesammelt je Empfänger/in, jede Erwähnung nur einmal. Braucht in der App-Registrierung die delegierten
+                Berechtigungen <span className="font-mono">Chat.Create</span>, <span className="font-mono">ChatMessage.Send</span> und
+                {' '}<span className="font-mono">User.ReadBasic.All</span>; jede Person stimmt beim ersten Mal selbst zu.
+              </p>
+              <div className="flex items-center gap-4 flex-wrap">
+                <label className={`flex items-center gap-1.5 text-xs cursor-pointer ${isDark ? 'text-white/70' : 'text-black/70'}`}>
+                  <input type="checkbox" checked={t.enabled === true} onChange={e => update({ enabled: e.target.checked })} className="accent-blue-500 cursor-pointer" />
+                  Teams-Benachrichtigungen {t.enabled ? 'aktiv' : 'aus'}
+                </label>
+                <label className={`flex items-center gap-1.5 text-[11px] ${textMuted}`}>
+                  Wartezeit nach dem letzten Kommentar
+                  <input type="number" min={0} max={120} value={t.delayMinutes ?? DEFAULT_TEAMS_DELAY_MINUTES}
+                    onChange={e => update({ delayMinutes: Math.max(0, Number(e.target.value) || 0) })}
+                    className={`w-16 text-[11px] px-2 py-1 rounded border outline-none transition-colors ${inputCls}`} />
+                  Minuten
+                </label>
+              </div>
+              <div className="space-y-2">
+                <label className={`block text-[10px] uppercase tracking-wider ${labelCls}`}>Vorlage Nachricht</label>
+                <textarea value={t.template ?? ''} rows={3}
+                  onChange={e => update({ template: e.target.value || undefined })}
+                  onFocus={autoGrow} onInput={autoGrow}
+                  placeholder={`Leer = Standard:\n${DEFAULT_TEAMS_TEMPLATE}`}
+                  className={`w-full text-[11px] px-2 py-1.5 rounded border outline-none resize-none overflow-hidden transition-colors font-mono ${inputCls}`} />
+                <p className={`text-[10px] ${textMuted}`}>
+                  Platzhalter: {'{{empfaenger}} (@-Mention) {{von}} {{projekt}} {{anzahl}} {{kommentare}} {{link}}'}
+                  {' '}— {'{{kommentare}}'} ist der Block je Kommentar: Stelle, Text, «Kommentar öffnen»-Link.
+                </p>
+              </div>
+            </>
+          );
+        })()}
       </div>
 
       {/* Fragen, gruppiert nach (fixem) Meilenstein */}

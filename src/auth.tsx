@@ -28,6 +28,7 @@ export const GUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f
 export type AccessLevel = 'admin' | 'reviewer' | 'viewer' | 'none';
 
 export interface AuthUser {
+  id: string;    // Objekt-ID in Entra (für Graph, z. B. Chat-Mitglied)
   name: string;
   email: string;
   roles: string[];
@@ -145,6 +146,15 @@ export function setupLink(tenantId: string, clientId: string, folderUrl?: string
 }
 
 const devBypass = () => import.meta.env.DEV && new URLSearchParams(location.search).has('noauth');
+// Entwicklung: ?noauth&me=vorname.nachname@firma.ch simuliert eine angemeldete
+// Person (Name aus der E-Mail) — für Kommentare, users.json, Teams-Mock
+function devUser(): AuthUser | null {
+  if (!devBypass()) return null;
+  const email = (new URLSearchParams(location.search).get('me') ?? '').trim();
+  if (!email.includes('@')) return null;
+  const name = email.split('@')[0].split(/[._-]+/).map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ');
+  return { id: `dev-${email}`, name, email, roles: [], level: 'admin', isAdmin: true };
+}
 const isValidIds = (cfg: { tenantId: string; clientId: string } | null | undefined): cfg is { tenantId: string; clientId: string } =>
   !!cfg && GUID_RE.test(cfg.tenantId) && GUID_RE.test(cfg.clientId);
 const sharePointMode = () => { try { return localStorage.getItem(MODE_KEY) === 'sharepoint'; } catch { return false; } };
@@ -155,7 +165,7 @@ function toUser(account: AccountInfo, cfg: AuthConfig | null): AuthUser {
   const email = String(claims.preferred_username ?? claims.email ?? account.username);
   const roles = Array.isArray(claims.roles) ? (claims.roles as unknown[]).map(String) : [];
   const level = levelOf(roles, cfg);
-  return { name, email, roles, level, isAdmin: level === 'admin' };
+  return { id: account.localAccountId, name, email, roles, level, isAdmin: level === 'admin' };
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -229,7 +239,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     configRef.current = cfg;
     // Stufe mit den neuen Rollen neu berechnen
     if (accountRef.current) setUser(toUser(accountRef.current, cfg));
-    if (devBypass()) { setStatus('disabled'); return; }
+    if (devBypass()) { setUser(devUser()); setStatus('disabled'); return; }
     const needLogin = cfg?.enabled === true || sharePointMode();
     if (!needLogin) { setStatus('disabled'); return; }
     const ids = effectiveIds(cfg);

@@ -62,6 +62,16 @@ export function normalizeUrl(url: string): string {
   return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
 }
 
+// Deep Link in die App: öffnet das Projekt und — mit comment — das
+// Kommentar-Panel an der Stelle dieses Kommentars (App.tsx wertet die
+// Parameter beim Start aus; sie überleben den Microsoft-Login-Redirect).
+export function deepLink(slug: string, commentId?: string): string {
+  const u = new URL(`${window.location.origin}${import.meta.env.BASE_URL}`);
+  u.searchParams.set('project', slug);
+  if (commentId) u.searchParams.set('comment', commentId);
+  return u.toString();
+}
+
 export function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;

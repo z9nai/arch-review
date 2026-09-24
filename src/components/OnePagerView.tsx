@@ -5,6 +5,9 @@ import { DirectorySearchResult, lockValid, ProjectLock, useStore } from '../stor
 import { useAuth, usePermissions } from '../auth';
 import { Comment, CommentAuthor, DirectoryUser, MILESTONES, MILESTONE_INFO, MILESTONE_TITLES, Project, Question, QuestionAnswer, Review, SourceFile, Theme } from '../types';
 import { assignInitials, authorOf, CommentBubble, CommentsPanel, CommentTargetInfo, countsOf, initialsOf, personKey } from './Comments';
+import { useTeamsNotify } from './useTeamsNotify';
+import { TEAMS_SCOPES } from '../teams';
+import { DIRECTORY_SCOPES } from '../store';
 import { blockingChecks, checkState, deriveStatus, emptyReview, getMilestoneReview, getThemeReview, STATUS_META } from '../status';
 import { applyMs10, extractPdfText, hasMs10Data, Ms10Data, MS10_FIELD_LABELS, parseMs10Text } from '../ms10';
 import { DEFAULT_MODEL } from '../defaultModel';
@@ -48,11 +51,13 @@ export function themeLetter(index: number): string {
   return String.fromCharCode(65 + (index % 26));
 }
 
-export default function OnePagerView({ slug, onBack }: { slug: string; onBack: () => void }) {
+// focusCommentId: aus einem Deep Link (?project=…&comment=…) — öffnet das
+// Kommentar-Panel an der Stelle dieses Kommentars, sobald die Kommentare da sind
+export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: string; onBack: () => void; focusCommentId?: string }) {
   const { isDark, model, loadProject, saveProject, acquireLock, renewLock, releaseLock, readLock, sessionId,
     uploadSourceFile, downloadSourceFile, deleteSourceFile, loadComments, updateComments,
-    knownUsers, searchDirectory, requestDirectoryConsent } = useStore();
-  const { user: authUser } = useAuth();
+    knownUsers, searchDirectory } = useStore();
+  const { user: authUser, tryToken, requestConsent } = useAuth();
   const { canEdit, canView } = usePermissions();
   // Bearbeitungssperre: 'mine' = ich halte sie; 'held' = jemand anderes;
   // 'free' = war fremd gesperrt, ist jetzt frei (Bearbeiten anbieten)
@@ -100,7 +105,9 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
   const [commentTarget, setCommentTarget] = useState<string | null>(null); // null = Übersicht
   const [showResolved, setShowResolved] = useState(false);
   const [commentName, setCommentName] = useState(() => { try { return localStorage.getItem(COMMENT_NAME_KEY) ?? ''; } catch { return ''; } });
-  const [directoryWarning, setDirectoryWarning] = useState<Extract<DirectorySearchResult, { ok: false }> | null>(null);
+  // Hinweis-Popup, wenn eine Graph-Berechtigung fehlt (Entra-Suche, Teams):
+  // bei 'consent' mit Button, der die Zustimmung per Redirect einholt
+  const [permWarning, setPermWarning] = useState<{ title: string; message: string; reason: 'consent' | 'forbidden' | 'error'; scopes: string[]; hint: string } | null>(null);
   const syncRef = useRef<(p: Project) => Project>(p => p);
   // Harte Absicherung gegen ein bereits laufendes Autosave, das erst
   // NACH dem Verlassen des Projekts abschliesst (Timer bereits ausgeloest,
@@ -264,16 +271,57 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
     setComments(res.comments);
     return true;
   };
+  const teamsSettings = model?.notifications?.teams;
   const addComment = (target: string, text: string, mentions: DirectoryUser[], parentId?: string) => {
     if (!commentAuthor) { showToast('Bitte zuerst einen Namen eingeben.'); return Promise.resolve(false); }
+    // Teams: erwähnte Personen plus Autor/in des Wurzelkommentars bei einer
+    // Antwort — ohne mich selbst; nur wenn Benachrichtigungen aktiv sind und
+    // ich eine E-Mail habe (angemeldet), sonst kann niemand senden
+    const recipients = new Set<string>();
+    if (teamsSettings?.enabled && commentAuthor.email) {
+      mentions.forEach(m => { if (m.email) recipients.add(m.email.toLowerCase()); });
+      const root = parentId ? comments.find(c => c.id === parentId) : null;
+      if (root?.author.email) recipients.add(root.author.email.toLowerCase());
+      recipients.delete(commentAuthor.email.toLowerCase());
+    }
     const c: Comment = {
       id: 'c' + Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-4),
       target, text, author: commentAuthor, createdAt: nowIsoWithTimezone(),
       ...(parentId ? { parentId } : {}),
       ...(mentions.length ? { mentions } : {}),
+      ...(recipients.size ? { notifyPending: [...recipients] } : {}),
     };
     return mutateComments(prev => [...prev, c]);
   };
+
+  // Teams-Versand (Wartezeit, gesammelt, einmalig) — siehe useTeamsNotify
+  const placeLabelRef = useRef<(target: string) => string>(t => t);
+  useTeamsNotify({
+    slug, projectName: proj?.name || slug, comments,
+    me: authUser ? { id: authUser.id, name: authUser.name, email: authUser.email } : null,
+    settings: teamsSettings,
+    placeLabel: t => placeLabelRef.current(t),
+    updateComments: mutateComments,
+    tryToken,
+    onProblem: p => setPermWarning({
+      title: 'Teams-Benachrichtigung nicht möglich', message: p.message, reason: p.reason, scopes: TEAMS_SCOPES,
+      hint: 'Die Kommentare bleiben gespeichert; die Benachrichtigung wird nachgeholt, sobald die Berechtigung da ist.',
+    }),
+    onSent: names => showToast(`Teams-Nachricht an ${names.join(', ')} gesendet.`),
+    onFailed: msg => showToast(msg),
+  });
+
+  // Deep Link: Kommentar-Panel an der Stelle des verlinkten Kommentars öffnen
+  const focusedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!focusCommentId || !comments.length || focusedRef.current === focusCommentId) return;
+    const c = comments.find(x => x.id === focusCommentId);
+    if (!c) return;
+    focusedRef.current = focusCommentId;
+    if (c.resolved) setShowResolved(true);
+    openCommentTarget(c.target);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusCommentId, comments]);
 
   // Personen für «@»: users.json (alle, die sich hier angemeldet haben) plus
   // Kommentar-Autoren mit E-Mail plus die eigene Person — ohne Duplikate
@@ -296,7 +344,10 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
   const onDirectoryProblem = (r: Extract<DirectorySearchResult, { ok: false }>) => {
     if (r.reason === 'noLogin' || directoryWarned) return;
     directoryWarned = true;
-    setDirectoryWarning(r);
+    setPermWarning({
+      title: 'Entra-Benutzersuche nicht verfügbar', message: r.message, reason: r.reason, scopes: DIRECTORY_SCOPES,
+      hint: 'Bis dahin schlägt «@» nur Personen vor, die in diesem Ordner schon gearbeitet oder kommentiert haben.',
+    });
   };
   const resolveComment = async (id: string, resolved: boolean) => {
     await mutateComments(prev => prev.map(c => c.id !== id ? c : resolved
@@ -1570,6 +1621,7 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
     return out;
   };
   const openCommentCount = comments.filter(c => !c.parentId && c.resolved !== true).length;
+  placeLabelRef.current = t => commentTargets().find(x => x.key === t)?.label ?? t;
 
   return (
     <div className={`p-6 pb-24 mx-auto flex items-start gap-4 ${commentsOpen ? 'max-w-[1424px]' : 'max-w-5xl'}`}>
@@ -2202,26 +2254,26 @@ export default function OnePagerView({ slug, onBack }: { slug: string; onBack: (
         </div>
       )}
 
-      {/* Entra-Suche für @-Erwähnungen nicht möglich */}
-      {directoryWarning && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-6" onClick={() => setDirectoryWarning(null)}>
+      {/* Graph-Berechtigung fehlt (Entra-Suche, Teams) */}
+      {permWarning && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-6" onClick={() => setPermWarning(null)}>
           <div className={`max-w-md w-full rounded-xl border p-6 ${isDark ? 'border-amber-500/30 bg-[#16171a]' : 'border-amber-300 bg-white'}`}
             onClick={e => e.stopPropagation()}>
             <h3 className={`flex items-center gap-2 text-sm font-semibold mb-2 ${isDark ? 'text-amber-200' : 'text-amber-800'}`}>
-              <AlertTriangle size={14} /> Entra-Benutzersuche nicht verfügbar
+              <AlertTriangle size={14} /> {permWarning.title}
             </h3>
-            <p className={`text-xs leading-relaxed mb-2 ${isDark ? 'text-white/80' : 'text-black/80'}`}>{directoryWarning.message}</p>
+            <p className={`text-xs leading-relaxed mb-2 ${isDark ? 'text-white/80' : 'text-black/80'}`}>{permWarning.message}</p>
             <p className={`text-[11px] leading-relaxed mb-5 ${textMuted}`}>
-              Bis dahin schlägt «@» nur Personen vor, die in diesem Ordner schon gearbeitet oder kommentiert haben.
-              {directoryWarning.reason === 'consent' && ' Beim Erteilen lädt die Seite neu — ein angefangener Kommentar geht verloren.'}
+              {permWarning.hint}
+              {permWarning.reason === 'consent' && ' Beim Erteilen lädt die Seite neu — ein angefangener Kommentar geht verloren.'}
             </p>
             <div className="flex gap-2">
-              <button onClick={() => setDirectoryWarning(null)}
+              <button onClick={() => setPermWarning(null)}
                 className={`flex-1 text-xs py-2 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
                 Verstanden
               </button>
-              {directoryWarning.reason === 'consent' && (
-                <button onClick={() => void requestDirectoryConsent()}
+              {permWarning.reason === 'consent' && (
+                <button onClick={() => void requestConsent(permWarning.scopes)}
                   className={`flex-1 text-xs py-2 rounded font-semibold transition-colors ${isDark ? 'bg-white text-black hover:bg-white/90' : 'bg-black text-white hover:bg-black/80'}`}>
                   Berechtigung erteilen
                 </button>

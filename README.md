@@ -36,8 +36,9 @@ Laden der model.json bzw. — dank lokal gemerkter Konfiguration — direkt
 beim Start); die angemeldete Person steht oben rechts
 (Abmelden daneben), «Prüfer/in» wird bei der Freigabe vorbelegt. Drei Zugriffsstufen über
 Entra-App-Rollen: **Admin** (alles), **Reviewer** (Reviews bearbeiten, kein
-Admin-Modus), **Viewer** (alles nur lesen, PDFs exportieren); die höchste
-passende Rolle gewinnt. Wichtig: Die Anmeldung ist ein Zugangs-Gate für die
+Admin-Modus), **Viewer** (alles nur lesen, PDFs exportieren, kommentieren); die höchste
+passende Rolle gewinnt. Rechte-Matrix je Rolle und alle Graph-Berechtigungen:
+[docs/ENTRA-SETUP.md](docs/ENTRA-SETUP.md) (A3/A4). Wichtig: Die Anmeldung ist ein Zugangs-Gate für die
 Oberfläche — die Daten schützt die Berechtigung des geteilten Ordners.
 Einrichtung Schritt für Schritt: [docs/ENTRA-SETUP.md](docs/ENTRA-SETUP.md).
 Entwicklung ohne Login: `?noauth` (nur Dev-Server), Stufen simulieren mit `&as=viewer` / `&as=reviewer`.
@@ -337,8 +338,35 @@ App-Registrierung oder die Person hat noch nicht zugestimmt), erscheint
 einmal pro Sitzung ein Hinweis-Popup, bei fehlender Zustimmung mit
 «Berechtigung erteilen»; die bekannten Personen bleiben wählbar. Ohne
 Anmeldung gibt es nur die bekannten Personen. Entwicklung:
-`?dirfail=consent|forbidden` simuliert die beiden Fälle. Ein E-Mail-Versand
-an erwähnte Personen ist bewusst noch nicht eingebaut.
+`?dirfail=consent|forbidden` simuliert die beiden Fälle.
+
+**Teams-Benachrichtigung** (Admin → «Benachrichtigungen (Teams)»): Ist sie
+eingeschaltet, schickt die kommentierende Person jeder per «@» erwähnten
+Person — und bei einer Antwort der Autorin/dem Autor des Wurzelkommentars —
+eine persönliche Teams-Chat-Nachricht über Microsoft Graph (1:1-Chat, echter
+@-Mention, Stelle, Kommentartext, Link «Kommentar öffnen» und «Projekt
+öffnen»). Die Nachricht kommt von der Person selbst, nicht von einem Dienst.
+Gesendet wird erst nach der Wartezeit (Standard 5 Minuten) nach dem letzten
+eigenen Kommentar, gesammelt je Empfänger/in, jede Erwähnung genau einmal;
+beim Verlassen des Projekts sofort. Was nicht durchkommt (Tab geschlossen,
+Berechtigung fehlt), bleibt als «ausstehend» markiert (Uhr-Symbol im
+Faden, Papierflieger = gesendet) und geht beim nächsten Öffnen des Projekts
+durch die Autorin/den Autor raus. Nötig sind die delegierten Berechtigungen
+`Chat.Create`, `ChatMessage.Send` und `User.ReadBasic.All` (siehe
+[docs/SHAREPOINT-SETUP.md](docs/SHAREPOINT-SETUP.md)); fehlt die Zustimmung,
+erscheint einmal pro Sitzung ein Popup mit «Berechtigung erteilen». Die
+Vorlage der Nachricht ist im Admin anpassbar (Platzhalter `{{empfaenger}}`,
+`{{von}}`, `{{projekt}}`, `{{anzahl}}`, `{{kommentare}}`, `{{link}}`).
+Ohne Anmeldung (lokaler Ordner ohne Login) gibt es keinen Versand.
+Entwicklung: `?teamsmock` schreibt die Nachricht in die Konsole statt nach
+Teams, `?teamsdelay=<Sekunden>` verkürzt die Wartezeit,
+`?teamsfail=consent|forbidden` simuliert fehlende Berechtigungen,
+`?noauth&me=vorname.nachname@firma.ch` simuliert eine angemeldete Person.
+
+**Deep Links**: `?project=<slug>` öffnet ein Projekt direkt,
+`?project=<slug>&comment=<id>` zusätzlich das Kommentar-Panel an der Stelle
+dieses Kommentars. Die Parameter überleben den Microsoft-Login-Redirect (im
+Tab gemerkt) und werden nach dem Einlösen aus der Adresse entfernt.
 
 In der **Projektliste** zeigt ein blaues Sprechblasen-Badge die Zahl der
 offenen Kommentar-Fäden je Projekt. Das Suchfeld in der Kopfzeile filtert
