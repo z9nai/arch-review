@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Sun, Moon, FolderOpen, AlertTriangle, Wrench, LogIn, LogOut, ShieldCheck, Cloud, X, KeyRound } from 'lucide-react';
+import { Sun, Moon, FolderOpen, AlertTriangle, Wrench, LogIn, LogOut, ShieldCheck, Cloud, X, Link2, Check } from 'lucide-react';
 import { useStore } from './store';
-import { GUID_RE, LEVEL_LABELS, useAuth, usePermissions } from './auth';
+import { GUID_RE, LEVEL_LABELS, parseSetupLink, setupLink, PENDING_FOLDER_KEY, resolveTenantId, useAuth, usePermissions } from './auth';
 import ProjectsView from './components/ProjectsView';
 import OnePagerView from './components/OnePagerView';
 import AdminView from './components/AdminView';
@@ -33,7 +33,7 @@ function takeDeepLink(): { slug: string; commentId?: string } | null {
 
 export default function App() {
   const { isDark, toggleTheme, storage, pickDirectory, savedHandleName, reconnectDirectory, model, modelError,
-    connectSharePoint, savedSharePoint, forgetSharePoint, disconnect } = useStore();
+    connectSharePoint, savedSharePoint, reconnectSharePoint, forgetSharePoint, queueSharePoint, disconnect } = useStore();
   const [spOpen, setSpOpen] = useState(false);
   const [spLink, setSpLink] = useState('');
   const [spBusy, setSpBusy] = useState(false);
@@ -62,41 +62,103 @@ export default function App() {
     setView({ kind: 'project', slug: deepLinkPending.slug, ...(deepLinkPending.commentId ? { commentId: deepLinkPending.commentId } : {}) });
   }, [deepLinkPending, storage, model, gated]);
 
-  // SharePoint: Link auflösen und verbinden
-  const doConnectSharePoint = async () => {
-    setSpBusy(true); setSpError('');
-    const res = await connectSharePoint(spLink);
-    setSpBusy(false);
-    if (res.ok) { setSpOpen(false); setSpLink(''); }
-    else setSpError(res.message);
-  };
-  // Start des SharePoint-Modus: immer zuerst Anmeldung + Graph-Token sicherstellen
-  // (Redirect, falls nötig), erst dann der Link-Dialog
+  // SharePoint verbinden — zuerst der Link, dann (falls nötig) die Anmeldung.
+  // Einrichtungs-Link (Teilen) eingefügt → IDs und Ordner daraus. Sonst:
+  // Verzeichnis-ID aus dem Link, Anwendungs-ID aus dem Feld bzw. die im
+  // Browser gemerkte desselben Tenants — kennt der Browser keine, fragt der
+  // Dialog danach (App-Registrierung liegt im Tenant der Organisation).
+  // Braucht es den Microsoft-Login, wird der Ordner vorgemerkt und danach
+  // automatisch verbunden (store: PENDING_FOLDER_KEY).
+  const [spClient, setSpClient] = useState('');
+  const [spTenant, setSpTenant] = useState('');
+  const [spTenantManual, setSpTenantManual] = useState(false);
+  const [spClientOpen, setSpClientOpen] = useState(false);
   const [spPreparing, setSpPreparing] = useState(false);
-  const [setupOpen, setSetupOpen] = useState(false);
-  const [setupTenant, setSetupTenant] = useState('');
-  const [setupClient, setSetupClient] = useState('');
-  const [setupError, setSetupError] = useState('');
-  const startSharePoint = async () => {
+  const devNoAuth = import.meta.env.DEV && new URLSearchParams(location.search).has('noauth');
+  const setupFromLink = parseSetupLink(spLink);
+  const showIdOptions = !setupFromLink && !devNoAuth;
+  const showClient = !auth.ids || spClientOpen; // ohne gemerkte IDs Pflicht
+  const needSignIn = !auth.user && !devNoAuth;
+  const startSharePoint = () => { setSpError(''); setSpOpen(true); };
+  // gemerkten Ordner wieder verbinden: nur anmelden, kein Link nötig
+  const reconnectSavedSharePoint = async () => {
     setSpPreparing(true);
     try {
       const r = await auth.loginForSharePoint();
-      if (r === 'ready') setSpOpen(true);
-      else if (r === 'setup') { setSetupError(''); setSetupOpen(true); }
+      if (r === 'ready') await reconnectSharePoint();
+      else if (r === 'setup') { setSpLink(savedSharePoint?.webUrl ?? ''); startSharePoint(); }
     } finally {
       setSpPreparing(false);
     }
   };
-  const saveSetup = async () => {
-    const t = setupTenant.trim(), c = setupClient.trim();
-    if (!GUID_RE.test(t) || !GUID_RE.test(c)) { setSetupError('Beide IDs müssen gültige GUIDs sein (Format 8-4-4-4-12).'); return; }
-    auth.setLocalIds(t, c);
-    setSetupOpen(false);
-    // direkt weiter zur Anmeldung
-    setTimeout(() => { void startSharePoint(); }, 50);
+  const doConnectSharePoint = async () => {
+    setSpBusy(true); setSpError('');
+    try {
+      let link = spLink.trim();
+      let ids = auth.ids;
+      if (setupFromLink) {
+        if (!setupFromLink.folder) throw new Error('Der Einrichtungs-Link enthält keinen Ordner — bitte zusätzlich den Link zum SharePoint-Ordner einfügen.');
+        link = setupFromLink.folder;
+        ids = { tenantId: setupFromLink.tenantId, clientId: setupFromLink.clientId };
+      } else if (!devNoAuth) {
+        let tenantId = spTenant.trim();
+        if (!tenantId) {
+          try { tenantId = await resolveTenantId(link); }
+          catch (e) {
+            // nicht ermittelbar: gemerkte IDs verwenden, sonst nachfragen
+            if (!ids) { setSpTenantManual(true); throw e; }
+            tenantId = ids.tenantId;
+          }
+        }
+        if (!GUID_RE.test(tenantId)) throw new Error('Verzeichnis-ID (Tenant) ist keine gültige ID (Format 8-4-4-4-12).');
+        const own = showClient ? spClient.trim() : '';
+        if (own && !GUID_RE.test(own)) throw new Error('Anwendungs-ID (Client) ist keine gültige ID (Format 8-4-4-4-12).');
+        const clientId = own || (ids && ids.tenantId === tenantId ? ids.clientId : '');
+        if (!clientId) {
+          setSpClientOpen(true);
+          throw new Error('Anwendungs-ID fehlt. Am einfachsten statt des Ordner-Links den Einrichtungs-Link einfügen («Teilen» bei jemandem, der schon verbunden ist) — oder die Anwendungs-ID vom Admin eintragen.');
+        }
+        ids = { tenantId, clientId };
+      }
+      if (!/^https:\/\//i.test(link)) throw new Error('Bitte den Link zum Ordner einfügen (beginnt mit https://).');
+      queueSharePoint(link);
+      if (ids && (ids.tenantId !== auth.ids?.tenantId || ids.clientId !== auth.ids?.clientId)) auth.setLocalIds(ids.tenantId, ids.clientId);
+      const r = await auth.loginForSharePoint();
+      if (r === 'setup') throw new Error('Anmelde-IDs fehlen.');
+      if (r === 'redirect') return; // Microsoft-Anmeldung läuft; danach wird der Ordner verbunden
+      // schon angemeldet: selbst verbinden — ausser der Store hat den
+      // vorgemerkten Ordner inzwischen übernommen
+      let pending: string | null = null;
+      try { pending = localStorage.getItem(PENDING_FOLDER_KEY); localStorage.removeItem(PENDING_FOLDER_KEY); } catch { /* ignore */ }
+      if (pending) {
+        const res = await connectSharePoint(link);
+        if (!res.ok) throw new Error(res.message);
+      }
+      setSpOpen(false); setSpLink(''); setSpClient(''); setSpTenant(''); setSpTenantManual(false); setSpClientOpen(false);
+    } catch (e) {
+      setSpError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSpBusy(false);
+    }
   };
 
   const denied = auth.status === 'signedIn' && !canView;
+
+  // Einrichtungs-Link für den aktuell verbundenen SharePoint-Ordner — mit den
+  // IDs, mit denen diese Sitzung angemeldet ist. Wer ihn öffnet, landet nach
+  // dem Login direkt in diesem Ordner (Zugriff regelt weiterhin SharePoint).
+  const [shareCopied, setShareCopied] = useState(false);
+  const shareLink = storage?.kind === 'sharepoint' && storage.webUrl && auth.ids
+    ? setupLink(auth.ids.tenantId, auth.ids.clientId, storage.webUrl) : null;
+  const copyShareLink = async () => {
+    if (!shareLink) return;
+    try {
+      await navigator.clipboard.writeText(shareLink);
+      setShareCopied(true); setTimeout(() => setShareCopied(false), 2000);
+    } catch {
+      window.prompt('Link zu diesem Ordner kopieren:', shareLink);
+    }
+  };
 
   // Zurück zur Ordnerwahl — auch aus dem Login-Gate, «Keine Berechtigung» und
   // Fehlerseiten (sonst steckt man in der Login-Pflicht des letzten Ordners fest)
@@ -159,6 +221,19 @@ export default function App() {
                 <LogOut size={12} />
               </button>
             </div>
+          )}
+
+          {/* Link zu diesem SharePoint-Ordner teilen */}
+          {!gated && !denied && shareLink && (
+            <button onClick={copyShareLink}
+              title={`Link kopieren, der Anmeldung und den Ordner «${dirHandle?.name ?? ''}» in einem Schritt einrichtet — Empfänger öffnen ihn und melden sich an. Zugriff erhält nur, wer in SharePoint berechtigt ist.`}
+              className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 rounded border transition-colors ${
+                shareCopied
+                  ? (isDark ? 'border-emerald-500/40 text-emerald-300' : 'border-emerald-400 text-emerald-700')
+                  : (isDark ? 'border-white/15 text-white/50 hover:border-white/30' : 'border-black/15 text-black/50 hover:border-black/30')}`}>
+              {shareCopied ? <Check size={12} /> : <Link2 size={12} />}
+              {shareCopied ? 'Kopiert' : 'Teilen'}
+            </button>
           )}
 
           {/* Geteilter Ordner (lokal oder SharePoint) */}
@@ -259,7 +334,7 @@ export default function App() {
                 {/* SharePoint */}
                 {savedSharePoint ? (
                   <div className="space-y-1">
-                    <button onClick={startSharePoint} disabled={spPreparing}
+                    <button onClick={reconnectSavedSharePoint} disabled={spPreparing}
                       className={`w-full flex items-center justify-center gap-2 text-xs px-4 py-2.5 rounded font-semibold transition-colors disabled:opacity-50 ${isDark ? 'bg-white text-black hover:bg-white/90' : 'bg-black text-white hover:bg-black/80'}`}>
                       <Cloud size={12} /> {spPreparing ? 'Anmeldung …' : `Wieder verbinden: ${savedSharePoint.name}`}
                     </button>
@@ -267,7 +342,7 @@ export default function App() {
                   </div>
                 ) : (
                   <button onClick={startSharePoint} disabled={spPreparing}
-                    title={auth.loginAvailable ? '' : 'Beim ersten Mal: Einrichtungs-Link vom Admin öffnen oder IDs eintragen'}
+                    title="Link zum SharePoint-Ordner einfügen und mit dem Microsoft-Konto anmelden"
                     className={`w-full flex items-center justify-center gap-2 text-xs px-4 py-2.5 rounded font-semibold transition-colors disabled:opacity-40 ${isDark ? 'bg-white text-black hover:bg-white/90' : 'bg-black text-white hover:bg-black/80'}`}>
                     <Cloud size={12} /> {spPreparing ? 'Anmeldung …' : 'SharePoint-Ordner verbinden'}
                   </button>
@@ -318,48 +393,6 @@ export default function App() {
         )}
       </div>
 
-      {/* Einrichtung: Microsoft-Anmeldung für diesen Browser (einmalig) */}
-      {setupOpen && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-6" onClick={() => setSetupOpen(false)}>
-          <div className={`max-w-lg w-full rounded-xl border p-6 ${isDark ? 'border-white/15 bg-[#16171a]' : 'border-black/15 bg-white'}`}
-            onClick={e => e.stopPropagation()}>
-            <div className="flex items-start justify-between gap-4 mb-3">
-              <h3 className={`flex items-center gap-2 text-sm font-semibold ${isDark ? 'text-white' : 'text-black'}`}>
-                <KeyRound size={14} /> Microsoft-Anmeldung einrichten
-              </h3>
-              <button onClick={() => setSetupOpen(false)}
-                className={`p-1 rounded flex-shrink-0 transition-colors ${isDark ? 'text-white/25 hover:text-white/70' : 'text-black/25 hover:text-black/70'}`}>
-                <X size={14} />
-              </button>
-            </div>
-            <p className={`text-[11px] leading-relaxed mb-3 ${textMuted}`}>
-              Am einfachsten den <span className="font-semibold">Einrichtungs-Link</span> vom Admin öffnen — er
-              richtet Anmeldung und SharePoint-Ordner in einem Schritt ein. Alternativ hier die beiden IDs der
-              App-Registrierung in Microsoft Entra eintragen (einmalig pro Browser, keine Geheimnisse).
-            </p>
-            <div className="space-y-2">
-              <label className={`block text-[10px] uppercase tracking-wider ${textMuted}`}>Verzeichnis-ID (Tenant)</label>
-              <input value={setupTenant} onChange={e => setSetupTenant(e.target.value)} placeholder="00000000-0000-0000-0000-000000000000"
-                className={`w-full text-xs px-3 py-2 rounded border outline-none font-mono transition-colors ${isDark ? 'bg-white/5 border-white/10 text-white placeholder-white/20 focus:border-white/30' : 'bg-black/5 border-black/10 text-black placeholder-black/20 focus:border-black/30'}`} />
-              <label className={`block text-[10px] uppercase tracking-wider ${textMuted}`}>Anwendungs-ID (Client)</label>
-              <input value={setupClient} onChange={e => setSetupClient(e.target.value)} placeholder="00000000-0000-0000-0000-000000000000"
-                className={`w-full text-xs px-3 py-2 rounded border outline-none font-mono transition-colors ${isDark ? 'bg-white/5 border-white/10 text-white placeholder-white/20 focus:border-white/30' : 'bg-black/5 border-black/10 text-black placeholder-black/20 focus:border-black/30'}`} />
-            </div>
-            {setupError && <p className={`text-[11px] mt-2 ${isDark ? 'text-rose-400' : 'text-rose-600'}`}>{setupError}</p>}
-            <div className="flex gap-2 pt-4">
-              <button onClick={() => setSetupOpen(false)}
-                className={`flex-1 text-xs py-2 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
-                Abbrechen
-              </button>
-              <button onClick={saveSetup} disabled={!GUID_RE.test(setupTenant.trim()) || !GUID_RE.test(setupClient.trim())}
-                className={`flex-1 flex items-center justify-center gap-1.5 text-xs py-2 rounded font-semibold transition-colors disabled:opacity-40 ${isDark ? 'bg-white text-black hover:bg-white/90' : 'bg-black text-white hover:bg-black/80'}`}>
-                <LogIn size={12} /> Speichern und anmelden
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* SharePoint-Ordner verbinden */}
       {spOpen && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-6" onClick={() => !spBusy && setSpOpen(false)}>
@@ -374,13 +407,57 @@ export default function App() {
             </div>
             <p className={`text-[11px] leading-relaxed mb-3 ${textMuted}`}>
               Link zum Ordner aus SharePoint oder Teams einfügen (Ordner öffnen → «Link kopieren» bzw. die Adresse aus der
-              Browserzeile). In diesem Ordner liegen config/model.json und projects/ — fehlen sie, legt die App sie an.
+              Browserzeile) — oder den Einrichtungs-Link vom Admin. In diesem Ordner liegen config/model.json und
+              projects/ — fehlen sie, legt die App sie an.
             </p>
             <input value={spLink} autoFocus disabled={spBusy}
               onChange={e => setSpLink(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && spLink.trim()) doConnectSharePoint(); }}
               placeholder="https://firma.sharepoint.com/sites/Architekturpruefung/Freigegebene Dokumente/arch-review"
               className={`w-full text-xs px-3 py-2 rounded border outline-none font-mono transition-colors ${isDark ? 'bg-white/5 border-white/10 text-white placeholder-white/20 focus:border-white/30' : 'bg-black/5 border-black/10 text-black placeholder-black/20 focus:border-black/30'}`} />
+            {setupFromLink && (
+              <p className={`text-[11px] mt-2 ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
+                Einrichtungs-Link erkannt — Anmeldung{setupFromLink.folder ? ' und Ordner' : ''} werden daraus übernommen.
+              </p>
+            )}
+            {showIdOptions && (
+              <div className="mt-3 space-y-2">
+                {showClient ? (
+                  <>
+                    {!auth.ids && (
+                      <p className={`text-[11px] leading-relaxed ${textMuted}`}>
+                        <span className="font-semibold">Einmalig für diesen Browser:</span> die Anwendungs-ID der
+                        App-Registrierung (vom Admin; keine Geheimnisse) — oder oben statt des Ordner-Links den
+                        Einrichtungs-Link einfügen («Teilen» in der App), dann entfällt sie. Die Verzeichnis-ID
+                        ermittelt die App aus dem Link.
+                      </p>
+                    )}
+                    <label className={`block text-[10px] uppercase tracking-wider ${textMuted}`}>Anwendungs-ID (Client)</label>
+                    <input value={spClient} onChange={e => setSpClient(e.target.value)} disabled={spBusy}
+                      onKeyDown={e => { if (e.key === 'Enter' && spLink.trim()) doConnectSharePoint(); }}
+                      placeholder="00000000-0000-0000-0000-000000000000"
+                      className={`w-full text-xs px-3 py-2 rounded border outline-none font-mono transition-colors ${isDark ? 'bg-white/5 border-white/10 text-white placeholder-white/20 focus:border-white/30' : 'bg-black/5 border-black/10 text-black placeholder-black/20 focus:border-black/30'}`} />
+                  </>
+                ) : (
+                  <button type="button" onClick={() => setSpClientOpen(true)} className={`block text-[10px] ${textMuted} hover:underline`}
+                    title="Nur nötig für einen Ordner einer anderen Organisation (anderer Tenant, andere App-Registrierung)">
+                    Andere Anwendungs-ID verwenden
+                  </button>
+                )}
+                {spTenantManual ? (
+                  <>
+                    <label className={`block text-[10px] uppercase tracking-wider ${textMuted}`}>Verzeichnis-ID (Tenant)</label>
+                    <input value={spTenant} onChange={e => setSpTenant(e.target.value)} disabled={spBusy}
+                      placeholder="00000000-0000-0000-0000-000000000000"
+                      className={`w-full text-xs px-3 py-2 rounded border outline-none font-mono transition-colors ${isDark ? 'bg-white/5 border-white/10 text-white placeholder-white/20 focus:border-white/30' : 'bg-black/5 border-black/10 text-black placeholder-black/20 focus:border-black/30'}`} />
+                  </>
+                ) : (
+                  <button type="button" onClick={() => setSpTenantManual(true)} className={`block text-[10px] ${textMuted} hover:underline`}>
+                    Verzeichnis-ID selbst eintragen
+                  </button>
+                )}
+              </div>
+            )}
             {spError && <p className={`text-[11px] mt-2 ${isDark ? 'text-rose-400' : 'text-rose-600'}`}>{spError}</p>}
             <div className="flex gap-2 pt-4">
               <button onClick={() => setSpOpen(false)} disabled={spBusy}
@@ -389,7 +466,8 @@ export default function App() {
               </button>
               <button onClick={doConnectSharePoint} disabled={spBusy || !spLink.trim()}
                 className={`flex-1 flex items-center justify-center gap-1.5 text-xs py-2 rounded font-semibold transition-colors disabled:opacity-40 ${isDark ? 'bg-white text-black hover:bg-white/90' : 'bg-black text-white hover:bg-black/80'}`}>
-                <Cloud size={12} /> {spBusy ? 'Verbinde …' : 'Verbinden'}
+                {needSignIn ? <LogIn size={12} /> : <Cloud size={12} />}
+                {spBusy ? 'Verbinde …' : needSignIn ? 'Anmelden und verbinden' : 'Verbinden'}
               </button>
             </div>
           </div>

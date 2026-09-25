@@ -28,10 +28,15 @@ wird im **Admin → Anmeldung** (Tenant-ID, Client-ID, Rollen, aktiv);
 die Einstellung liegt als `auth` in der `config/model.json` und gilt für alle
 Benutzer des Ordners. Für den SharePoint-Modus müssen Tenant-/Client-ID
 schon vor dem Ordner bekannt sein — sie werden einmalig pro Browser
-hinterlegt: per **Einrichtungs-Link** (`?tenant=…&client=…&folder=…`,
+hinterlegt: per **Einrichtungs-Link** (`?setup=…` — IDs und Ordner kodiert,
+nicht verschlüsselt, da öffentliche Kennungen; ältere Links mit
+`?tenant=…&client=…&folder=…` gelten weiter;
 verbindet nach dem Login auch gleich den SharePoint-Ordner; Admin →
-Anmeldung → Für Benutzer) oder manuell im Einrichtungsdialog. Nichts davon
-liegt im Repo oder Deployment. Ist sie aktiv, erscheint ein Login-Gate (nach dem
+Anmeldung → Für Benutzer, bzw. «Teilen» oben rechts mit dem aktuellen
+Ordner) oder im Dialog «SharePoint-Ordner verbinden»: Ordner-Link
+einfügen, beim ersten Mal die Anwendungs-ID dazu — die Verzeichnis-ID
+ermittelt die App aus der SharePoint-Adresse, nach dem Login wird der
+Ordner automatisch verbunden. Nichts davon liegt im Repo oder Deployment. Ist sie aktiv, erscheint ein Login-Gate (nach dem
 Laden der model.json bzw. — dank lokal gemerkter Konfiguration — direkt
 beim Start); die angemeldete Person steht oben rechts
 (Abmelden daneben), «Prüfer/in» wird bei der Freigabe vorbelegt. Drei Zugriffsstufen über

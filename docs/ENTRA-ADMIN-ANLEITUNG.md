@@ -141,7 +141,10 @@ Bitte aus der **Übersicht** der App-Registrierung zurückmelden:
 
 Beide IDs sind öffentliche Kennungen (sie erscheinen in jeder Anmelde-URL)
 und keine Geheimnisse. Sie werden in der Anwendung hinterlegt; danach ist
-die Anmeldung aktiv.
+die Anmeldung aktiv. Benutzer erhalten anschliessend einen
+**Einrichtungs-Link** (in der App «Teilen»), der Anmeldung und
+SharePoint-Ordner in einem Schritt einrichtet — sie müssen keine IDs
+kennen.
 
 ## Optional · Richtlinien
 

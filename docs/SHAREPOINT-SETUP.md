@@ -165,22 +165,33 @@ einmal pro Sitzung ein Popup.
 1. App öffnen → **«SharePoint-Ordner verbinden»**.
 2. **Beim allerersten Mal in diesem Browser:** am einfachsten den
    **Einrichtungs-Link** vom Admin öffnen
-   (`…/arch-review/?tenant=…&client=…&folder=…`) — er enthält Anmeldung
+   (`…/arch-review/?setup=…`) — er enthält Anmeldung
    **und** SharePoint-Ordner: Link öffnen → Microsoft-Login → fertig, der
    Ordner ist verbunden. Die Einstellungen bleiben im Browser gespeichert
    (Mac, PC, jeder Browser gleich; nichts davon liegt im Repo oder
-   Deployment). Ohne Link: im Dialog «Microsoft-Anmeldung einrichten» die
-   beiden IDs eintragen → anmelden → Ordner-Link aus Teil 2 einfügen →
-   **Verbinden**.
+   Deployment). Den Einrichtungs-Link kann man auch in das Feld des
+   Dialogs einfügen, statt ihn zu öffnen. Ohne Einrichtungs-Link: den
+   **Ordner-Link** aus Teil 2 einfügen und — nur beim ersten Mal in diesem
+   Browser — die **Anwendungs-ID (Client)** eintragen → **Anmelden und
+   verbinden**. Die Verzeichnis-ID ermittelt die App aus der
+   SharePoint-Adresse (`firma.sharepoint.com` → Tenant
+   `firma.onmicrosoft.com`); klappt das nicht (z. B. umbenannter Tenant),
+   fragt sie danach. Nach dem Microsoft-Login verbindet die App den Ordner
+   automatisch.
 
 Die App merkt sich den Ordner im Browser; beim nächsten Start verbindet sie
 automatisch. Der lokale Ordner bleibt als Alternative bestehen (z. B. für
 Tests mit `sample-data/`).
 
-**Für Admins:** Unter **Admin → Anmeldung → Für Benutzer** gibt es
-**«Einrichtungs-Link kopieren»** — mit verbundenem SharePoint-Ordner enthält
-der Link IDs und Ordner. Per Teams-Nachricht verteilen, fertig. Rollen und
-die Login-Pflicht für lokale Ordner stehen weiterhin in der `config/model.json`.
+**Link weitergeben:** Wer mit einem SharePoint-Ordner verbunden ist, findet
+oben rechts neben dem Ordnernamen **«Teilen»** — kopiert den
+Einrichtungs-Link mit den Anmelde-IDs dieser Sitzung und dem aktuellen
+Ordner. Per Teams-Nachricht verteilen, fertig; Empfänger öffnen ihn, melden
+sich an und sind im Ordner. Zugriff erhält trotzdem nur, wer in SharePoint
+berechtigt ist. Dasselbe gibt es für Admins unter **Admin → Anmeldung → Für
+Benutzer → «Einrichtungs-Link kopieren»** (IDs aus der `config/model.json`,
+sonst die der Sitzung). Rollen und die Login-Pflicht für lokale Ordner
+stehen weiterhin in der `config/model.json`.
 
 ## Typische Probleme
 

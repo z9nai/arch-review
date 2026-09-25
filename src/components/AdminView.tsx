@@ -403,9 +403,11 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
               {/* Verteilung an die Benutzer: Einrichtungs-Link / Konfigurationsdatei */}
               <div className="flex items-center gap-2 flex-wrap">
                 <span className={`text-[10px] uppercase tracking-wider ${labelCls}`}>Für Benutzer</span>
-                <button disabled={!canEnable}
+                <button disabled={!canEnable && !knownIds}
                   onClick={async () => {
-                    const link = setupLink(a.tenantId, a.clientId, storage?.kind === 'sharepoint' ? storage.webUrl : undefined);
+                    // IDs aus der model.json, sonst die dieser Sitzung
+                    const ids = canEnable ? { tenantId: a.tenantId, clientId: a.clientId } : knownIds!;
+                    const link = setupLink(ids.tenantId, ids.clientId, storage?.kind === 'sharepoint' ? storage.webUrl : undefined);
                     try { await navigator.clipboard.writeText(link); setSetupCopied(true); setTimeout(() => setSetupCopied(false), 2000); }
                     catch { window.prompt('Einrichtungs-Link kopieren:', link); }
                   }}

@@ -69,6 +69,8 @@ interface StoreCtx {
   savedSharePoint: SharePointFolder | null;
   reconnectSharePoint: () => Promise<void>;
   forgetSharePoint: () => void;
+  /** Ordner vormerken: wird nach der Microsoft-Anmeldung automatisch verbunden */
+  queueSharePoint: (link: string) => void;
   disconnect: () => void;
   // Daten
   model: Model | null;
@@ -530,6 +532,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     storeSharePoint(null); setSavedSharePoint(null);
   }, []);
 
+  const queueSharePoint = useCallback((link: string) => {
+    storeSharePoint(null); setSavedSharePoint(null);
+    try { localStorage.setItem(PENDING_FOLDER_KEY, link.trim()); localStorage.setItem(MODE_KEY, 'sharepoint'); } catch { /* ignore */ }
+  }, []);
+
   const disconnect = useCallback(() => {
     backendRef.current = null;
     setStorage(null); setModel(null); modelRef.current = null; setProjects([]); setKnownUsers([]);
@@ -895,7 +902,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     <Ctx.Provider value={{
       isDark, toggleTheme, storage,
       pickDirectory, savedHandleName, reconnectDirectory,
-      connectSharePoint, savedSharePoint, reconnectSharePoint, forgetSharePoint, disconnect,
+      connectSharePoint, savedSharePoint, reconnectSharePoint, forgetSharePoint, queueSharePoint, disconnect,
       model, modelError, modelPath, saveModel, checkModelSecurity,
       projects, refreshProjects, loadProject, saveProject, createProject, duplicateProject, deleteProject,
       uploadSourceFile, downloadSourceFile, deleteSourceFile,

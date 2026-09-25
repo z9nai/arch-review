@@ -11,8 +11,8 @@
 //   und lokal im Browser gemerkt (localStorage). Damit der SharePoint-Modus
 //   schon VOR dem Ordner anmelden kann, lassen sich die IDs pro Browser
 //   einmalig hinterlegen: über einen Einrichtungs-Link
-//   (?tenant=…&client=…), eine Konfigurationsdatei oder manuell — beides
-//   erzeugt der Admin in der App. Nichts davon liegt im Repo/Deployment.
+//   (?setup=…, «Teilen») oder im Verbinden-Dialog (Verzeichnis-ID aus dem
+//   SharePoint-Link, Anwendungs-ID eintragen). Nichts davon liegt im Repo.
 // - Rollen (Admin/Reviewer/Viewer) und enabled (Login-Pflicht beim lokalen
 //   Ordner): `auth` in der model.json.
 // Die lokal gemerkten IDs bleiben erhalten, auch wenn eine model.json ohne
@@ -121,21 +121,72 @@ function writeCache(cfg: AuthConfig | null) {
 
 export const PENDING_FOLDER_KEY = 'arch-review.pendingFolder';
 
-// Einrichtungs-Link: ?tenant=…&client=…[&folder=…] einmalig übernehmen und aus
-// der URL entfernen. Der SharePoint-Ordner wird nach der Anmeldung verbunden.
+// Einrichtungs-Link kompakt: ?setup=<Token>. Das Token ist nur KODIERT, nicht
+// verschlüsselt — die IDs sind öffentliche Kennungen (sie stehen ohnehin in
+// jeder Anmelde-URL). Aufbau (base64url): 1 Byte Version, Verzeichnis-ID und
+// Anwendungs-ID als je 16 Bytes, danach der Ordner-Link (UTF-8, optional).
+const SETUP_VERSION = 1;
+const b64url = (bytes: Uint8Array) =>
+  btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const fromB64url = (s: string) =>
+  Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((s.length + 3) % 4)), c => c.charCodeAt(0));
+const guidBytes = (g: string) => Uint8Array.from(g.replace(/-/g, '').match(/../g)!.map(h => parseInt(h, 16)));
+const bytesGuid = (b: Uint8Array) => {
+  const h = Array.from(b, x => x.toString(16).padStart(2, '0')).join('');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+};
+
+function encodeSetup(tenantId: string, clientId: string, folder = ''): string {
+  const f = new TextEncoder().encode(folder.trim());
+  const out = new Uint8Array(33 + f.length);
+  out[0] = SETUP_VERSION;
+  out.set(guidBytes(tenantId), 1);
+  out.set(guidBytes(clientId), 17);
+  out.set(f, 33);
+  return b64url(out);
+}
+
+function decodeSetup(token: string): { tenantId: string; clientId: string; folder: string } | null {
+  try {
+    const b = fromB64url(token.trim());
+    if (b.length < 33 || b[0] !== SETUP_VERSION) return null;
+    return {
+      tenantId: bytesGuid(b.subarray(1, 17)),
+      clientId: bytesGuid(b.subarray(17, 33)),
+      folder: new TextDecoder().decode(b.subarray(33)),
+    };
+  } catch {
+    return null;
+  }
+}
+
+// Einrichtungs-Link aus URL-Parametern lesen: kompakt (?setup=…) oder im
+// früheren Format (?tenant=…&client=…[&folder=…]) — alte Links gelten weiter
+function setupFromParams(q: URLSearchParams): { tenantId: string; clientId: string; folder: string } | null {
+  const token = q.get('setup');
+  const r = token
+    ? decodeSetup(token)
+    : { tenantId: (q.get('tenant') ?? '').trim(), clientId: (q.get('client') ?? '').trim(), folder: (q.get('folder') ?? '').trim() };
+  return r && GUID_RE.test(r.tenantId) && GUID_RE.test(r.clientId) ? r : null;
+}
+
+// Einrichtungs-Link einmalig übernehmen und aus der URL entfernen. Der
+// SharePoint-Ordner wird nach der Anmeldung verbunden — er ersetzt einen
+// bisher gemerkten Ordner.
 function takeIdsFromUrl(): { tenantId: string; clientId: string } | null {
   try {
     const u = new URL(window.location.href);
-    const tenantId = (u.searchParams.get('tenant') ?? '').trim();
-    const clientId = (u.searchParams.get('client') ?? '').trim();
-    const folder = (u.searchParams.get('folder') ?? '').trim();
-    if (!GUID_RE.test(tenantId) || !GUID_RE.test(clientId)) return null;
-    if (/^https:\/\//i.test(folder)) {
-      try { localStorage.setItem(PENDING_FOLDER_KEY, folder); localStorage.setItem(MODE_KEY, 'sharepoint'); } catch { /* ignore */ }
+    const r = setupFromParams(u.searchParams);
+    if (!r) return null;
+    if (/^https:\/\//i.test(r.folder)) {
+      try {
+        localStorage.removeItem('arch-review.sharepoint'); // gemerkter Ordner (store.tsx SP_KEY)
+        localStorage.setItem(PENDING_FOLDER_KEY, r.folder); localStorage.setItem(MODE_KEY, 'sharepoint');
+      } catch { /* ignore */ }
     }
-    u.searchParams.delete('tenant'); u.searchParams.delete('client'); u.searchParams.delete('folder');
+    for (const k of ['setup', 'tenant', 'client', 'folder']) u.searchParams.delete(k);
     window.history.replaceState(null, '', u.toString());
-    return { tenantId, clientId };
+    return { tenantId: r.tenantId, clientId: r.clientId };
   } catch {
     return null;
   }
@@ -144,10 +195,39 @@ function takeIdsFromUrl(): { tenantId: string; clientId: string } | null {
 // Einrichtungs-Link für die Weitergabe (Admin): IDs + SharePoint-Ordner
 export function setupLink(tenantId: string, clientId: string, folderUrl?: string): string {
   const u = new URL(`${window.location.origin}${import.meta.env.BASE_URL}`);
-  u.searchParams.set('tenant', tenantId);
-  u.searchParams.set('client', clientId);
-  if (folderUrl) u.searchParams.set('folder', folderUrl);
+  u.searchParams.set('setup', encodeSetup(tenantId, clientId, folderUrl));
   return u.toString();
+}
+
+// Einrichtungs-Link in ein Eingabefeld eingefügt (statt geöffnet)? → IDs und Ordner
+export function parseSetupLink(text: string): { tenantId: string; clientId: string; folder: string } | null {
+  try {
+    return setupFromParams(new URL(text.trim()).searchParams);
+  } catch {
+    return null;
+  }
+}
+
+// Verzeichnis-ID (Tenant) aus einem SharePoint-Link ermitteln: Die Adresse
+// firma.sharepoint.com (OneDrive: firma-my.sharepoint.com) gehört zum Tenant
+// firma.onmicrosoft.com; dessen GUID steht öffentlich in der
+// OpenID-Konfiguration (ohne Anmeldung, im Browser abrufbar). Klappt nicht
+// bei umbenannten Tenants — dann trägt man die ID selbst ein.
+export async function resolveTenantId(link: string): Promise<string> {
+  let host = '';
+  try { host = new URL(link.trim()).hostname.toLowerCase(); } catch { /* s. u. */ }
+  const m = host.match(/^([a-z0-9-]+?)(?:-my)?\.sharepoint\.com$/);
+  if (!m) throw new Error('Das ist kein SharePoint-Link (…sharepoint.com) — Verzeichnis-ID bitte selbst eintragen.');
+  let res: Response;
+  try {
+    res = await fetch(`https://login.microsoftonline.com/${m[1]}.onmicrosoft.com/v2.0/.well-known/openid-configuration`);
+  } catch {
+    throw new Error('Verzeichnis-ID konnte nicht ermittelt werden (Netzwerk) — bitte selbst eintragen.');
+  }
+  const issuer = res.ok ? String((await res.json().catch(() => ({}))).issuer ?? '') : '';
+  const guid = issuer.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i)?.[0];
+  if (!guid) throw new Error(`Verzeichnis-ID für «${m[1]}» nicht gefunden — bitte selbst eintragen.`);
+  return guid;
 }
 
 const devBypass = () => import.meta.env.DEV && new URLSearchParams(location.search).has('noauth');
