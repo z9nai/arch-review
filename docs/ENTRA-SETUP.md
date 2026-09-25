@@ -1,11 +1,11 @@
-# Anmeldung über Microsoft Entra ID (DEMOCOMPANY) — Einrichtung Schritt für Schritt
+# Anmeldung über Microsoft Entra ID — Einrichtung Schritt für Schritt
 
 Die App meldet Benutzer über **Microsoft Entra ID** (ehemals Azure AD) an —
 mit MSAL im Browser (Authorization Code Flow + PKCE), ohne eigenen Server.
 
 **Was die Anmeldung leistet — und was nicht:**
 
-- ✅ Nur Personen aus dem DEMOCOMPANY-Tenant (optional: nur zugewiesene Personen)
+- ✅ Nur Personen aus dem eigenen Tenant (optional: nur zugewiesene Personen)
   können die App öffnen.
 - ✅ Die angemeldete Person ist bekannt: Name in der Kopfleiste, Vorbelegung
   von «Prüfer/in» bei der Freigabe.
@@ -28,9 +28,9 @@ Benutzer dieses Ordners.
 
 ---
 
-## Teil A — App-Registrierung im Entra-Tenant von DEMOCOMPANY
+## Teil A — App-Registrierung im eigenen Entra-Tenant
 
-> Dafür braucht es im DEMOCOMPANY-Tenant die Rolle **Anwendungsentwickler**
+> Dafür braucht es im Tenant die Rolle **Anwendungsentwickler**
 > (oder Cloudanwendungsadministrator / globaler Administrator). Wer die Rolle
 > nicht hat, gibt diese Anleitung an die IT weiter — Teil A dauert ca. 10 Minuten.
 
@@ -41,7 +41,7 @@ Benutzer dieses Ordners.
 2. Ausfüllen:
    - **Name:** `Z9nAI Arch Review`
    - **Unterstützte Kontotypen:** *Nur Konten in diesem Organisationsverzeichnis
-     (DEMOCOMPANY – einzelner Mandant)*
+     (einzelner Mandant)*
    - **Umleitungs-URI:** Plattform **Single-Page-Webanwendung (SPA)**,
      URI `https://z9nai.github.io/arch-review/`
 3. **Registrieren**.
