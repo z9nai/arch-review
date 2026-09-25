@@ -384,6 +384,14 @@ offenen Kommentar-Fäden je Projekt. Das Suchfeld in der Kopfzeile filtert
 die Liste nach Titel oder Slug; ab zwei Zeichen erscheint eine
 Vorschlagsliste (Pfeiltasten, Enter öffnet das Projekt, Esc leert).
 
+Im **geöffneten Projekt** sucht das Feld oben rechts nach Frage-Nummer
+(z. B. `M20B3`), Fragetext und Antworten (Ja/Nein, Auswahl, Bemerkungen);
+mehrere Begriffe müssen alle vorkommen. Die Trefferliste zeigt Nummer,
+Frage und Antwort mit markierten Suchbegriffen; Klick oder Enter klappt das
+Thema auf, scrollt zur Frage und hebt sie kurz hervor. Durchsucht werden
+nur Fragen, die der OnePager anzeigt (freigeschaltete Meilensteine, ohne
+Themen «kein Review nötig»).
+
 Die Kommentare liegen in der Sidecar-Datei `projects/<slug>.comments.json`,
 **nicht** im Projekt-JSON: Kommentieren geht deshalb auch, während eine
 andere Person das Projekt bearbeitet (Sperre), läuft nicht über das

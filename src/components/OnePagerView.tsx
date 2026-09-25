@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, ArrowLeft, Check, ClipboardPaste, Copy, Download, ExternalLink, Eye, FileDown, FileUp, Info, Link2, Lock, Mail, MessageSquare, Minus, Pencil, Plus, Save, Trash2, Unlock, X } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Check, ClipboardPaste, Copy, Download, ExternalLink, Eye, FileDown, FileUp, Info, Link2, Lock, Mail, MessageSquare, Minus, Pencil, Plus, Save, Search, Trash2, Unlock, X } from 'lucide-react';
 import { marked } from 'marked';
 import { DirectorySearchResult, lockValid, ProjectLock, useStore } from '../store';
 import { useAuth, usePermissions } from '../auth';
@@ -51,6 +51,34 @@ export function themeLetter(index: number): string {
   return String.fromCharCode(65 + (index % 26));
 }
 
+// Stelle (data-comment-target) vertikal in die Mitte des Scrollbereichs holen.
+// Bewusst selbst gerechnet statt scrollIntoView: der Scrollbereich ist der
+// Hauptbereich der App (nicht das Fenster), und nach dem Aufklappen eines
+// Themas muss das Layout erst stehen (zwei Frames warten). Gibt ein Abbrechen zurück.
+function scrollToAnchor(key: string): () => void {
+  let id2 = 0;
+  const id = requestAnimationFrame(() => {
+    id2 = requestAnimationFrame(() => {
+      const el = document.querySelector<HTMLElement>(`[data-comment-target="${CSS.escape(key)}"]`);
+      if (!el) return;
+      let sc: HTMLElement | null = el.parentElement;
+      while (sc && !/(auto|scroll)/.test(getComputedStyle(sc).overflowY)) sc = sc.parentElement;
+      const er = el.getBoundingClientRect();
+      if (!sc) { window.scrollBy({ top: er.top + er.height / 2 - window.innerHeight / 2, behavior: 'smooth' }); return; }
+      const cr = sc.getBoundingClientRect();
+      sc.scrollTo({ top: sc.scrollTop + (er.top + er.height / 2) - (cr.top + cr.height / 2), behavior: 'smooth' });
+    });
+  });
+  return () => { cancelAnimationFrame(id); cancelAnimationFrame(id2); };
+}
+
+// Suchtreffer mit hervorgehobenen Suchbegriffen
+function Highlight({ text, terms, cls }: { text: string; terms: string[]; cls: string }) {
+  if (!terms.length) return <>{text}</>;
+  const re = new RegExp(`(${terms.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'gi');
+  return <>{text.split(re).map((part, i) => i % 2 ? <mark key={i} className={cls}>{part}</mark> : part)}</>;
+}
+
 // focusCommentId: aus einem Deep Link (?project=…&comment=…) — öffnet das
 // Kommentar-Panel an der Stelle dieses Kommentars, sobald die Kommentare da sind
 export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: string; onBack: () => void; focusCommentId?: string }) {
@@ -87,6 +115,11 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
   const [pdfBusy, setPdfBusy] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set()); // "M10:themeId"
   const [openRemarks, setOpenRemarks] = useState<Set<string>>(new Set()); // "themeId:frageId"
+  // Suche im Projekt (Frage-Nr., Frage, Antwort)
+  const [qSearch, setQSearch] = useState('');
+  const [qSearchOpen, setQSearchOpen] = useState(false);
+  const [qSearchSel, setQSearchSel] = useState(0);
+  const [searchHit, setSearchHit] = useState<{ key: string; n: number } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savingRef = useRef(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -368,27 +401,19 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
     setCommentTarget(key);
     setCommentsOpen(true);
   };
-  // Aktive Stelle vertikal in die Mitte des Scrollbereichs holen. Bewusst
-  // selbst gerechnet statt scrollIntoView: der Scrollbereich ist der
-  // Hauptbereich der App (nicht das Fenster), und nach dem Aufklappen eines
-  // Themas muss das Layout erst stehen (zwei Frames warten).
+  // Aktive Stelle in die Mitte des Scrollbereichs holen
   useEffect(() => {
     if (!commentsOpen || !commentTarget) return;
-    let id2 = 0;
-    const id = requestAnimationFrame(() => {
-      id2 = requestAnimationFrame(() => {
-        const el = document.querySelector<HTMLElement>(`[data-comment-target="${CSS.escape(commentTarget)}"]`);
-        if (!el) return;
-        let sc: HTMLElement | null = el.parentElement;
-        while (sc && !/(auto|scroll)/.test(getComputedStyle(sc).overflowY)) sc = sc.parentElement;
-        const er = el.getBoundingClientRect();
-        if (!sc) { window.scrollBy({ top: er.top + er.height / 2 - window.innerHeight / 2, behavior: 'smooth' }); return; }
-        const cr = sc.getBoundingClientRect();
-        sc.scrollTo({ top: sc.scrollTop + (er.top + er.height / 2) - (cr.top + cr.height / 2), behavior: 'smooth' });
-      });
-    });
-    return () => { cancelAnimationFrame(id); cancelAnimationFrame(id2); };
+    return scrollToAnchor(commentTarget);
   }, [commentsOpen, commentTarget]);
+
+  // Sprung aus der Suche: hinscrollen und die Frage kurz hervorheben
+  useEffect(() => {
+    if (!searchHit) return;
+    const cancel = scrollToAnchor(searchHit.key);
+    const t = setTimeout(() => setSearchHit(h => (h?.n === searchHit.n ? null : h)), 2500);
+    return () => { cancel(); clearTimeout(t); };
+  }, [searchHit]);
 
   // Sprechblase an einer Stelle
   const bubble = (key: string) => {
@@ -399,7 +424,9 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
   };
   const anchorCls = (key: string) => commentsOpen && commentTarget === key
     ? (isDark ? 'rounded-md ring-1 ring-blue-400/50 bg-blue-500/5 -mx-2 px-2 py-1' : 'rounded-md ring-1 ring-blue-400/60 bg-blue-50/60 -mx-2 px-2 py-1')
-    : '';
+    : searchHit?.key === key
+      ? (isDark ? 'rounded-md ring-1 ring-amber-400/60 bg-amber-500/10 -mx-2 px-2 py-1' : 'rounded-md ring-1 ring-amber-400 bg-amber-50 -mx-2 px-2 py-1')
+      : '';
 
   const setField = <K extends keyof Project>(k: K, v: Project[K]) =>
     setProj(p => (p ? { ...p, [k]: v } : p));
@@ -685,6 +712,63 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
   }
 
   const status = deriveStatus(proj);
+
+  // ── Suche im Projekt: Frage-Nr., Fragetext und Antworten ─────────────────
+  // Durchsucht nur Fragen, die der OnePager gerade anzeigen kann: M10 immer,
+  // spätere Meilensteine sobald freigeschaltet (gleiche Regel wie unten),
+  // ohne Themen, die laut M10 keinen Review brauchen.
+  const shownMilestones = (() => {
+    const out = [FOUNDATION_MS];
+    if (model.classifications.findIndex(c => c.id === proj.classification) < 1) return out;
+    let prev = getMilestoneReview(proj, FOUNDATION_MS).approved === true;
+    for (const ms of MILESTONES.slice(1)) {
+      if (!prev) break;
+      out.push(ms);
+      prev = getMilestoneReview(proj, ms).approved === true;
+    }
+    return out;
+  })();
+  const searchTerms = qSearch.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const searchResults = (() => {
+    if (qSearch.trim().length < 2) return [];
+    const compact = qSearch.replace(/\s+/g, '').toLowerCase();
+    const hits: { ms: string; themeId: string; q: Question; number: string; answer: string; remarks: string; rank: number }[] = [];
+    for (const ms of shownMilestones) {
+      for (const theme of themes) {
+        if (ms !== FOUNDATION_MS && derivedRelevant(proj, theme.id) === false) continue;
+        for (const { q, number } of questionsAt(theme.id, ms)) {
+          const a = getThemeReview(proj, theme.id).answers?.[q.id];
+          const answer = a?.value === true ? 'Ja' : a?.value === false ? 'Nein' : (a?.choice ?? '');
+          const remarks = (a?.remarks ?? '').trim();
+          const num = number.toLowerCase();
+          const text = q.text.toLowerCase();
+          const hay = `${num} ${text} ${answer.toLowerCase()} ${remarks.toLowerCase()}`;
+          if (!searchTerms.every(t => hay.includes(t))) continue;
+          const rank = num === compact ? 0 : num.startsWith(compact) ? 1 : searchTerms.every(t => text.includes(t)) ? 2 : 3;
+          hits.push({ ms, themeId: theme.id, q, number, answer, remarks, rank });
+        }
+      }
+    }
+    return hits.sort((x, y) => x.rank - y.rank);
+  })();
+  const shownResults = searchResults.slice(0, 12);
+  // Ausschnitt der Bemerkung um den ersten Treffer (sonst deren Anfang)
+  const snippet = (text: string) => {
+    const flat = text.replace(/\s+/g, ' ');
+    const lower = flat.toLowerCase();
+    const i = Math.min(...searchTerms.map(t => lower.indexOf(t)).filter(i => i >= 0), Infinity);
+    if (!isFinite(i) || i < 40) return flat.length > 110 ? flat.slice(0, 110) + ' …' : flat;
+    // an Wortgrenzen schneiden
+    const from = flat.indexOf(' ', i - 30) + 1 || i;
+    const to = flat.length > i + 80 ? (flat.lastIndexOf(' ', i + 80) > i ? flat.lastIndexOf(' ', i + 80) : i + 80) : flat.length;
+    return '… ' + flat.slice(from, to) + (to < flat.length ? ' …' : '');
+  };
+  const jumpToQuestion = (hit: { ms: string; themeId: string; q: Question }) => {
+    setExpanded(prev => new Set(prev).add(`${hit.ms}:${hit.themeId}`));
+    setSearchHit({ key: `q:${hit.themeId}:${hit.q.id}`, n: Date.now() });
+    setQSearchOpen(false);
+  };
+  const markCls = isDark ? 'bg-amber-400/30 text-inherit rounded-sm' : 'bg-amber-200 text-inherit rounded-sm';
 
   // ── Bausteine ─────────────────────────────────────────────────────────────
   const derivedChip = (value: boolean | null) => {
@@ -1632,6 +1716,68 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
           <ArrowLeft size={12} /> Projekte
         </button>
         <div className="flex items-center gap-3">
+          {/* Suche: Frage-Nr., Frage, Antwort — Klick springt zur Frage */}
+          <div className="relative">
+            <div className={`flex items-center gap-1.5 px-2 rounded border transition-colors ${inputCls}`}>
+              <Search size={11} className={textMuted} />
+              <input value={qSearch} placeholder="Frage-Nr., Frage, Antwort …"
+                title="Suche nach Frage-Nummer (z. B. M20B3), Fragetext oder Antwort (Ja/Nein, Auswahl, Bemerkungen)"
+                onChange={e => { setQSearch(e.target.value); setQSearchOpen(true); setQSearchSel(0); }}
+                onFocus={() => setQSearchOpen(true)}
+                onBlur={() => setTimeout(() => setQSearchOpen(false), 150)}
+                onKeyDown={e => {
+                  if (e.key === 'Escape') { setQSearch(''); setQSearchOpen(false); return; }
+                  if (!shownResults.length) return;
+                  if (e.key === 'ArrowDown') { e.preventDefault(); setQSearchOpen(true); setQSearchSel(i => Math.min(i + 1, shownResults.length - 1)); }
+                  else if (e.key === 'ArrowUp') { e.preventDefault(); setQSearchSel(i => Math.max(i - 1, 0)); }
+                  else if (e.key === 'Enter') { e.preventDefault(); jumpToQuestion(shownResults[Math.min(qSearchSel, shownResults.length - 1)]); }
+                }}
+                className="w-52 text-[11px] py-1 bg-transparent outline-none placeholder:opacity-60" />
+              {qSearch && (
+                <button onClick={() => { setQSearch(''); setSearchHit(null); }} title="Suche leeren"
+                  className={`p-0.5 rounded transition-colors ${isDark ? 'text-white/30 hover:text-white/70' : 'text-black/30 hover:text-black/70'}`}>
+                  <X size={10} />
+                </button>
+              )}
+            </div>
+            {qSearchOpen && qSearch.trim().length >= 2 && (
+              <div className={`absolute right-0 mt-1 w-[30rem] max-w-[calc(100vw-2rem)] z-30 rounded border shadow-lg overflow-hidden ${isDark ? 'bg-neutral-900 border-white/15' : 'bg-white border-black/15'}`}>
+                {shownResults.length === 0 ? (
+                  <p className={`px-3 py-2 text-[11px] ${textMuted}`}>Keine Frage passt zu «{qSearch.trim()}».</p>
+                ) : (
+                  <>
+                    <div className="max-h-96 overflow-y-auto">
+                      {shownResults.map((h, i) => (
+                        <button key={`${h.themeId}:${h.q.id}`} type="button"
+                          onMouseDown={e => { e.preventDefault(); jumpToQuestion(h); }}
+                          onMouseEnter={() => setQSearchSel(i)}
+                          className={`w-full block px-3 py-1.5 text-left transition-colors ${i === qSearchSel ? (isDark ? 'bg-white/10' : 'bg-black/5') : ''}`}>
+                          <span className={`block text-[11px] leading-snug ${isDark ? 'text-white/85' : 'text-black/85'}`}>
+                            <span className="font-semibold font-mono mr-1.5"><Highlight text={h.number} terms={searchTerms} cls={markCls} /></span>
+                            <Highlight text={h.q.text} terms={searchTerms} cls={markCls} />
+                          </span>
+                          <span className={`block text-[10px] leading-snug mt-0.5 ${textMuted}`}>
+                            {h.answer || h.remarks ? (
+                              <>
+                                {h.answer && <span className="font-semibold"><Highlight text={h.answer} terms={searchTerms} cls={markCls} /></span>}
+                                {h.answer && h.remarks && ' · '}
+                                {h.remarks && <Highlight text={snippet(h.remarks)} terms={searchTerms} cls={markCls} />}
+                              </>
+                            ) : 'noch nicht beantwortet'}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                    {searchResults.length > shownResults.length && (
+                      <p className={`px-3 py-1.5 text-[10px] border-t ${border} ${textMuted}`}>
+                        {searchResults.length} Treffer — die ersten {shownResults.length} angezeigt; Suche eingrenzen.
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
           <button onClick={() => { if (commentsOpen && commentTarget === null) setCommentsOpen(false); else openCommentTarget(null); }}
             title="Alle Kommentare — Übersicht und Schritt für Schritt durchgehen"
             className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors ${
