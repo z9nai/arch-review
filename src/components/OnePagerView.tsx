@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AlertTriangle, ArrowLeft, Check, ClipboardPaste, Copy, Download, ExternalLink, Eye, FileDown, FileUp, Info, Link2, Lock, Mail, MessageSquare, Minus, Pencil, Plus, Save, Search, Trash2, Unlock, X } from 'lucide-react';
 import { marked } from 'marked';
 import { DirectorySearchResult, lockValid, ProjectLock, useStore } from '../store';
@@ -123,6 +123,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savingRef = useRef(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const sourceFileRef = useRef<HTMLInputElement>(null);
   const [sourceLabel, setSourceLabel] = useState('');
   const [sourceDescription, setSourceDescription] = useState('');
@@ -187,6 +188,21 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
     else setLockState(prev => prev ?? { kind: 'mine' }); // Fehler beim Sperren: nicht blockieren, ETag schützt
     return r;
   }, [acquireLock, slug]);
+
+  // Nur lesen: gesperrte Textfelder bekommen keinen Fokus (autoGrow greift
+  // nicht) — daher nach jedem Render und bei Breitenänderung auf die volle
+  // Inhaltshöhe setzen, damit der ganze Text ohne Scrollen sichtbar ist.
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const fit = () => root.querySelectorAll<HTMLTextAreaElement>('textarea:disabled').forEach(t => {
+      t.style.height = 'auto';
+      t.style.height = `${t.scrollHeight + t.offsetHeight - t.clientHeight}px`;
+    });
+    fit();
+    window.addEventListener('resize', fit);
+    return () => window.removeEventListener('resize', fit);
+  });
 
   // Beim Öffnen sperren (nur wer bearbeiten darf)
   useEffect(() => {
@@ -1708,7 +1724,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
   placeLabelRef.current = t => commentTargets().find(x => x.key === t)?.label ?? t;
 
   return (
-    <div className={`p-6 pb-24 mx-auto flex items-start gap-4 ${commentsOpen ? 'max-w-[1424px]' : 'max-w-5xl'}`}>
+    <div ref={rootRef} className={`p-6 pb-24 mx-auto flex items-start gap-4 ${commentsOpen ? 'max-w-[1424px]' : 'max-w-5xl'}`}>
     <div className="flex-1 min-w-0 max-w-5xl mx-auto">
       {/* Kopfzeile */}
       <div className="flex items-center justify-between mb-4">
