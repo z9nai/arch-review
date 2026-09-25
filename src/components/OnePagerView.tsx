@@ -291,7 +291,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
     ...knownUsers,
     ...(me ? [me] : []),
   ]);
-  const initialsFor = (p: { name: string; email?: string }) => initialsMap.get(personKey(p)) ?? initialsOf(p.name);
+  const initialsFor = (p: { name: string; email?: string }) => initialsMap.get(personKey(p)) ?? initialsOf(p.name, p.email);
   const commentAuthor: CommentAuthor | null = me ? authorOf(me.name, me.email, initialsFor(me)) : null;
   const setCommentNameStored = (v: string) => {
     setCommentName(v);

@@ -327,8 +327,10 @@ Ctrl/Cmd+Enter sendet.
 Autor/in ist die angemeldete Person: **Kürzel** (z. B. «PM») als Chip mit
 `mailto:`-Link auf ihre E-Mail-Adresse, daneben Name und Zeitpunkt. Die
 Kürzel sind pro Projekt eindeutig: ein Buchstabe Vorname plus einer vom
-Nachnamen (Namensteile trennen Leerzeichen, Punkt oder Bindestrich, ein
-einzelnes Wort liefert zwei Buchstaben); ist das Kürzel schon vergeben,
+Nachnamen. Grundlage ist bevorzugt die E-Mail («vorname.nachname@…», weil
+sie eindeutig geordnet ist), sonst der Anzeigename ohne Klammerzusätze wie
+«(ESP)»; Namensteile trennen Leerzeichen, Punkt oder Bindestrich, ein
+einzelnes Wort liefert zwei Buchstaben. Ist das Kürzel schon vergeben,
 kommt je ein Buchstabe mehr vom Nachnamen dazu (PM › PME › PMEN). Wer
 zuerst kommentiert hat, behält das kurze Kürzel. Ohne
 Anmeldung (lokaler Ordner ohne Login-Pflicht) fragt das Panel einmalig nach

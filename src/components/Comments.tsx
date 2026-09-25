@@ -18,21 +18,28 @@ export interface CommentTargetInfo {
   group?: string; // z. B. «M20 · Architektur-Vorgaben» — Überschrift in der Übersicht
 }
 
-// Namensteile: Leerzeichen, Punkt, Bindestrich und Unterstrich trennen
-// («pascal.mengelt», «Pascal Mengelt»); «Mengelt, Pascal» wird gedreht;
-// bei einer E-Mail zählt der Teil vor dem @.
-function nameParts(name: string): string[] {
-  let n = name.trim();
+// Namensteile für das Kürzel. Bevorzugt die E-Mail, wenn sie wie
+// «vorname.nachname@…» aussieht — sie ist eindeutig geordnet, während der
+// Anzeigename je nach Tenant «Pascal Mengelt» oder «Mengelt Pascal (ESP)»
+// heisst. Sonst der Anzeigename: Zusätze in Klammern und alles ausser
+// Buchstaben weg; Leerzeichen, Punkt, Bindestrich und Unterstrich trennen;
+// «Mengelt, Pascal» wird gedreht.
+function nameParts(p: { name: string; email?: string }): string[] {
+  const local = (p.email ?? '').split('@')[0];
+  const fromMail = local.split(/[._\-]+/).filter(s => /^[\p{L}]+$/u.test(s));
+  if (fromMail.length >= 2) return fromMail;
+  let n = p.name.trim().replace(/\([^)]*\)/g, ' ');
   if (n.includes('@')) n = n.split('@')[0];
   if (n.includes(',')) n = n.split(',').reverse().map(s => s.trim()).join(' ');
-  return n.split(/[\s._\-]+/).filter(Boolean);
+  const parts = n.split(/[\s._\-]+/).map(s => s.replace(/[^\p{L}]/gu, '')).filter(Boolean);
+  return parts.length ? parts : (fromMail.length ? fromMail : [p.name.trim() || '?']);
 }
 
 // Kürzel-Stufe: 0 = 1 Buchstabe Vorname + 1 Nachname (ein Wort: 2), jede
 // weitere Stufe nimmt einen Buchstaben mehr vom Nachnamen (ein Wort: vom
 // Wort) — PM › PME › PMEN … Ist das Wort ausgeschöpft, hängt eine Zahl an.
-function initialsLevel(name: string, level: number): string {
-  const parts = nameParts(name);
+function initialsLevel(p: { name: string; email?: string }, level: number): string {
+  const parts = nameParts(p);
   if (!parts.length) return '?';
   const first = parts[0], last = parts[parts.length - 1];
   const raw = parts.length === 1
@@ -45,8 +52,8 @@ function initialsLevel(name: string, level: number): string {
 }
 
 // Kürzel ohne Rücksicht auf andere (Stufe 0): «Pascal Mengelt» → PM
-export function initialsOf(name: string): string {
-  return initialsLevel(name, 0);
+export function initialsOf(name: string, email?: string): string {
+  return initialsLevel({ name, email }, 0);
 }
 
 export const personKey = (p: { name: string; email?: string }) => (p.email?.trim() || p.name.trim()).toLowerCase();
@@ -61,8 +68,8 @@ export function assignInitials(people: { name: string; email?: string }[]): Map<
   for (const p of people) {
     const key = personKey(p);
     if (!key || out.has(key)) continue;
-    let level = 0, cand = initialsLevel(p.name, 0);
-    while (taken.has(cand) && level < 12) { level++; cand = initialsLevel(p.name, level); }
+    let level = 0, cand = initialsLevel(p, 0);
+    while (taken.has(cand) && level < 12) { level++; cand = initialsLevel(p, level); }
     out.set(key, cand);
     taken.add(cand);
   }
@@ -70,7 +77,7 @@ export function assignInitials(people: { name: string; email?: string }[]): Map<
 }
 
 export function authorOf(name: string, email?: string, initials?: string): CommentAuthor {
-  return { name: name.trim(), initials: initials ?? initialsOf(name), ...(email?.trim() ? { email: email.trim() } : {}) };
+  return { name: name.trim(), initials: initials ?? initialsOf(name, email), ...(email?.trim() ? { email: email.trim() } : {}) };
 }
 
 // Wurzelkommentare einer Stelle (ohne Antworten), chronologisch
