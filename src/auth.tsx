@@ -117,6 +117,32 @@ function writeCache(cfg: AuthConfig | null) {
     if (cfg) localStorage.setItem(CACHE_KEY, JSON.stringify(cfg));
     else localStorage.removeItem(CACHE_KEY);
   } catch { /* ignore */ }
+  if (isValidIds(cfg)) rememberClientId(cfg.tenantId, cfg.clientId);
+}
+
+// Anwendungs-ID je Verzeichnis-ID merken: Die wirksamen IDs (CACHE_KEY)
+// wechseln mit jedem Ordner bzw. jeder model.json — ohne diese Liste wäre die
+// Anwendungs-ID einer Organisation nach einem Ordner eines anderen Tenants
+// vergessen und der Verbinden-Dialog fragte erneut danach.
+const KNOWN_CLIENTS_KEY = 'arch-review.knownClients';
+function readKnownClients(): Record<string, string> {
+  try {
+    const raw = JSON.parse(localStorage.getItem(KNOWN_CLIENTS_KEY) ?? '{}');
+    return raw && typeof raw === 'object' ? raw as Record<string, string> : {};
+  } catch { return {}; }
+}
+function rememberClientId(tenantId: string, clientId: string) {
+  const known = readKnownClients();
+  const t = tenantId.toLowerCase();
+  if (known[t] === clientId) return;
+  try { localStorage.setItem(KNOWN_CLIENTS_KEY, JSON.stringify({ ...known, [t]: clientId })); } catch { /* ignore */ }
+}
+// in diesem Browser gemerkte Anwendungs-ID für eine Verzeichnis-ID ('' = keine)
+export function knownClientId(tenantId: string): string {
+  const cached = readCache();
+  if (isValidIds(cached) && cached.tenantId.toLowerCase() === tenantId.toLowerCase()) return cached.clientId;
+  const c = readKnownClients()[tenantId.toLowerCase()] ?? '';
+  return GUID_RE.test(c) ? c : '';
 }
 
 export const PENDING_FOLDER_KEY = 'arch-review.pendingFolder';
@@ -200,12 +226,21 @@ export function setupLink(tenantId: string, clientId: string, folderUrl?: string
 }
 
 // Einrichtungs-Link in ein Eingabefeld eingefügt (statt geöffnet)? → IDs und Ordner
+// Robust gegen umgeschriebene Links (Outlook/Teams «Safe Links»: der Link
+// steckt kodiert in ?url=…) und umgebenden Text.
 export function parseSetupLink(text: string): { tenantId: string; clientId: string; folder: string } | null {
+  const raw = text.trim();
   try {
-    return setupFromParams(new URL(text.trim()).searchParams);
-  } catch {
-    return null;
+    const r = setupFromParams(new URL(raw).searchParams);
+    if (r) return r;
+  } catch { /* s. u. */ }
+  let t = raw;
+  for (let i = 0; i < 3; i++) {
+    try { const d = decodeURIComponent(t); if (d === t) break; t = d; } catch { break; }
   }
+  const token = t.match(/[?&]setup=([A-Za-z0-9_-]+)/)?.[1];
+  const r = token ? decodeSetup(token) : null;
+  return r && GUID_RE.test(r.tenantId) && GUID_RE.test(r.clientId) ? r : null;
 }
 
 // Verzeichnis-ID (Tenant) aus einem SharePoint-Link ermitteln: Die Adresse

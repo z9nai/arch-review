@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Sun, Moon, FolderOpen, AlertTriangle, Wrench, LogIn, LogOut, ShieldCheck, Cloud, X, Link2, Check } from 'lucide-react';
 import { useStore } from './store';
-import { GUID_RE, LEVEL_LABELS, parseSetupLink, setupLink, PENDING_FOLDER_KEY, resolveTenantId, useAuth, usePermissions } from './auth';
+import { GUID_RE, knownClientId, LEVEL_LABELS, parseSetupLink, setupLink, PENDING_FOLDER_KEY, resolveTenantId, useAuth, usePermissions } from './auth';
 import ProjectsView from './components/ProjectsView';
 import OnePagerView from './components/OnePagerView';
 import AdminView from './components/AdminView';
@@ -113,10 +113,10 @@ export default function App() {
         if (!GUID_RE.test(tenantId)) throw new Error('Verzeichnis-ID (Tenant) ist keine gültige ID (Format 8-4-4-4-12).');
         const own = showClient ? spClient.trim() : '';
         if (own && !GUID_RE.test(own)) throw new Error('Anwendungs-ID (Client) ist keine gültige ID (Format 8-4-4-4-12).');
-        const clientId = own || (ids && ids.tenantId === tenantId ? ids.clientId : '');
+        const clientId = own || knownClientId(tenantId);
         if (!clientId) {
           setSpClientOpen(true);
-          throw new Error('Anwendungs-ID fehlt. Am einfachsten statt des Ordner-Links den Einrichtungs-Link einfügen («Teilen» bei jemandem, der schon verbunden ist) — oder die Anwendungs-ID vom Admin eintragen.');
+          throw new Error(`Für diese Organisation (Verzeichnis-ID ${tenantId}) ist in diesem Browser keine Anwendungs-ID gemerkt. Am einfachsten statt des Ordner-Links den Einrichtungs-Link einfügen («Teilen» bei jemandem, der schon verbunden ist) — oder die Anwendungs-ID vom Admin eintragen (einmalig).`);
         }
         ids = { tenantId, clientId };
       }
