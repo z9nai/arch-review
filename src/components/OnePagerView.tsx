@@ -11,7 +11,7 @@ import { DIRECTORY_SCOPES } from '../store';
 import { blockingChecks, checkState, deriveStatus, emptyReview, getMilestoneReview, getThemeReview, STATUS_META } from '../status';
 import { applyMs10, extractPdfText, hasMs10Data, Ms10Data, MS10_FIELD_LABELS, parseMs10Text } from '../ms10';
 import { DEFAULT_MODEL } from '../defaultModel';
-import { autoGrow, fmtTimestamp, formatBytes, normalizeUrl, nowIsoWithTimezone, sanitizeFilename } from '../util';
+import { fitTextarea, fmtTimestamp, formatBytes, normalizeUrl, nowIsoWithTimezone, sanitizeFilename } from '../util';
 
 const FOUNDATION_MS = MILESTONES[0]; // M10
 const COMMENT_NAME_KEY = 'arch-review.commentName'; // Name für Kommentare ohne Anmeldung (pro Browser)
@@ -189,16 +189,13 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
     return r;
   }, [acquireLock, slug]);
 
-  // Nur lesen: gesperrte Textfelder bekommen keinen Fokus (autoGrow greift
-  // nicht) — daher nach jedem Render und bei Breitenänderung auf die volle
-  // Inhaltshöhe setzen, damit der ganze Text ohne Scrollen sichtbar ist.
+  // Textfelder mit data-autogrow (und im Nur-lesen-Modus alle gesperrten)
+  // nach jedem Render und bei Breitenänderung auf die volle Inhaltshöhe
+  // setzen — auch ohne Fokus, damit der ganze Text ohne Scrollen sichtbar ist.
   useLayoutEffect(() => {
     const root = rootRef.current;
     if (!root) return;
-    const fit = () => root.querySelectorAll<HTMLTextAreaElement>('textarea:disabled').forEach(t => {
-      t.style.height = 'auto';
-      t.style.height = `${t.scrollHeight + t.offsetHeight - t.clientHeight}px`;
-    });
+    const fit = () => root.querySelectorAll<HTMLTextAreaElement>('textarea[data-autogrow], textarea:disabled').forEach(fitTextarea);
     fit();
     window.addEventListener('resize', fit);
     return () => window.removeEventListener('resize', fit);
@@ -859,7 +856,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
             <div className="flex-1 min-w-[220px]">
               <textarea value={answer.remarks} rows={2} autoFocus={!answer.remarks && !question.remarksAlwaysOpen} disabled={disabled}
                 onChange={e => updateAnswer(themeId, question.id, { remarks: e.target.value })}
-                onFocus={autoGrow} onInput={autoGrow}
+                data-autogrow
                 onBlur={() => { if (!answer.remarks.trim() && !question.remarksAlwaysOpen) toggleRemarks(remarksKey, false); }}
                 placeholder={question.kind === 'text' ? 'Antwort / Bemerkungen' : 'Bemerkungen'}
                 className={`w-full text-[11px] px-2 py-1.5 rounded border outline-none resize-y transition-colors disabled:opacity-50 ${inputCls}`} />
@@ -1609,7 +1606,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
                   <p className={sub}>Einschätzung Architektur</p>
                   <textarea disabled={ro} value={String(s.assessment ?? '')} required rows={2}
                     onChange={e => updateCheck(c.id, { assessment: e.target.value })}
-                    onFocus={autoGrow} onInput={autoGrow}
+                    data-autogrow
                     placeholder={s.required
                       ? 'Warum ist die Prüfung nötig, was ist zu prüfen, was erwartet die Architektur (erforderlich)'
                       : 'Warum ist die Prüfung nicht nötig (erforderlich)'}
@@ -1637,7 +1634,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
                     </div>
                     <textarea disabled={ro} value={String(s.remarks ?? '')} required rows={2}
                       onChange={e => updateCheck(c.id, { remarks: e.target.value })}
-                      onFocus={autoGrow} onInput={autoGrow}
+                      data-autogrow
                       placeholder={`Bemerkungen ${c.label} (erforderlich)`}
                       className={`w-full min-h-[52px] text-[11px] px-2 py-1.5 rounded border outline-none resize-none overflow-hidden transition-colors ${inputCls} ${
                         remEmpty ? (isDark ? 'border-rose-500/40' : 'border-rose-300') : ''
@@ -1667,9 +1664,9 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
               </div>
               <textarea disabled={ro} value={opts.review.notes} required rows={3}
                 onChange={e => opts.update({ notes: e.target.value })}
-                onFocus={autoGrow} onInput={autoGrow}
+                data-autogrow
                 placeholder="Bemerkungen (erforderlich)"
-                className={`w-full flex-1 min-h-[76px] text-[11px] px-2 py-1.5 rounded border outline-none resize-none overflow-hidden transition-colors ${inputCls} ${
+                className={`w-full flex-auto min-h-[76px] text-[11px] px-2 py-1.5 rounded border outline-none resize-none overflow-hidden transition-colors ${inputCls} ${
                   notesEmpty ? (isDark ? 'border-rose-500/40' : 'border-rose-300') : ''
                 }`} />
             </div>
@@ -1881,7 +1878,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
           </div>
           <textarea disabled={ro} value={proj.description ?? ''} rows={3}
             onChange={e => setField('description', e.target.value)}
-            onFocus={autoGrow} onInput={autoGrow}
+            data-autogrow
             placeholder="Ausgangslage / Motivation — z. B. per MS10-Import übernehmen"
             className={`w-full text-xs px-3 py-2 rounded border outline-none resize-y transition-colors ${inputCls}`} />
         </div>
@@ -2036,7 +2033,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
                     className={`block w-full text-xs px-2 py-1.5 rounded border outline-none transition-colors ${inputCls} ${!editLabel.trim() ? (isDark ? 'border-rose-500/40' : 'border-rose-300') : ''}`} />
                   <textarea value={editDescription} rows={1}
                     onChange={e => setEditDescription(e.target.value)}
-                    onFocus={autoGrow} onInput={autoGrow}
+                    data-autogrow
                     placeholder="Beschrieb (optional)"
                     className={`block w-full text-xs px-2 py-1.5 rounded border outline-none resize-none overflow-hidden transition-colors ${inputCls}`} />
                   {s.url !== undefined && (
@@ -2098,7 +2095,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
               <label className={`block text-[10px] uppercase tracking-wider mb-1 ${labelCls}`}>Beschrieb (optional)</label>
               <textarea value={sourceDescription} rows={1}
                 onChange={e => setSourceDescription(e.target.value)}
-                onFocus={autoGrow} onInput={autoGrow}
+                data-autogrow
                 placeholder="Kurzer Hinweis, worum es geht"
                 className={`block w-full text-xs px-2 py-1.5 rounded border outline-none resize-none overflow-hidden transition-colors ${inputCls}`} />
             </div>

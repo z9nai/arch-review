@@ -44,9 +44,14 @@ export function basename(path: string): string {
 // Textarea beim Fokussieren/Tippen auf die volle Höhe des Inhalts wachsen
 // lassen, statt nur die feste rows-Höhe mit Scrollbalken zu zeigen.
 export function autoGrow(e: React.FocusEvent<HTMLTextAreaElement> | React.FormEvent<HTMLTextAreaElement>): void {
-  const t = e.currentTarget;
+  fitTextarea(e.currentTarget);
+}
+
+// Höhe auf den Inhalt setzen (rows bleibt Mindesthöhe); Rahmen mitrechnen,
+// sonst fehlen bei box-sizing: border-box ein paar Pixel und es scrollt.
+export function fitTextarea(t: HTMLTextAreaElement): void {
   t.style.height = 'auto';
-  t.style.height = `${t.scrollHeight}px`;
+  t.style.height = `${t.scrollHeight + t.offsetHeight - t.clientHeight}px`;
 }
 
 // Dateiname für den geteilten Ordner sicher machen (SharePoint/Windows
