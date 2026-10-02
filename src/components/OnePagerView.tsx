@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { AlertTriangle, ArrowLeft, Check, ClipboardPaste, Copy, Download, ExternalLink, Eye, FileDown, FileJson, FileUp, History, Info, Link2, Lock, Mail, MessageSquare, Minus, Pencil, Plus, Save, Search, Trash2, Unlock, X } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Check, ChevronDown, ChevronRight, ClipboardPaste, Copy, Download, ExternalLink, Eye, FileDown, FileJson, FileUp, History, Info, Link2, Lock, Mail, MessageSquare, Minus, Pencil, Plus, Save, Search, Trash2, Unlock, X } from 'lucide-react';
 import { marked } from 'marked';
 import { DirectorySearchResult, lockValid, ProjectLock, useStore } from '../store';
 import { useAuth, usePermissions } from '../auth';
@@ -120,6 +120,12 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
   const [answersPdfItems, setAnswersPdfItems] = useState<ImportItem[] | null>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set()); // "M10:themeId"
+  // Meilenstein-Panels einklappbar: ohne eigene Wahl ist offen, was beim
+  // Öffnen des Projekts noch nicht freigegeben war — erledigte Meilensteine
+  // sind zu, der aktuelle offen; ein später dazukommender (M40 nach der
+  // M20-Freigabe) ist ebenfalls offen
+  const [msOpen, setMsOpen] = useState<Record<string, boolean>>({});
+  const approvedAtLoad = useRef<Set<string>>(new Set());
   const [openRemarks, setOpenRemarks] = useState<Set<string>>(new Set()); // "themeId:frageId"
   // Suche im Projekt (Frage-Nr., Frage, Antwort)
   const [qSearch, setQSearch] = useState('');
@@ -202,6 +208,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
   const reload = useCallback(async () => {
     const res = await loadProject(slug);
     if (!res) { setNotFound(true); return; }
+    approvedAtLoad.current = new Set(MILESTONES.filter(ms => getMilestoneReview(res.data, ms).approved === true));
     // Abgeleitete Werte gleich nachziehen; weicht das Ergebnis ab,
     // schreibt der Autosave die migrierte Fassung
     setProj(rebase(res.data));
@@ -452,7 +459,18 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
   };
 
   // Stelle im Panel öffnen: Thema aufklappen (falls Frage) und hinscrollen
+  const isMsOpen = (ms: string) => msOpen[ms] ?? !approvedAtLoad.current.has(ms);
+  const openMs = (ms: string | null | undefined) => { if (ms) setMsOpen(prev => (prev[ms] ? prev : { ...prev, [ms]: true })); };
+  // Meilenstein einer Stelle (Frage, Bemerkungen, Kontrollpunkt) — fürs Aufklappen vor dem Hinspringen
+  const msOfTarget = (key: string): string | null => {
+    const [kind, a, b] = key.split(':');
+    if (kind === 'q') return allQuestions.find(x => x.themeId === a && x.id === b)?.milestone ?? null;
+    if (kind === 'ms' || kind === 'check') return a ?? null;
+    return null;
+  };
+
   const openCommentTarget = (key: string | null) => {
+    if (key) openMs(msOfTarget(key));
     if (key?.startsWith('q:')) {
       const [, themeId, qId] = key.split(':');
       const q = allQuestions.find(x => x.id === qId && x.themeId === themeId);
@@ -870,6 +888,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
     return '… ' + flat.slice(from, to) + (to < flat.length ? ' …' : '');
   };
   const jumpToQuestion = (hit: { ms: string; themeId: string; q: Question }) => {
+    openMs(hit.ms);
     setExpanded(prev => new Set(prev).add(`${hit.ms}:${hit.themeId}`));
     setSearchHit({ key: `q:${hit.themeId}:${hit.q.id}`, n: Date.now() });
     setQSearchOpen(false);
@@ -1909,12 +1928,57 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
   const gotoAudit = (target: string) => {
     const key = auditAnchor(target);
     if (!key) return;
+    openMs(msOfTarget(key));
     if (key.startsWith('q:')) {
       const [, themeId, qId] = key.split(':');
       const q = allQuestions.find(x => x.id === qId && x.themeId === themeId);
       if (q) setExpanded(prev => new Set(prev).add(`${q.milestone}:${themeId}`));
     }
     setSearchHit({ key, n: Date.now() });
+  };
+
+  // Kopfzeile eines Meilenstein-Panels: Titel als Klappschalter; zugeklappt
+  // dazu der Stand in Kurzform (freigegeben von … bzw. offen)
+  const msTitleRow = (ms: string) => {
+    const open = isMsOpen(ms);
+    const review = getMilestoneReview(proj, ms);
+    const by = String(review.approvedBy ?? '').trim();
+    const conditions = ms === CONDITIONS_MS ? conditionsOf(ms).length : 0;
+    return (
+      <div className={`px-4 pt-3 flex items-center justify-between gap-3 ${open ? '' : 'pb-3'}`}>
+        <button type="button" onClick={() => setMsOpen(prev => ({ ...prev, [ms]: !open }))}
+          title={open ? 'Zuklappen' : 'Aufklappen'} aria-expanded={open}
+          className={`flex items-center gap-1.5 min-w-0 text-left ${isDark ? 'text-white/50 hover:text-white/80' : 'text-black/50 hover:text-black/80'}`}>
+          {open ? <ChevronDown size={13} className="flex-shrink-0" /> : <ChevronRight size={13} className="flex-shrink-0" />}
+          <h3 className="text-[11px] font-semibold uppercase tracking-widest truncate">{ms} · {MILESTONE_TITLES[ms] ?? 'Prüfung'}</h3>
+          {!open && (
+            review.approved === true ? (
+              <span className={`text-[10px] px-2 py-0.5 rounded-full border whitespace-nowrap ${isDark ? 'border-emerald-500/30 text-emerald-300 bg-emerald-500/10' : 'border-emerald-300 text-emerald-700 bg-emerald-50'}`}>
+                freigegeben{conditions ? ` mit ${conditions} ${conditions === 1 ? 'Auflage' : 'Auflagen'}` : ''}{by ? ` · ${by}` : ''}
+              </span>
+            ) : (
+              <span className={`text-[10px] px-2 py-0.5 rounded-full border whitespace-nowrap ${isDark ? 'border-blue-500/30 text-blue-300 bg-blue-500/10' : 'border-blue-300 text-blue-700 bg-blue-50'}`}>
+                offen
+              </span>
+            )
+          )}
+        </button>
+        {open && (
+          <div className="flex items-center gap-2">
+            <button onClick={() => { setExportMs(ms); setCopiedKey(null); }}
+              title="Offene Fragen als E-Mail-Text exportieren"
+              className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
+              <Mail size={11} /> Offene Fragen
+            </button>
+            <button onClick={() => { setAnswersMs(ms); setAnswersText(''); setAnswersPdfItems(null); }} disabled={ro}
+              title="Ausgefüllten E-Mail-Text einlesen und Antworten übernehmen"
+              className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors disabled:opacity-40 ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
+              <ClipboardPaste size={11} /> Antworten importieren
+            </button>
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -2121,23 +2185,8 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
 
       {/* M10 · Foundation-Prüfung */}
       <div className={`${cardCls} mb-4`}>
-        <div className="px-4 pt-3 flex items-center justify-between gap-3">
-          <h3 className={`text-[11px] font-semibold uppercase tracking-widest ${isDark ? 'text-white/50' : 'text-black/50'}`}>
-            {FOUNDATION_MS} · {MILESTONE_TITLES[FOUNDATION_MS] ?? 'Prüfung'}
-          </h3>
-          <div className="flex items-center gap-2">
-            <button onClick={() => { setExportMs(FOUNDATION_MS); setCopiedKey(null); }}
-              title="Offene Fragen als E-Mail-Text exportieren"
-              className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
-              <Mail size={11} /> Offene Fragen
-            </button>
-            <button onClick={() => { setAnswersMs(FOUNDATION_MS); setAnswersText(''); setAnswersPdfItems(null); }} disabled={ro}
-              title="Ausgefüllten E-Mail-Text einlesen und Antworten übernehmen"
-              className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors disabled:opacity-40 ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
-              <ClipboardPaste size={11} /> Antworten importieren
-            </button>
-          </div>
-        </div>
+        {msTitleRow(FOUNDATION_MS)}
+        {isMsOpen(FOUNDATION_MS) && (<>
         {MILESTONE_INFO[FOUNDATION_MS] && (
           <p className={`px-4 pt-1 text-[11px] ${textMuted}`}>{MILESTONE_INFO[FOUNDATION_MS]}</p>
         )}
@@ -2185,6 +2234,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
           </p>
           {questionSection(FOUNDATION_MS)}
         </div>
+        </>)}
       </div>
 
       {/* Meilensteine nach der Foundation: jeder Block erscheint, sobald der
@@ -2197,23 +2247,8 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
           if (!prevApproved) break;
           panels.push(
             <div key={ms} className={`${cardCls} mb-4`}>
-              <div className="px-4 pt-3 flex items-center justify-between gap-3">
-                <h3 className={`text-[11px] font-semibold uppercase tracking-widest ${isDark ? 'text-white/50' : 'text-black/50'}`}>
-                  {ms} · {MILESTONE_TITLES[ms] ?? 'Prüfung'}
-                </h3>
-                <div className="flex items-center gap-2">
-                  <button onClick={() => { setExportMs(ms); setCopiedKey(null); }}
-                    title="Offene Fragen als E-Mail-Text exportieren"
-                    className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
-                    <Mail size={11} /> Offene Fragen
-                  </button>
-                  <button onClick={() => { setAnswersMs(ms); setAnswersText(''); setAnswersPdfItems(null); }} disabled={ro}
-                    title="Ausgefüllten E-Mail-Text einlesen und Antworten übernehmen"
-                    className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors disabled:opacity-40 ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
-                    <ClipboardPaste size={11} /> Antworten importieren
-                  </button>
-                </div>
-              </div>
+              {msTitleRow(ms)}
+              {isMsOpen(ms) && (<>
               {MILESTONE_INFO[ms] && (
                 <p className={`px-4 pt-1 text-[11px] ${textMuted}`}>{MILESTONE_INFO[ms]}</p>
               )}
@@ -2230,6 +2265,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
                 </p>
                 {questionSection(ms)}
               </div>
+              </>)}
             </div>
           );
           prevApproved = getMilestoneReview(proj, ms).approved === true;

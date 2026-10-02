@@ -111,6 +111,12 @@ Zum Ausprobieren kann `sample-data/` als geteilter Ordner gewählt werden
   Text-Fragen zählen nicht). Die abgeleiteten Werte werden in die
   Projektdatei geschrieben (`reviews.<themeId>.relevant`,
   `architectureRelevant`).
+- **Einklappbare Meilensteine**: Der Titel jedes Meilenstein-Panels klappt
+  es auf bzw. zu. Beim Öffnen eines Projekts sind die bereits freigegebenen
+  Meilensteine zugeklappt (mit «freigegeben · Prüfer/in», beim M20 samt Zahl
+  der Auflagen), offen ist der noch nicht freigegebene. Sprünge aus der
+  Suche, den Kommentaren, dem Verlauf oder der Auflagen-Liste klappen das
+  Ziel-Panel von selbst auf.
 - **Meilenstein-Kaskade (M20 → M40)**: Jeder Block erscheint, sobald der
   vorherige freigegeben ist — und nur wenn die Klassifikation auf
   **relevant** oder höher steht («nicht relevant» → kein M20/M40). Aufbau analog M10 (Status-Tag «Ergebnis», Freigabe, Prüfer/in,
