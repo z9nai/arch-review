@@ -35,7 +35,6 @@ const CONTENT_W = A4[0] - 2 * MARGIN;
 const BLACK = rgb(0, 0, 0);
 const DARK = rgb(0.2, 0.2, 0.2);
 const GRAY = rgb(0.42, 0.42, 0.42);
-const LABEL = rgb(0.58, 0.58, 0.58);  // Beschriftungen über Textblöcken
 const LIGHT = rgb(0.75, 0.75, 0.75);
 const FIELD_BG = rgb(0.965, 0.965, 0.985);
 const FIELD_BORDER = rgb(0.65, 0.65, 0.7);
@@ -381,6 +380,14 @@ export async function buildReviewReportPdf(r: ReviewReport, tpl?: ReportTemplate
     for (const line of r.skipped) f.text(line, 8.5, 15, { color: GRAY, x: L + 8, width: W - 8 });
   }
 
+  // Überschrift eines Textblocks im Meilenstein (Bemerkungen, Auflagen …):
+  // gut lesbar, mit etwas Luft davor — nicht als kleine graue Beschriftung
+  const sectionLabel = (text: string, x = L) => {
+    f.y -= 3;
+    f.text(text, 9.5, 13, { color: DARK, bold: true, x, width: L + W - x, plain: true });
+    f.y -= 1;
+  };
+
   // Jedes Panel (Meilenstein, Quellen) auf einer eigenen Seite — wie im OnePager je eine Karte
   const panelPage = () => { f.page = newPage('cont'); f.y = TOP + 14; };
 
@@ -409,7 +416,7 @@ export async function buildReviewReportPdf(r: ReviewReport, tpl?: ReportTemplate
     // Auflagen: alle auf einen Blick, je mit der Frage-Nummer
     if (ms.conditions?.length) {
       f.y -= 5;
-      f.text('Auflagen', 7.5, 10.5, { color: LABEL, plain: true });
+      sectionLabel('Auflagen');
       for (const c of ms.conditions) {
         f.text(`• ${c.number}: ${c.text || '(noch nicht beschrieben)'}`, 8.5, 11.5, { color: GRAY, x: L + 6, width: W - 6, plain: true });
       }
@@ -421,17 +428,17 @@ export async function buildReviewReportPdf(r: ReviewReport, tpl?: ReportTemplate
       f.y -= 5;
       f.text(c.line, 9, 12.5, { color: DARK });
       if (c.assessment) {
-        f.text('Einschätzung Architektur', 7.5, 10.5, { color: LABEL, x: L + 10, width: W - 10, plain: true });
+        sectionLabel('Einschätzung Architektur', L + 10);
         f.text(c.assessment, 8.5, 11.5, { color: GRAY, x: L + 10, width: W - 10 });
       }
       if (c.remarks) {
-        f.text('Bemerkungen Abnahme', 7.5, 10.5, { color: LABEL, x: L + 10, width: W - 10, plain: true });
+        sectionLabel('Bemerkungen Abnahme', L + 10);
         f.text(c.remarks, 8.5, 11.5, { color: GRAY, x: L + 10, width: W - 10 });
       }
     }
     if (ms.notes) {
       f.y -= 5;
-      f.text('Bemerkungen', 7.5, 10.5, { color: LABEL, plain: true });
+      sectionLabel('Bemerkungen');
       f.text(ms.notes, 8.5, 11.5, { color: GRAY, width: W });
     }
 
@@ -442,6 +449,7 @@ export async function buildReviewReportPdf(r: ReviewReport, tpl?: ReportTemplate
       f.page.drawLine({ start: { x: L, y: f.y }, end: { x: L + W, y: f.y }, thickness: 0.4, color: LIGHT });
       f.y -= 15;
       f.line(theme.heading, L, 10, { bold: true });
+      f.y -= 5; // Luft zwischen Themen-Überschrift und erster Frage
       for (const q of theme.questions) {
         const aW = richWidth(q.answer, F, 9, true);
         const numW = richWidth(q.number, F, 8.5, true) + F.bold.widthOfTextAtSize(' ', 8.5);
