@@ -242,6 +242,17 @@ const MENTION_RE = /(^|[\s(«"'])@([^\s@]{0,40})$/;
 
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+// Erwähnungen ausserhalb der Kommentare (Bemerkungen, Antworten): nur die,
+// deren «@Name» noch im Text steht — leer = undefined (Feld fällt weg)
+export function keepMentioned(ms: DirectoryUser[] | undefined, text: string): DirectoryUser[] | undefined {
+  const kept = (ms ?? []).filter(m => text.includes(`@${m.name}`));
+  return kept.length ? kept : undefined;
+}
+export function addMentioned(ms: DirectoryUser[] | undefined, u: DirectoryUser): DirectoryUser[] {
+  const list = ms ?? [];
+  return list.some(m => m.email.toLowerCase() === u.email.toLowerCase()) ? list : [...list, { name: u.name, email: u.email }];
+}
+
 // Erwähnungen im Text hervorheben (mailto-Link)
 export function renderWithMentions(text: string, mentions: DirectoryUser[] | undefined, isDark: boolean): React.ReactNode {
   const names = (mentions ?? []).map(m => m.name).filter(Boolean).sort((a, b) => b.length - a.length);
@@ -280,6 +291,11 @@ export function MentionTextarea(p: {
   autoFocus?: boolean;
   className: string;
   textareaRef?: React.RefObject<HTMLTextAreaElement | null>;
+  /** für Felder ausserhalb der Kommentare (Bemerkungen, Antworten) */
+  disabled?: boolean;
+  onBlur?: () => void;
+  /** Höhe wächst mit dem Text (data-autogrow, siehe OnePagerView) */
+  autogrow?: boolean;
 }) {
   const { isDark } = p;
   const innerRef = useRef<HTMLTextAreaElement>(null);
@@ -369,12 +385,15 @@ export function MentionTextarea(p: {
       <textarea ref={ref} value={p.value} rows={p.rows} autoFocus={p.autoFocus} placeholder={p.placeholder}
         onChange={e => { p.onChange(e.target.value); requestAnimationFrame(detect); }}
         onKeyDown={onKeyDown} onKeyUp={e => { if (!['ArrowDown', 'ArrowUp', 'Enter', 'Tab', 'Escape'].includes(e.key)) detect(); }}
-        onClick={detect} onBlur={() => setTimeout(() => setMenu(null), 150)}
+        onClick={detect} onBlur={() => { setTimeout(() => setMenu(null), 150); p.onBlur?.(); }}
+        disabled={p.disabled} data-autogrow={p.autogrow ? '' : undefined}
         className={`${p.className} pr-7`} />
-      <EmojiPicker isDark={isDark} title="Emoji einfügen" icon={<Smile size={12} />} onPick={insertEmoji}
-        buttonClass={open => `absolute right-1.5 top-1.5 p-0.5 rounded transition-colors ${open
-          ? (isDark ? 'text-white' : 'text-black')
-          : (isDark ? 'text-white/30 hover:text-white/80' : 'text-black/30 hover:text-black/80')}`} />
+      {!p.disabled && (
+        <EmojiPicker isDark={isDark} title="Emoji einfügen" icon={<Smile size={12} />} onPick={insertEmoji}
+          buttonClass={open => `absolute right-1.5 top-1.5 p-0.5 rounded transition-colors ${open
+            ? (isDark ? 'text-white' : 'text-black')
+            : (isDark ? 'text-white/30 hover:text-white/80' : 'text-black/30 hover:text-black/80')}`} />
+      )}
       {menu && (items.length > 0 || remoteBusy || menu.query.length > 0) && (
         <div className={`absolute left-0 right-0 top-full mt-1 z-20 rounded border shadow-lg overflow-hidden ${isDark ? 'bg-neutral-900 border-white/15' : 'bg-white border-black/15'}`}>
           {items.map((u, i) => (

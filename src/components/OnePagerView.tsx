@@ -4,7 +4,7 @@ import { marked } from 'marked';
 import { DirectorySearchResult, lockValid, ProjectLock, useStore } from '../store';
 import { useAuth, usePermissions } from '../auth';
 import { Comment, CommentAuthor, DirectoryUser, MILESTONES, MILESTONE_INFO, MILESTONE_TITLES, Project, Question, QuestionAnswer, Review, SourceFile, Theme } from '../types';
-import { assignInitials, authorOf, CommentBubble, CommentsPanel, CommentTargetInfo, countsOf, initialsOf, PersonPicker, personKey, toggleReaction } from './Comments';
+import { assignInitials, authorOf, CommentBubble, CommentsPanel, CommentTargetInfo, addMentioned, countsOf, initialsOf, keepMentioned, MentionTextarea, PersonPicker, personKey, toggleReaction } from './Comments';
 import { useTeamsNotify } from './useTeamsNotify';
 import { TEAMS_SCOPES } from '../teams';
 import { DIRECTORY_SCOPES } from '../store';
@@ -699,13 +699,15 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
   syncRef.current = syncDerived;
 
   // ── Änderungen ────────────────────────────────────────────────────────────
-  const updateAnswer = (themeId: string, questionId: string, patch: Partial<QuestionAnswer>) =>
+  // patch auch als Funktion des aktuellen Stands — z. B. für «@»: Text und
+  // Erwähnung kommen kurz nacheinander und dürfen sich nicht überschreiben
+  const updateAnswer = (themeId: string, questionId: string, patch: Partial<QuestionAnswer> | ((a: QuestionAnswer) => Partial<QuestionAnswer>)) =>
     setProj(p => {
       if (!p) return p;
       const review = getThemeReview(p, themeId);
       const answers = { ...(review.answers ?? {}) };
       const existing: QuestionAnswer = answers[questionId] ?? { value: null, remarks: '' };
-      answers[questionId] = { ...existing, ...patch };
+      answers[questionId] = { ...existing, ...(typeof patch === 'function' ? patch(existing) : patch) };
       return syncDerived({ ...p, reviews: { ...p.reviews, [themeId]: { ...review, answers } } });
     });
 
@@ -995,11 +997,16 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
             </button>
           ) : (
             <div className="flex-1 min-w-[220px]">
-              <textarea value={answer.remarks} rows={2} autoFocus={!answer.remarks && !question.remarksAlwaysOpen} disabled={disabled}
-                onChange={e => updateAnswer(themeId, question.id, { remarks: e.target.value })}
-                data-autogrow
+              {/* «@» erwähnt eine Person (users.json, Entra) — sie erscheint zugleich als Quelle der Antwort */}
+              <MentionTextarea value={answer.remarks} rows={2} autoFocus={!answer.remarks && !question.remarksAlwaysOpen} disabled={disabled}
+                onChange={v => updateAnswer(themeId, question.id, a => ({ remarks: v, mentions: keepMentioned(a.mentions, v) }))}
+                onMention={u => updateAnswer(themeId, question.id, a => ({ mentions: addMentioned(a.mentions, u) }))}
+                onSubmit={() => {}}
+                autogrow
                 onBlur={() => { if (!answer.remarks.trim() && !question.remarksAlwaysOpen) toggleRemarks(remarksKey, false); }}
-                placeholder={question.kind === 'text' ? 'Antwort / Bemerkungen' : 'Bemerkungen'}
+                placeholder={question.kind === 'text' ? 'Antwort / Bemerkungen (@ erwähnt jemanden)' : 'Bemerkungen (@ erwähnt jemanden)'}
+                users={mentionUsers} searchUsers={searchDirectory} onDirectoryProblem={onDirectoryProblem}
+                initialsFor={initialsFor} isDark={isDark}
                 className={`w-full text-[11px] px-2 py-1.5 rounded border outline-none resize-y transition-colors disabled:opacity-50 ${inputCls}`} />
             </div>
           )}
@@ -1021,12 +1028,20 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
           // die den Ursprung der Frage selbst angibt (Katalog/Prüfformular).
           const allSources = proj.sources ?? [];
           const selectedIds = answer.sources ?? [];
-          if (allSources.length === 0 && selectedIds.length === 0) return null;
+          // per «@» erwähnte Personen gelten ebenfalls als Quelle (nur solange «@Name» im Text steht)
+          const persons = keepMentioned(answer.mentions, answer.remarks) ?? [];
+          if (allSources.length === 0 && selectedIds.length === 0 && persons.length === 0) return null;
           const available = allSources.filter(s => !selectedIds.includes(s.id));
           return (
             <div className={`mt-1 flex items-center gap-1.5 flex-wrap text-[10px] ${textMuted}`}>
               <span className="flex-shrink-0">Quellen:</span>
-              {selectedIds.length === 0 && disabled && <span>—</span>}
+              {selectedIds.length === 0 && persons.length === 0 && disabled && <span>—</span>}
+              {persons.map(m => (
+                <a key={m.email} href={`mailto:${m.email}`} title={`${m.name} · ${m.email} — erwähnt in den Bemerkungen`}
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border whitespace-nowrap hover:underline ${isDark ? 'bg-blue-500/10 border-blue-500/30 text-blue-200' : 'bg-blue-50 border-blue-300 text-blue-800'}`}>
+                  <UserRound size={9} /> {m.name}
+                </a>
+              ))}
               {selectedIds.map(id => {
                 const s = allSources.find(x => x.id === id);
                 return (
@@ -1423,7 +1438,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
           ? (a?.choice ?? 'offen')
           : (String(a?.remarks ?? '').trim() ? 'beantwortet' : 'offen');
       const remarks = String(a?.remarks ?? '').trim();
-      const sources = (a?.sources ?? []).map(sourceLabelOf);
+      const sources = [...(a?.sources ?? []).map(sourceLabelOf), ...(keepMentioned(a?.mentions, a?.remarks ?? '') ?? []).map(m => `@${m.name}`)];
       const condition = q.milestone === CONDITIONS_MS && a?.condition === true ? String(a.conditionText ?? '').trim() : undefined;
       const assignee = a?.assignee?.name;
       return { answer, open, ...(remarks ? { remarks } : {}), ...(sources.length ? { sources } : {}), ...(condition !== undefined ? { condition } : {}), ...(assignee ? { assignee } : {}) };
@@ -1799,10 +1814,14 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
                   <span className={`text-[10px] uppercase tracking-wider ${labelCls}`}>Bemerkungen</span>
                   {bubble(notesKey)}
                 </div>
-                <textarea disabled={ro} value={opts.review.notes} required rows={3}
-                  onChange={e => opts.update({ notes: e.target.value })}
-                  data-autogrow
-                  placeholder="Bemerkungen (erforderlich)"
+                <MentionTextarea disabled={ro} value={opts.review.notes} rows={3}
+                  onChange={v => opts.update({ notes: v, notesMentions: keepMentioned(opts.review.notesMentions, v) })}
+                  onMention={u => opts.update({ notesMentions: addMentioned(keepMentioned(opts.review.notesMentions, opts.review.notes), u) })}
+                  onSubmit={() => {}}
+                  autogrow
+                  users={mentionUsers} searchUsers={searchDirectory} onDirectoryProblem={onDirectoryProblem}
+                  initialsFor={initialsFor} isDark={isDark}
+                  placeholder="Bemerkungen (erforderlich, @ erwähnt jemanden)"
                   className={`w-full min-h-[76px] text-[11px] px-2 py-1.5 rounded border outline-none resize-none overflow-hidden transition-colors ${inputCls} ${
                     notesEmpty ? (isDark ? 'border-rose-500/40' : 'border-rose-300') : ''
                   }`} />

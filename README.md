@@ -134,6 +134,14 @@ Zum Ausprobieren kann `sample-data/` als geteilter Ordner gewählt werden
   Frage-Nummer — ein Klick darauf springt zur Frage; eine Auflage ohne Text
   steht rot als «(noch nicht beschrieben)». Die Suche im Projekt findet auch
   Auflagen-Texte.
+- **Personen erwähnen («@»)**: In den Bemerkungen bzw. Antworten jeder Frage
+  und in den Bemerkungen der Meilenstein-Köpfe erwähnt «@» eine Person —
+  Suche wie bei den Kommentaren (users.json, Kommentar-Autoren, Entra); im
+  Text steht «@Name». Bei einer Frage gilt die erwähnte Person zugleich als
+  **Quelle** der Antwort: Sie steht in der «Quellen:»-Zeile als Chip mit
+  `mailto:` und im Review-PDF als «@Name» bei den Quellen. Gespeichert unter
+  `answers.<frageId>.mentions` bzw. `reviews.<ms>.notesMentions`; wird
+  «@Name» aus dem Text gelöscht, fällt die Person weg.
 - **Zuständig**: Bei jeder Frage lässt sich mit «Zuständig …» eine Person
   zuweisen — Suche wie bei «@» (users.json, Kommentar-Autoren, Entra);
   gewählt steht sie als Chip da (ändern, × entfernt; die eigene blau).

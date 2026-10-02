@@ -91,6 +91,7 @@ const FIELD_LABEL: Record<string, string> = {
   architectureRelevant: 'Architekturrelevant',
   value: 'Antwort', choice: 'Auswahl', remarks: 'Bemerkungen', sources: 'Quellen',
   condition: 'Auflage', conditionText: 'Auflage (Text)', assignee: 'Zuständig',
+  mentions: 'Erwähnt', notesMentions: 'Erwähnt',
   relevant: 'Relevant', reviewed: 'Geprüft', result: 'Ergebnis', notes: 'Bemerkungen',
   approved: 'Freigegeben', approvedBy: 'Prüfer/in',
   required: 'Erforderlich', assessment: 'Einschätzung Architektur',
@@ -151,6 +152,7 @@ function show(ctx: Ctx, key: string, v: unknown): string | undefined {
   if (key === 'classification' && typeof v === 'string') return ctx.model?.classifications.find(c => c.id === v)?.label ?? v;
   if (key === 'result' && typeof v === 'string') return RESULT_LABEL[v] ?? v;
   if (key === 'assignee' && v && typeof v === 'object' && 'name' in v) return String((v as { name: unknown }).name);
+  if ((key === 'mentions' || key === 'notesMentions') && Array.isArray(v)) return cut(v.map(m => String((m as { name?: unknown })?.name ?? '')).join(', '));
   if (key === 'sources' && Array.isArray(v)) return cut(v.map(id => ctx.sources.get(String(id)) ?? String(id)).join(', '));
   if (typeof v === 'string') return cut(v);
   if (typeof v === 'boolean') return v ? 'ja' : 'nein';

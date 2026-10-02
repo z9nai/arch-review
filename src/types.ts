@@ -165,6 +165,9 @@ export interface QuestionAnswer {
   // eine Aufgabe, keine Berechtigung: erfasst wird weiterhin von Reviewern
   // bzw. über «Offene Fragen» (Mail) und «Antworten importieren»
   assignee?: { name: string; email: string };
+  // per «@» in den Bemerkungen erwähnte Personen (im Text steht «@Name») —
+  // gelten zugleich als Quelle der Antwort
+  mentions?: DirectoryUser[];
 }
 
 // Review-Eintrag: je Thema (Relevanz + Antworten) oder je Meilenstein
@@ -180,6 +183,7 @@ export interface Review {
   answers?: Record<string, QuestionAnswer>; // je Frage-id
   approved?: boolean;   // Freigabe (schaltet den nächsten Meilenstein frei)
   approvedBy?: string;  // Prüfer/in
+  notesMentions?: DirectoryUser[]; // per «@» in den Bemerkungen erwähnte Personen
   checks?: Record<string, MilestoneCheckState>; // Abnahme-Kontrollpunkte (model.milestoneChecks), je id
   [key: string]: unknown;
 }
