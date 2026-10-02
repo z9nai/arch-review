@@ -35,6 +35,10 @@ body {
 .docx-content td p, .docx-content th p { margin: 0; }
 .docx-content img { max-width: 100%; }
 .docx-content a { color: inherit; text-decoration: underline; }
+/* formatierte Bemerkungen (richText): ohne Abstand nach dem letzten Absatz, Erwähnungen wie in Kommentaren */
+.rich-view > :last-child { margin-bottom: 0; }
+.rich-view a.mention { text-decoration: none; font-weight: 600; color: #1d4ed8; background: #eff6ff; border-radius: 3px; padding: 0 2px; }
+.dark .rich-view a.mention { color: #93c5fd; background: rgba(59, 130, 246, 0.15); }
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }

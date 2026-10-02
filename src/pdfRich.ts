@@ -6,6 +6,7 @@
 import fontkit from '@pdf-lib/fontkit';
 import dejavuUrl from 'dejavu-fonts-ttf/ttf/DejaVuSans.ttf?url';
 import { PDFDocument, PDFFont, PDFPage, RGB, StandardFonts, rgb } from 'pdf-lib';
+import { TEXT_COLORS } from './richText';
 
 export type RichFonts = {
   regular: PDFFont;
@@ -48,27 +49,36 @@ const WIN_ANSI = /[ -~ -ÿŒœŠšŸŽžƒ–—‘’‚“”„†‡•…�
 // Emoji-Varianten-Selektoren und Joiner tragen nichts zur Darstellung bei
 const normalize = (s: string) => s.replace(/[︎️‍]/g, '').replace(/\t/g, '    ');
 
-// Inline-Markdown in Segmente zerlegen
-const inline = (text: string, base: Style): { text: string; style: Style }[] => {
-  const out: { text: string; style: Style }[] = [];
-  const re = /\*\*([^*]+)\*\*|__([^_]+)__|`([^`]+)`|\[([^\]]+)\]\(([^)\s]+)\)|(?<![\w*])\*([^*\s](?:[^*]*[^*\s])?)\*(?![\w*])/g;
+// Textfarben aus richText (`[Text]{rot}`) als PDF-Farben
+const hexRgb = (h: string) => rgb(parseInt(h.slice(1, 3), 16) / 255, parseInt(h.slice(3, 5), 16) / 255, parseInt(h.slice(5, 7), 16) / 255);
+const PDF_COLORS: Record<string, RGB> = Object.fromEntries(Object.entries(TEXT_COLORS).map(([k, v]) => [k, hexRgb(v)]));
+const COLOR_ALT = Object.keys(TEXT_COLORS).join('|');
+
+type Seg = { text: string; style: Style; color?: RGB };
+
+// Inline-Markdown in Segmente zerlegen (Farbe: Inhalt rekursiv, z. B. fett in Rot)
+const inline = (text: string, base: Style, color?: RGB): Seg[] => {
+  const out: Seg[] = [];
+  const re = new RegExp(`\\[([^\\]]+)\\]\\{(${COLOR_ALT})\\}|\\*\\*([^*]+)\\*\\*|__([^_]+)__|\`([^\`]+)\`|\\[([^\\]]+)\\]\\(([^)\\s]+)\\)|(?<![\\w*])\\*([^*\\s](?:[^*]*[^*\\s])?)\\*(?![\\w*])|(?<![\\w_])_([^_\\s](?:[^_]*[^_\\s])?)_(?![\\w_])`, 'g');
   let last = 0;
   for (let m = re.exec(text); m; m = re.exec(text)) {
-    if (m.index > last) out.push({ text: text.slice(last, m.index), style: base });
-    if (m[1] ?? m[2]) out.push({ text: (m[1] ?? m[2])!, style: 'bold' });
-    else if (m[3]) out.push({ text: m[3], style: 'mono' });
-    else if (m[4]) out.push({ text: `${m[4]} (${m[5]})`, style: base });
-    else if (m[6]) out.push({ text: m[6], style: base === 'bold' ? 'bold' : 'italic' });
+    if (m.index > last) out.push({ text: text.slice(last, m.index), style: base, color });
+    if (m[1]) out.push(...inline(m[1], base, PDF_COLORS[m[2]]));
+    // Inhalt auswerten: z. B. **[rot]{rot}** = fett und rot
+    else if (m[3] ?? m[4]) out.push(...inline((m[3] ?? m[4])!, 'bold', color));
+    else if (m[5]) out.push({ text: m[5], style: 'mono', color });
+    else if (m[6]) out.push({ text: `${m[6]} (${m[7]})`, style: base, color });
+    else if (m[8] ?? m[9]) out.push(...inline((m[8] ?? m[9])!, base === 'bold' ? 'bold' : 'italic', color));
     last = m.index + m[0].length;
   }
-  if (last < text.length) out.push({ text: text.slice(last), style: base });
+  if (last < text.length) out.push({ text: text.slice(last), style: base, color });
   return out;
 };
 
 type Piece = { text: string; font: PDFFont; color?: RGB };
 type Word = { pieces: Piece[]; space: boolean };
 
-const toWords = (segs: { text: string; style: Style }[], f: RichFonts): Word[] => {
+const toWords = (segs: Seg[], f: RichFonts): Word[] => {
   const words: Word[] = [];
   let cur: Word | null = null;
   let pendingSpace = false;
@@ -77,7 +87,7 @@ const toWords = (segs: { text: string; style: Style }[], f: RichFonts): Word[] =
     for (const ch of seg.text) {
       if (/\s/.test(ch)) { if (cur) { words.push(cur); cur = null; } pendingSpace = true; continue; }
       let font = styleFont;
-      let color: RGB | undefined;
+      let color: RGB | undefined = seg.color;
       if (!WIN_ANSI.test(ch)) {
         const cp = ch.codePointAt(0)!;
         if (f.symbol && f.hasSymbol(cp)) { font = f.symbol; if (cp === 0x26a0) color = WARN; }

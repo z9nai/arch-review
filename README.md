@@ -142,6 +142,16 @@ Zum Ausprobieren kann `sample-data/` als geteilter Ordner gewählt werden
   `mailto:` und im Review-PDF als «@Name» bei den Quellen. Gespeichert unter
   `answers.<frageId>.mentions` bzw. `reviews.<ms>.notesMentions`; wird
   «@Name» aus dem Text gelöscht, fällt die Person weg.
+- **Formatierter Text**: Bemerkungen bzw. Antworten der Fragen und die
+  Bemerkungen der Meilenstein-Köpfe lassen sich formatieren. Wer Text
+  markiert, bekommt darüber eine kleine Leiste: **fett**, *kursiv*, fünf
+  Textfarben (rot, orange, grün, blau, grau), Aufzählung und «Formatierung
+  entfernen»; dazu Cmd/Ctrl+B und +I. Ausserhalb der Bearbeitung steht der
+  Text formatiert da (Erwähnungen hervorgehoben), ein Klick bearbeitet ihn.
+  Gespeichert wird einfaches Markdown (`**fett**`, `_kursiv_`, `- Punkt`)
+  plus Farbe als `[Text]{rot}` — lesbar im JSON und im Verlauf; das
+  Review-PDF zeigt die Formatierung (auch Farben). Eingegebenes HTML wird
+  nie ausgeführt, Links nur mit http(s)/mailto.
 - **Zuständig**: Bei jeder Frage lässt sich mit «Zuständig …» eine Person
   zuweisen — Suche wie bei «@» (users.json, Kommentar-Autoren, Entra);
   gewählt steht sie als Chip da (ändern, × entfernt; die eigene blau).

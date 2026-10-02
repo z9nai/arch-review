@@ -13,6 +13,7 @@ import { applyMs10, extractPdfText, hasMs10Data, Ms10Data, MS10_FIELD_LABELS, pa
 import { DEFAULT_MODEL } from '../defaultModel';
 import { buildProjectExport, describeImportChanges, downloadJson, parseProjectImport, questionNumbers } from '../projectJson';
 import { AuditEntry, AuditOrigin, makeEntry, targetLabel } from '../audit';
+import { stripRich } from '../richText';
 import AuditPanel from './AuditPanel';
 import { fitTextarea, fmtTimestamp, formatBytes, normalizeUrl, nowIsoWithTimezone, sanitizeFilename } from '../util';
 
@@ -869,7 +870,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
         for (const { q, number } of questionsAt(theme.id, ms)) {
           const a = getThemeReview(proj, theme.id).answers?.[q.id];
           const answer = a?.value === true ? 'Ja' : a?.value === false ? 'Nein' : (a?.choice ?? '');
-          const remarks = (a?.remarks ?? '').trim();
+          const remarks = stripRich(a?.remarks ?? '').trim();
           const num = number.toLowerCase();
           const text = q.text.toLowerCase();
           const condition = a?.condition ? (a.conditionText ?? '').toLowerCase() : '';
@@ -1002,7 +1003,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
                 onChange={v => updateAnswer(themeId, question.id, a => ({ remarks: v, mentions: keepMentioned(a.mentions, v) }))}
                 onMention={u => updateAnswer(themeId, question.id, a => ({ mentions: addMentioned(a.mentions, u) }))}
                 onSubmit={() => {}}
-                autogrow
+                autogrow rich mentions={answer.mentions}
                 onBlur={() => { if (!answer.remarks.trim() && !question.remarksAlwaysOpen) toggleRemarks(remarksKey, false); }}
                 placeholder={question.kind === 'text' ? 'Antwort / Bemerkungen (@ erwähnt jemanden)' : 'Bemerkungen (@ erwähnt jemanden)'}
                 users={mentionUsers} searchUsers={searchDirectory} onDirectoryProblem={onDirectoryProblem}
@@ -1818,7 +1819,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
                   onChange={v => opts.update({ notes: v, notesMentions: keepMentioned(opts.review.notesMentions, v) })}
                   onMention={u => opts.update({ notesMentions: addMentioned(keepMentioned(opts.review.notesMentions, opts.review.notes), u) })}
                   onSubmit={() => {}}
-                  autogrow
+                  autogrow rich mentions={opts.review.notesMentions}
                   users={mentionUsers} searchUsers={searchDirectory} onDirectoryProblem={onDirectoryProblem}
                   initialsFor={initialsFor} isDark={isDark}
                   placeholder="Bemerkungen (erforderlich, @ erwähnt jemanden)"

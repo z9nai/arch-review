@@ -5,10 +5,11 @@
 // erledigten — Kommentaren). Die Daten hält OnePagerView (Sidecar-Datei via
 // store.loadComments/updateComments); hier nur Darstellung und Formulare.
 import React, { useEffect, useRef, useState } from 'react';
-import { AtSign, Check, ChevronLeft, ChevronRight, Clock, CornerDownRight, List, MessageSquare, RotateCcw, Send, Smile, SmilePlus, Trash2, UserRound, X } from 'lucide-react';
+import { AtSign, Bold, Check, ChevronLeft, ChevronRight, Clock, CornerDownRight, Italic, List, MessageSquare, RemoveFormatting, RotateCcw, Send, Smile, SmilePlus, Trash2, UserRound, X } from 'lucide-react';
 import type { Comment, CommentAuthor, DirectoryUser } from '../types';
 import type { DirectorySearchResult } from '../store';
 import { fmtTimestamp } from '../util';
+import { clearFormat, renderRich, setColor, TEXT_COLORS, toggleList, toggleWrap, type Edit } from '../richText';
 
 // Eine kommentierbare Stelle: key = Anker (siehe Comment.target), label wie im
 // Panel und in der Übersicht angezeigt (z. B. «M10A1 Frage …»).
@@ -296,8 +297,19 @@ export function MentionTextarea(p: {
   onBlur?: () => void;
   /** Höhe wächst mit dem Text (data-autogrow, siehe OnePagerView) */
   autogrow?: boolean;
+  /**
+   * Formatierter Text (richText): ausserhalb der Bearbeitung formatiert
+   * angezeigt (Klick bearbeitet), beim Markieren eine Formatleiste (fett,
+   * kursiv, Farbe, Aufzählung), Cmd/Ctrl+B bzw. +I
+   */
+  rich?: boolean;
+  /** erwähnte Personen — in der formatierten Anzeige hervorgehoben */
+  mentions?: DirectoryUser[];
 }) {
   const { isDark } = p;
+  const [editing, setEditing] = useState(false);
+  const [bar, setBar] = useState<{ top: number; left: number } | null>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLTextAreaElement>(null);
   const ref = p.textareaRef ?? innerRef;
   const [menu, setMenu] = useState<{ query: string; start: number; caret: number } | null>(null);
@@ -360,8 +372,48 @@ export function MentionTextarea(p: {
     setTimeout(() => { const el = ref.current; if (el) { el.focus({ preventScroll: true }); el.setSelectionRange(pos, pos); } }, 0);
   };
 
+  // ── Formatieren (rich) ──────────────────────────────────────────────────
+  // Position der Markierung im Feld: gespiegeltes div mit denselben Massen
+  const caretXY = (el: HTMLTextAreaElement, pos: number) => {
+    const cs = getComputedStyle(el);
+    const div = document.createElement('div');
+    for (const k of ['boxSizing', 'width', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft', 'borderTopWidth', 'borderRightWidth',
+      'borderBottomWidth', 'borderLeftWidth', 'fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'letterSpacing', 'lineHeight', 'wordSpacing', 'tabSize'] as const) {
+      div.style[k] = cs[k];
+    }
+    Object.assign(div.style, { position: 'absolute', visibility: 'hidden', whiteSpace: 'pre-wrap', overflowWrap: 'break-word', top: '0', left: '-9999px' });
+    div.textContent = el.value.slice(0, pos);
+    const span = document.createElement('span');
+    span.textContent = el.value.slice(pos) || '.';
+    div.appendChild(span);
+    document.body.appendChild(div);
+    const r = { top: span.offsetTop - el.scrollTop, left: span.offsetLeft - el.scrollLeft };
+    div.remove();
+    return r;
+  };
+  const BAR_W = 230;
+  const updateBar = () => {
+    const el = ref.current;
+    if (!p.rich || p.disabled || !el || el.selectionStart === el.selectionEnd || document.activeElement !== el) { setBar(null); return; }
+    const c = caretXY(el, el.selectionStart);
+    const maxLeft = Math.max(0, el.offsetWidth - BAR_W);
+    setBar({ top: el.offsetTop + c.top - 30, left: Math.min(Math.max(0, el.offsetLeft + c.left - 8), maxLeft) });
+  };
+  const apply = (fn: (v: string, s: number, e: number) => Edit) => {
+    const el = ref.current;
+    if (!el) return;
+    const r = fn(p.value, el.selectionStart, el.selectionEnd);
+    p.onChange(r.value);
+    setTimeout(() => { const t = ref.current; if (t) { t.focus({ preventScroll: true }); t.setSelectionRange(r.start, r.end); updateBar(); } }, 0);
+  };
+
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); p.onSubmit(); return; }
+    if (p.rich && (e.metaKey || e.ctrlKey) && (e.key === 'b' || e.key === 'i')) {
+      e.preventDefault();
+      apply((v, s, en) => (e.key === 'b' ? toggleWrap(v, s, en, '**', '**') : toggleWrap(v, s, en, '_', '_')));
+      return;
+    }
     if (!menu) return;
     if (e.key === 'ArrowDown') { e.preventDefault(); setSel(s => Math.min(s + 1, Math.max(items.length - 1, 0))); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setSel(s => Math.max(s - 1, 0)); }
@@ -379,16 +431,53 @@ export function MentionTextarea(p: {
     setTimeout(() => { const t = ref.current; if (t) { t.focus({ preventScroll: true }); t.setSelectionRange(caret, caret); } }, 0);
   };
 
+  // Bearbeiten beginnen (Klick auf die formatierte Anzeige): Cursor ans Ende
+  const startEdit = () => {
+    if (p.disabled) return;
+    setEditing(true);
+    setTimeout(() => { const t = ref.current; if (t) { t.focus({ preventScroll: true }); t.setSelectionRange(t.value.length, t.value.length); } }, 0);
+  };
+
   const muted = isDark ? 'text-white/40' : 'text-black/40';
+  const showRendered = !!p.rich && !editing && p.value.trim() !== '';
+  const barBtn = `w-6 h-6 inline-flex items-center justify-center rounded transition-colors ${isDark ? 'text-white/80 hover:bg-white/10' : 'text-black/80 hover:bg-black/5'}`;
   return (
-    <div className="relative">
-      <textarea ref={ref} value={p.value} rows={p.rows} autoFocus={p.autoFocus} placeholder={p.placeholder}
-        onChange={e => { p.onChange(e.target.value); requestAnimationFrame(detect); }}
-        onKeyDown={onKeyDown} onKeyUp={e => { if (!['ArrowDown', 'ArrowUp', 'Enter', 'Tab', 'Escape'].includes(e.key)) detect(); }}
-        onClick={detect} onBlur={() => { setTimeout(() => setMenu(null), 150); p.onBlur?.(); }}
-        disabled={p.disabled} data-autogrow={p.autogrow ? '' : undefined}
-        className={`${p.className} pr-7`} />
-      {!p.disabled && (
+    <div ref={wrapRef} className="relative">
+      {showRendered ? (
+        <div role="textbox" aria-readonly={p.disabled} tabIndex={p.disabled ? -1 : 0}
+          title={p.disabled ? undefined : 'Klicken zum Bearbeiten'}
+          onClick={e => { if (!(e.target as HTMLElement).closest('a')) startEdit(); }}
+          onFocus={startEdit}
+          className={`${p.className} docx-content rich-view whitespace-normal ${p.disabled ? 'opacity-50' : 'cursor-text'}`}
+          dangerouslySetInnerHTML={{ __html: renderRich(p.value, p.mentions) }} />
+      ) : (
+        <textarea ref={ref} value={p.value} rows={p.rows} autoFocus={p.autoFocus} placeholder={p.placeholder}
+          onChange={e => { p.onChange(e.target.value); requestAnimationFrame(detect); }}
+          onKeyDown={onKeyDown} onKeyUp={e => { if (!['ArrowDown', 'ArrowUp', 'Enter', 'Tab', 'Escape'].includes(e.key)) detect(); }}
+          onClick={detect} onSelect={updateBar} onMouseUp={updateBar} onScroll={() => setBar(null)}
+          onFocus={() => setEditing(true)}
+          onBlur={() => { setTimeout(() => setMenu(null), 150); setBar(null); setEditing(false); p.onBlur?.(); }}
+          disabled={p.disabled} data-autogrow={p.autogrow ? '' : undefined}
+          className={`${p.className} pr-7`} />
+      )}
+      {/* Formatleiste über der Markierung — mousedown ohne Fokuswechsel, damit die Markierung bleibt */}
+      {bar && !showRendered && (
+        <div style={{ top: bar.top, left: bar.left, width: BAR_W }} onMouseDown={e => e.preventDefault()}
+          className={`absolute z-30 flex items-center gap-0.5 p-0.5 rounded-md border shadow-lg ${isDark ? 'bg-[#1f2024] border-white/15' : 'bg-white border-black/15'}`}>
+          <button type="button" title="Fett (Cmd/Ctrl+B)" className={barBtn} onClick={() => apply((v, s, e) => toggleWrap(v, s, e, '**', '**'))}><Bold size={12} /></button>
+          <button type="button" title="Kursiv (Cmd/Ctrl+I)" className={barBtn} onClick={() => apply((v, s, e) => toggleWrap(v, s, e, '_', '_'))}><Italic size={12} /></button>
+          <span className={`w-px h-4 mx-0.5 ${isDark ? 'bg-white/15' : 'bg-black/15'}`} />
+          {Object.entries(TEXT_COLORS).map(([name, color]) => (
+            <button key={name} type="button" title={`Textfarbe ${name}`} className={barBtn} onClick={() => apply((v, s, e) => setColor(v, s, e, name))}>
+              <span className="w-3 h-3 rounded-full" style={{ background: color }} />
+            </button>
+          ))}
+          <span className={`w-px h-4 mx-0.5 ${isDark ? 'bg-white/15' : 'bg-black/15'}`} />
+          <button type="button" title="Aufzählung" className={barBtn} onClick={() => apply(toggleList)}><List size={12} /></button>
+          <button type="button" title="Formatierung entfernen" className={barBtn} onClick={() => apply(clearFormat)}><RemoveFormatting size={12} /></button>
+        </div>
+      )}
+      {!p.disabled && !showRendered && (
         <EmojiPicker isDark={isDark} title="Emoji einfügen" icon={<Smile size={12} />} onPick={insertEmoji}
           buttonClass={open => `absolute right-1.5 top-1.5 p-0.5 rounded transition-colors ${open
             ? (isDark ? 'text-white' : 'text-black')
