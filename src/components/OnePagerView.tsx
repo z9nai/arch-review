@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { AlertTriangle, ArrowLeft, Check, ClipboardPaste, Copy, Download, ExternalLink, Eye, FileDown, FileUp, Info, Link2, Lock, Mail, MessageSquare, Minus, Pencil, Plus, Save, Search, Trash2, Unlock, X } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Check, ClipboardPaste, Copy, Download, ExternalLink, Eye, FileDown, FileJson, FileUp, Info, Link2, Lock, Mail, MessageSquare, Minus, Pencil, Plus, Save, Search, Trash2, Unlock, X } from 'lucide-react';
 import { marked } from 'marked';
 import { DirectorySearchResult, lockValid, ProjectLock, useStore } from '../store';
 import { useAuth, usePermissions } from '../auth';
@@ -11,6 +11,7 @@ import { DIRECTORY_SCOPES } from '../store';
 import { blockingChecks, checkState, deriveStatus, emptyReview, getMilestoneReview, getThemeReview, STATUS_META } from '../status';
 import { applyMs10, extractPdfText, hasMs10Data, Ms10Data, MS10_FIELD_LABELS, parseMs10Text } from '../ms10';
 import { DEFAULT_MODEL } from '../defaultModel';
+import { buildProjectExport, describeImportChanges, downloadJson, parseProjectImport } from '../projectJson';
 import { fitTextarea, fmtTimestamp, formatBytes, normalizeUrl, nowIsoWithTimezone, sanitizeFilename } from '../util';
 
 const FOUNDATION_MS = MILESTONES[0]; // M10
@@ -102,6 +103,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
   const [lastSavedAt, setLastSavedAt] = useState('');
   const [toast, setToast] = useState('');
   const [importData, setImportData] = useState<Ms10Data | null>(null);
+  const [jsonImport, setJsonImport] = useState<{ project: Project; warnings: string[]; changes: string[] } | null>(null);
   const [infoTheme, setInfoTheme] = useState<Theme | null>(null);
   const [infoQuestion, setInfoQuestion] = useState<Question | null>(null);
   const [showClassInfo, setShowClassInfo] = useState(false);
@@ -123,6 +125,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savingRef = useRef(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const jsonFileRef = useRef<HTMLInputElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const sourceFileRef = useRef<HTMLInputElement>(null);
   const [sourceLabel, setSourceLabel] = useState('');
@@ -710,6 +713,38 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
     showToast('MS10-Felder übernommen.');
   };
 
+  // ── JSON-Export/-Import (Bearbeitung ausserhalb, z. B. mit KI) ────────────
+  const exportJson = () => {
+    if (!proj || !model) return;
+    downloadJson(buildProjectExport(proj, model), `${proj.slug}.arch-review.json`);
+  };
+
+  // Importierter Stand ersetzt den aktuellen; Slug, Anlagedatum und Anhänge
+  // (Dateien liegen im Ordner, nicht im JSON) bleiben die des Projekts.
+  const mergeImport = (cur: Project, incoming: Project): Project => {
+    const merged: Project = { ...incoming, slug: cur.slug, createdAt: cur.createdAt, version: incoming.version ?? cur.version };
+    if (cur.sources) merged.sources = cur.sources; else delete merged.sources;
+    return syncDerived(merged);
+  };
+
+  const pickJson = async (file: File) => {
+    if (!proj) return;
+    const res = parseProjectImport(await file.text(), model, proj);
+    if (!res.ok) { window.alert(`JSON-Import nicht möglich:\n\n${res.message}`); return; }
+    const warnings = [...res.warnings];
+    if (res.project.slug && res.project.slug !== proj.slug) {
+      warnings.unshift(`Die Datei stammt vom Projekt «${res.project.slug}» — der Inhalt wird trotzdem in «${proj.slug}» übernommen.`);
+    }
+    setJsonImport({ project: res.project, warnings, changes: describeImportChanges(proj, mergeImport(proj, res.project), model) });
+  };
+
+  const applyJsonImport = () => {
+    if (!jsonImport) return;
+    setProj(p => (p ? mergeImport(p, jsonImport.project) : p));
+    showToast(`JSON übernommen — ${jsonImport.changes.length} ${jsonImport.changes.length === 1 ? 'Änderung' : 'Änderungen'}.`);
+    setJsonImport(null);
+  };
+
   if (notFound) {
     return (
       <div className="p-6 max-w-3xl mx-auto">
@@ -843,6 +878,11 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
               onChange={e => updateAnswer(themeId, question.id, { choice: e.target.value || undefined })}
               className={`text-[11px] px-2 py-1.5 rounded border outline-none transition-colors disabled:opacity-50 ${inputCls}`}>
               <option value="">– wählen –</option>
+              {/* Gespeicherte Auswahl, deren Optionstext im Katalog inzwischen
+                  geändert/entfernt wurde: sichtbar lassen statt leer anzeigen */}
+              {answer.choice && !(question.options ?? []).includes(answer.choice) && (
+                <option value={answer.choice}>{answer.choice} (veraltet)</option>
+              )}
               {(question.options ?? []).filter(Boolean).map(o => <option key={o} value={o}>{o}</option>)}
             </select>
           )}
@@ -1856,6 +1896,24 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
               className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors disabled:opacity-40 ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
               <FileDown size={11} /> Review-PDF
             </button>
+            <button onClick={exportJson}
+              title="Projekt als JSON exportieren — mit Fragenkatalog als Lesehilfe, z. B. zur Bearbeitung mit einer KI"
+              className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
+              <FileJson size={11} /> JSON-Export
+            </button>
+            <button onClick={() => jsonFileRef.current?.click()} disabled={ro}
+              title={!canEdit ? 'JSON-Import nur mit Bearbeitungsrecht (Rolle Reviewer oder Admin)'
+                : lockedByOther ? 'JSON-Import erst möglich, wenn du das Projekt bearbeitest (Sperre übernehmen bzw. «Bearbeiten»)'
+                : 'Bearbeitetes Projekt-JSON einlesen — ersetzt den aktuellen Stand (mit Vorschau)'}
+              className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors disabled:opacity-40 ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
+              <FileUp size={11} /> JSON-Import
+            </button>
+            <input ref={jsonFileRef} type="file" accept="application/json,.json" className="hidden"
+              onChange={e => {
+                const f = e.target.files?.[0];
+                e.target.value = '';
+                if (f) void pickJson(f);
+              }} />
             <button onClick={() => fileRef.current?.click()} disabled={ro}
               title="Felder aus einem MS10-Antrags-PDF übernehmen"
               className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors disabled:opacity-40 ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
@@ -2406,6 +2464,45 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
               </button>
               <button onClick={applyImport}
                 className={`flex-1 text-xs py-2 rounded font-semibold transition-colors ${isDark ? 'bg-white text-black hover:bg-white/90' : 'bg-black text-white hover:bg-black/80'}`}>
+                Übernehmen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* JSON-Import-Vorschau */}
+      {jsonImport && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-6">
+          <div className={`max-w-lg w-full rounded-xl border p-6 ${isDark ? 'border-white/15 bg-[#16171a]' : 'border-black/15 bg-white'}`}>
+            <p className={`text-[10px] uppercase tracking-wider mb-3 ${labelCls}`}>
+              JSON-Import — {jsonImport.changes.length === 0 ? 'keine Änderungen' : `${jsonImport.changes.length} ${jsonImport.changes.length === 1 ? 'Änderung' : 'Änderungen'}`}
+            </p>
+            {jsonImport.warnings.length > 0 && (
+              <div className={`mb-3 px-3 py-2 rounded border text-[11px] space-y-1 max-h-32 overflow-y-auto ${isDark ? 'border-amber-500/30 bg-amber-500/10 text-amber-200' : 'border-amber-300 bg-amber-50 text-amber-900'}`}>
+                {jsonImport.warnings.map((w, i) => (
+                  <p key={i} className="flex gap-1.5"><AlertTriangle size={11} className="flex-shrink-0 mt-0.5" /> {w}</p>
+                ))}
+              </div>
+            )}
+            {jsonImport.changes.length > 0 && (
+              <div className="space-y-1 mb-4 max-h-64 overflow-y-auto">
+                {jsonImport.changes.map((c, i) => (
+                  <p key={i} className={`text-[11px] ${isDark ? 'text-white/80' : 'text-black/80'}`}>{c}</p>
+                ))}
+              </div>
+            )}
+            <p className={`text-[10px] leading-relaxed mb-4 ${textMuted}`}>
+              Der Inhalt der Datei ersetzt den aktuellen Stand des Projekts (Antworten, Bemerkungen, Meilenstein-Köpfe, Projektangaben).
+              Slug, Anlagedatum und Anhänge bleiben erhalten; Kommentare sind nicht betroffen.
+            </p>
+            <div className="flex gap-2">
+              <button onClick={() => setJsonImport(null)}
+                className={`flex-1 text-xs py-2 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
+                Abbrechen
+              </button>
+              <button onClick={applyJsonImport} disabled={jsonImport.changes.length === 0}
+                className={`flex-1 text-xs py-2 rounded font-semibold transition-colors disabled:opacity-40 ${isDark ? 'bg-white text-black hover:bg-white/90' : 'bg-black text-white hover:bg-black/80'}`}>
                 Übernehmen
               </button>
             </div>

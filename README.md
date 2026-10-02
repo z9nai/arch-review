@@ -465,3 +465,29 @@ Projektklasse, Laufzeit) in die Notizen der Foundation-Prüfung. Der Import ist 
 nicht gefunden wird, bleibt leer; ein erneuter Import derselben Datei erzeugt
 keine Duplikate. PDF-Parsing läuft lokal über ein mitgebundeltes pdf.js
 (eigener Lazy-Chunk, keine Netzwerkzugriffe).
+
+## JSON-Export / -Import (Bearbeitung ausserhalb, z. B. mit KI)
+
+Für die Arbeit an einem Projekt ausserhalb der App — etwa mit einer KI, wenn
+die Daten im geschützten Ordner liegen — lässt sich ein Projekt als JSON
+exportieren und wieder einlesen:
+
+- **OnePager → «JSON-Export»**: lädt `<slug>.arch-review.json` herunter. Die
+  Datei enthält das Projekt unverändert unter `project`, dazu unter `catalog`
+  den Fragenkatalog als Lesehilfe (Klassifikationen, Themen, Fragen mit
+  Nummer, Text, Art, Auswahloptionen, Hinweis) und unter `instructions` eine
+  kurze Strukturbeschreibung für die KI. Steht auch Viewern zur Verfügung.
+- **OnePager → «JSON-Import»**: liest die (bearbeitete) Datei ein, prüft die
+  Struktur und zeigt eine Vorschau mit allen geänderten Stellen (Projektfelder,
+  Antworten mit Fragenummer, Meilenstein-Köpfe) und Warnungen (unbekannte
+  Fragen/Themen, ungültige Auswahl, anderer Slug). «Übernehmen» ersetzt den
+  Stand des Projekts; der Autosave speichert. Slug, Anlagedatum und Anhänge
+  bleiben die des Projekts, Kommentare sind nicht betroffen.
+- **Projektliste → «Import JSON»**: legt aus der Datei ein neues Projekt an
+  (Name/Slug vorbefüllt; ist der Slug vergeben, wird `-import` angehängt).
+  Anhänge werden nicht übernommen.
+
+Angenommen wird die Export-Datei oder ein rohes `projects/<slug>.json`;
+`catalog` und `instructions` werden beim Import ignoriert. Fehlende
+`remarks`/`value` einer Antwort werden ergänzt; Strukturfehler (z. B. `value`
+nicht `true`/`false`/`null`) brechen den Import ab, ohne etwas zu ändern.

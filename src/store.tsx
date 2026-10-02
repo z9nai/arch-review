@@ -2,7 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import { Comment, CommentsFile, DirectoryUser, Model, Project, Review, UsersFile } from './types';
 import { DEFAULT_MODEL } from './defaultModel';
 import { applyMs10, Ms10Data } from './ms10';
-import { nowIsoWithTimezone, todayIso } from './util';
+import { mapLimit, nowIsoWithTimezone, todayIso } from './util';
 import { LocalBackend, StorageBackend } from './backend';
 import { GRAPH_SCOPES, GraphBackend, resolveFolderLink, SharePointFolder } from './graph';
 import { PENDING_FOLDER_KEY, useAuth } from './auth';
@@ -81,12 +81,18 @@ interface StoreCtx {
   /** Admin: wer darf die model.json ändern? (SharePoint-Berechtigungen) */
   checkModelSecurity: () => Promise<SecurityCheckResult>;
   projects: ProjectListItem[];
+  /** projects/ wird gerade gelesen */
+  projectsLoading: boolean;
+  /** mindestens einmal vollständig gelesen (sonst ist «leer» noch unbekannt) */
+  projectsLoaded: boolean;
   refreshProjects: () => Promise<void>;
   loadProject: (slug: string) => Promise<{ data: Project; version: string } | null>;
   saveProject: (data: Project, expectedVersion: string | null) => Promise<SaveResult>;
   createProject: (name: string, slug: string, ms10?: Ms10Data) => Promise<{ ok: true } | { ok: false; message: string }>;
   /** Kopie anlegen: Antworten/Klassifikation bleiben, Freigaben werden zurückgesetzt */
   duplicateProject: (sourceSlug: string, name: string, slug: string) => Promise<{ ok: true } | { ok: false; message: string }>;
+  /** Neues Projekt aus einem importierten JSON anlegen (Inhalt unverändert, ohne Anhänge) */
+  importProject: (data: Project, name: string, slug: string) => Promise<{ ok: true } | { ok: false; message: string }>;
   /** projects/<slug>.json (und eine allfällige eigene Sperre) endgültig entfernen */
   deleteProject: (slug: string) => Promise<{ ok: true } | { ok: false; message: string }>;
   // Quelldateien (Belege/Referenzdokumente) je Projekt — die Metadaten
@@ -273,6 +279,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [modelPath, setModelPath] = useState(MODEL_PATH);
   const modelPathRef = useRef(MODEL_PATH);
   const [projects, setProjects] = useState<ProjectListItem[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(false);
+  const [projectsLoaded, setProjectsLoaded] = useState(false); // erste Liste da?
   const [savedHandleName, setSavedHandleName] = useState<string | null>(null);
   const [savedSharePoint, setSavedSharePoint] = useState<SharePointFolder | null>(() => loadSharePoint());
   const [knownUsers, setKnownUsers] = useState<DirectoryUser[]>([]);
@@ -340,31 +348,40 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // Alle Dateien in projects/ parallel lesen (begrenzt, damit SharePoint/Graph
+  // nicht drosselt). Überlappende Aufrufe (Intervall, Tab-Fokus, Knopf): nur
+  // das Ergebnis des jüngsten wird übernommen.
+  const refreshSeqRef = useRef(0);
   const refreshProjectsIn = useCallback(async (be: StorageBackend) => {
+    const seq = ++refreshSeqRef.current;
+    setProjectsLoading(true);
     const items: ProjectListItem[] = [];
     try {
       const files = await be.list('projects');
+      const relevant = files.filter(f => f.name.endsWith('.json'));
+      const reads = await mapLimit(relevant, 8, async f => {
+        try { return await be.read(`projects/${f.name}`); }
+        catch (e) { console.error(`[arch-review] projects/${f.name}:`, e); return null; }
+      });
       const locks = new Map<string, ProjectLock>();
       const openComments = new Map<string, number>();
-      for (const f of files) {
+      const projectReads: { slug: string; text: string; version: string }[] = [];
+      relevant.forEach((f, i) => {
+        const read = reads[i];
         if (f.name.endsWith('.lock.json')) {
-          const read = await be.read(`projects/${f.name}`);
           const l = read ? parseLock(read.text) : null;
           if (lockValid(l) && l.session !== sessionId()) locks.set(f.name.replace(/\.lock\.json$/, ''), l);
         } else if (f.name.endsWith('.comments.json')) {
           // offene Fäden = Wurzelkommentare ohne «erledigt»
-          const read = await be.read(`projects/${f.name}`);
           const cs = read ? parseComments(read.text) : [];
           openComments.set(f.name.replace(/\.comments\.json$/, ''), cs.filter(c => !c.parentId && c.resolved !== true).length);
+        } else if (read) {
+          projectReads.push({ slug: f.name.replace(/\.json$/, ''), text: read.text, version: read.version });
         }
-      }
-      for (const f of files) {
-        if (!f.name.endsWith('.json') || f.name.endsWith('.lock.json') || f.name.endsWith('.comments.json')) continue;
-        const read = await be.read(`projects/${f.name}`);
-        if (!read) continue;
-        const p = parseProject(read.text, read.version);
+      });
+      for (const { slug, text, version } of projectReads) {
+        const p = parseProject(text, version);
         if (!p) continue;
-        const slug = f.name.replace(/\.json$/, '');
         const lock = locks.get(slug);
         const open = openComments.get(slug) ?? 0;
         items.push({ slug, ...p, ...(lock ? { lock } : {}), ...(open ? { openComments: open } : {}) });
@@ -372,8 +389,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     } catch (e) {
       console.error('[arch-review] refreshProjects:', e);
     }
+    if (seq !== refreshSeqRef.current) return;
     items.sort((a, b) => (a.data.name || a.slug).localeCompare(b.data.name || b.slug, 'de'));
     setProjects(items);
+    setProjectsLoaded(true);
+    setProjectsLoading(false);
   }, []);
 
   const refreshProjects = useCallback(async () => {
@@ -539,7 +559,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const disconnect = useCallback(() => {
     backendRef.current = null;
-    setStorage(null); setModel(null); modelRef.current = null; setProjects([]); setKnownUsers([]);
+    setStorage(null); setModel(null); modelRef.current = null; refreshSeqRef.current++; setProjects([]); setProjectsLoaded(false); setProjectsLoading(false); setKnownUsers([]);
   }, []);
 
   // Beim Start: gemerkten Ordner wiederherstellen. SharePoint sobald die
@@ -757,6 +777,32 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return { ok: true as const };
   }, [loadProject]);
 
+  // Import als neues Projekt: Antworten, Köpfe und Klassifikation wie in der
+  // Datei; Anhänge entfallen (die Dateien liegen nicht im JSON).
+  const importProject = useCallback(async (data: Project, name: string, slug: string) => {
+    const be = backendRef.current;
+    if (!be) return { ok: false as const, message: 'Kein Ordner gewählt.' };
+    const project: Project = {
+      ...data,
+      version: data.version ?? 1,
+      slug, name,
+      createdAt: todayIso(),
+      updatedAt: nowIsoWithTimezone(),
+    };
+    delete project.sources;
+    let json: string;
+    try { json = JSON.stringify(project, null, 2); } catch { return { ok: false as const, message: 'Projektdaten konnten nicht serialisiert werden.' }; }
+    try { await be.ensureDir('projects'); } catch { /* write meldet es */ }
+    const w = await be.write(`projects/${slug}.json`, json, { createOnly: true });
+    if (!w.ok) {
+      if (w.reason === 'exists') return { ok: false as const, message: 'Ein Projekt mit diesem Slug existiert bereits.' };
+      return { ok: false as const, message: w.message };
+    }
+    setProjects(prev => [...prev, { slug, data: project, version: w.version }]
+      .sort((a, b) => (a.data.name || a.slug).localeCompare(b.data.name || b.slug, 'de')));
+    return { ok: true as const };
+  }, []);
+
   // Löschen: nicht, solange eine andere Person/Sitzung das Projekt bearbeitet.
   // Entfernt die Projektdatei und die eigene Sperrdatei. Kein Papierkorb —
   // die Bestätigung passiert in der Oberfläche.
@@ -904,7 +950,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       pickDirectory, savedHandleName, reconnectDirectory,
       connectSharePoint, savedSharePoint, reconnectSharePoint, forgetSharePoint, queueSharePoint, disconnect,
       model, modelError, modelPath, saveModel, checkModelSecurity,
-      projects, refreshProjects, loadProject, saveProject, createProject, duplicateProject, deleteProject,
+      projects, projectsLoading, projectsLoaded, refreshProjects, loadProject, saveProject, createProject, duplicateProject, importProject, deleteProject,
       uploadSourceFile, downloadSourceFile, deleteSourceFile,
       loadComments, updateComments,
       knownUsers, searchDirectory, requestDirectoryConsent,

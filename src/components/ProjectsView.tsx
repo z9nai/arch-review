@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { Plus, RefreshCw, ChevronRight, FileUp, Lock, Copy, Trash2, MessageSquare, Search, X } from 'lucide-react';
+import { Plus, RefreshCw, ChevronRight, FileJson, FileUp, Lock, Copy, Trash2, MessageSquare, Search, X, Loader2 } from 'lucide-react';
 import { useStore } from '../store';
 import { deriveStatus, openMilestone, STATUS_META } from '../status';
 import { extractPdfText, hasMs10Data, Ms10Data, parseMs10Text } from '../ms10';
 import { fmtTimestamp, slugify, SLUG_RE } from '../util';
 import { usePermissions } from '../auth';
+import { parseProjectImport } from '../projectJson';
+import { Project } from '../types';
 
 function StatusBadge({ status, isDark }: { status: keyof typeof STATUS_META; isDark: boolean }) {
   const meta = STATUS_META[status];
@@ -16,7 +18,7 @@ function StatusBadge({ status, isDark }: { status: keyof typeof STATUS_META; isD
 }
 
 export default function ProjectsView({ onOpen }: { onOpen: (slug: string) => void }) {
-  const { isDark, model, projects, refreshProjects, createProject, duplicateProject, deleteProject } = useStore();
+  const { isDark, model, projects, projectsLoading, projectsLoaded, refreshProjects, createProject, duplicateProject, importProject, deleteProject } = useStore();
   const { canEdit } = usePermissions();
 
   // Liste aktuell halten (Sperren, Kommentare, fremde Änderungen): beim
@@ -36,8 +38,10 @@ export default function ProjectsView({ onOpen }: { onOpen: (slug: string) => voi
   const [busy, setBusy] = useState(false);
   const [ms10, setMs10] = useState<Ms10Data | null>(null);
   const [dupSource, setDupSource] = useState<string | null>(null); // Slug des zu kopierenden Projekts
+  const [jsonData, setJsonData] = useState<{ project: Project; warnings: string[] } | null>(null); // JSON-Import als neues Projekt
   const [listErr, setListErr] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
+  const jsonFileRef = useRef<HTMLInputElement>(null);
   // Suche nach Projekttitel: filtert die Liste live; ab 2 Zeichen zusätzlich
   // eine Vorschlagsliste (Pfeiltasten/Enter öffnen das Projekt, Esc leert)
   const [query, setQuery] = useState('');
@@ -60,7 +64,7 @@ export default function ProjectsView({ onOpen }: { onOpen: (slug: string) => voi
   const effectiveSlug = slugTouched ? slug : slugify(name);
 
   const resetForm = () => {
-    setAdding(false); setName(''); setSlug(''); setSlugTouched(false); setErr(''); setMs10(null); setDupSource(null);
+    setAdding(false); setName(''); setSlug(''); setSlugTouched(false); setErr(''); setMs10(null); setDupSource(null); setJsonData(null);
   };
 
   const create = async () => {
@@ -70,6 +74,8 @@ export default function ProjectsView({ onOpen }: { onOpen: (slug: string) => voi
     setBusy(true);
     const res = dupSource
       ? await duplicateProject(dupSource, name.trim(), s)
+      : jsonData
+      ? await importProject(jsonData.project, name.trim(), s)
       : await createProject(name.trim(), s, ms10 ?? undefined);
     setBusy(false);
     if (res.ok) { resetForm(); onOpen(s); }
@@ -80,6 +86,7 @@ export default function ProjectsView({ onOpen }: { onOpen: (slug: string) => voi
   const startDuplicate = (srcSlug: string, srcName: string) => {
     setListErr('');
     setMs10(null);
+    setJsonData(null);
     setDupSource(srcSlug);
     setName(`${srcName || srcSlug} (Kopie)`);
     setSlug(`${srcSlug}-kopie`); setSlugTouched(true);
@@ -102,6 +109,7 @@ export default function ProjectsView({ onOpen }: { onOpen: (slug: string) => voi
   const importMs10 = async (file: File) => {
     setErr('');
     setDupSource(null);
+    setJsonData(null);
     try {
       const data = parseMs10Text(await extractPdfText(await file.arrayBuffer()));
       if (!hasMs10Data(data)) {
@@ -117,6 +125,22 @@ export default function ProjectsView({ onOpen }: { onOpen: (slug: string) => voi
       setAdding(true);
       setErr('PDF konnte nicht gelesen werden.');
     }
+  };
+
+  // Projekt-JSON (Export aus der App, z. B. mit KI bearbeitet) als neues
+  // Projekt anlegen: Formular mit Name und Slug aus der Datei vorbefüllen;
+  // ist der Slug schon vergeben, wird «-import» angehängt.
+  const importJson = async (file: File) => {
+    setListErr('');
+    const res = parseProjectImport(await file.text(), model);
+    if (!res.ok) { setListErr(`JSON-Import nicht möglich: ${res.message}`); return; }
+    resetForm();
+    const n = res.project.name || '';
+    const base = res.project.slug && SLUG_RE.test(res.project.slug) ? res.project.slug : slugify(n);
+    setJsonData({ project: res.project, warnings: res.warnings });
+    setName(n);
+    setSlug(projects.some(p => p.slug === base) ? `${base}-import` : base); setSlugTouched(true);
+    setAdding(true);
   };
 
   const ms10SummaryLine = (d: Ms10Data) =>
@@ -173,9 +197,9 @@ export default function ProjectsView({ onOpen }: { onOpen: (slug: string) => voi
               </div>
             )}
           </div>
-          <button onClick={refreshProjects} title="Liste neu laden"
+          <button onClick={refreshProjects} title={projectsLoading ? 'Liste wird geladen …' : 'Liste neu laden'} disabled={projectsLoading}
             className={`p-1.5 rounded transition-colors ${isDark ? 'text-white/25 hover:text-white/70' : 'text-black/25 hover:text-black/70'}`}>
-            <RefreshCw size={12} />
+            <RefreshCw size={12} className={projectsLoading ? 'animate-spin' : ''} />
           </button>
           {!adding && canEdit && (
             <>
@@ -183,6 +207,11 @@ export default function ProjectsView({ onOpen }: { onOpen: (slug: string) => voi
                 title="Neues Projekt aus einem MS10-Antrags-PDF vorbefüllen"
                 className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
                 <FileUp size={12} /> Import MS10-PDF
+              </button>
+              <button onClick={() => jsonFileRef.current?.click()}
+                title="Neues Projekt aus einem Projekt-JSON anlegen (JSON-Export der App, z. B. mit einer KI bearbeitet)"
+                className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
+                <FileJson size={12} /> Import JSON
               </button>
               <button onClick={() => setAdding(true)}
                 className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
@@ -196,19 +225,36 @@ export default function ProjectsView({ onOpen }: { onOpen: (slug: string) => voi
               e.target.value = '';
               if (f) importMs10(f);
             }} />
+          <input ref={jsonFileRef} type="file" accept="application/json,.json" className="hidden"
+            onChange={e => {
+              const f = e.target.files?.[0];
+              e.target.value = '';
+              if (f) void importJson(f);
+            }} />
         </div>
       </div>
 
       {adding && (
         <div className={`p-4 rounded-xl border mb-4 ${isDark ? 'border-white/8 bg-white/3' : 'border-black/8 bg-black/3'}`}>
           <p className={`text-[10px] uppercase tracking-wider mb-3 ${textMuted}`}>
-            {dupSource ? `Kopie von «${projects.find(p => p.slug === dupSource)?.data.name ?? dupSource}»` : 'Neues Projekt'}
+            {dupSource ? `Kopie von «${projects.find(p => p.slug === dupSource)?.data.name ?? dupSource}»` : jsonData ? 'Neues Projekt aus JSON' : 'Neues Projekt'}
           </p>
           {dupSource && (
             <p className={`text-[11px] mb-3 flex items-center gap-1.5 ${isDark ? 'text-white/50' : 'text-black/50'}`}>
               <Copy size={11} className="flex-shrink-0" />
               Antworten, Bemerkungen und Klassifikation werden übernommen; Freigaben und Prüfvermerke der Meilensteine werden zurückgesetzt.
             </p>
+          )}
+          {jsonData && (
+            <div className={`text-[11px] mb-3 space-y-1 ${isDark ? 'text-white/50' : 'text-black/50'}`}>
+              <p className="flex items-center gap-1.5">
+                <FileJson size={11} className="flex-shrink-0" />
+                Antworten, Bemerkungen, Meilenstein-Köpfe und Klassifikation werden aus der Datei übernommen; Anhänge nicht.
+              </p>
+              {jsonData.warnings.map((w, i) => (
+                <p key={i} className={isDark ? 'text-amber-300' : 'text-amber-700'}>{w}</p>
+              ))}
+            </div>
           )}
           {ms10 && (
             <p className={`text-[11px] mb-3 flex items-center gap-1.5 ${isDark ? 'text-emerald-400/80' : 'text-emerald-700'}`}>
@@ -236,7 +282,7 @@ export default function ProjectsView({ onOpen }: { onOpen: (slug: string) => voi
             </button>
             <button onClick={create} disabled={busy}
               className={`flex-1 text-xs py-2 rounded font-semibold transition-colors disabled:opacity-50 ${isDark ? 'bg-white text-black hover:bg-white/90' : 'bg-black text-white hover:bg-black/80'}`}>
-              {dupSource ? 'Duplizieren' : 'Anlegen'}
+              {dupSource ? 'Duplizieren' : jsonData ? 'Importieren' : 'Anlegen'}
             </button>
           </div>
         </div>
@@ -244,7 +290,12 @@ export default function ProjectsView({ onOpen }: { onOpen: (slug: string) => voi
 
       {listErr && <p className={`text-[11px] mb-3 ${isDark ? 'text-rose-400' : 'text-rose-600'}`}>{listErr}</p>}
 
-      {projects.length === 0 && !adding && (
+      {!projectsLoaded && projects.length === 0 && (
+        <p className={`text-sm flex items-center gap-2 ${textMuted}`}>
+          <Loader2 size={14} className="animate-spin" /> Projekte werden geladen …
+        </p>
+      )}
+      {projectsLoaded && projects.length === 0 && !adding && (
         <p className={`text-sm ${textMuted}`}>Noch keine Projekte im Ordner projects/.</p>
       )}
       {projects.length > 0 && visibleProjects.length === 0 && (
