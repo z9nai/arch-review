@@ -321,7 +321,8 @@ Empfänger funktioniert der Text trotzdem — das Feld bleibt dann leer.
 
 Der Button **«Review-PDF»** im Projektkopf (neben MS10-Import) erzeugt
 jederzeit einen PDF-Bericht des Architektur-Reviews. Zuoberst steht der
-**Status auf einen Blick** — je erreichter Meilenstein ein Badge
+**Status auf einen Blick** (mit Briefpapier auf dem Deckblatt direkt unter
+«Projektstatus», sonst auf Seite 1 unter den Projektangaben) — je erreichter Meilenstein ein Badge
 (**ABGENOMMEN** grün / **OFFEN** orange) mit Anzahl offener Fragen, beim
 M10 zusätzlich die Architekturrelevanz mit Klassifikation. Noch nicht
 erreichte Meilensteine erscheinen grau mit Grund («folgt nach Freigabe des

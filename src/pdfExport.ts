@@ -320,6 +320,26 @@ export async function buildReviewReportPdf(r: ReviewReport, tpl?: ReportTemplate
       if (m.label) f.line(`${m.label}:`, L, 10);
       drawRichLine(f.page, lines[0], x, f.y, 10, BLACK);
       for (const ln of lines.slice(1)) { f.y -= 14; drawRichLine(f.page, ln, x, f.y, 10, BLACK); }
+      // Projektstatus: darunter der Stand je Meilenstein — die Status-Übersicht steht so auf dem Deckblatt
+      if (m.label === 'Projektstatus') {
+        for (const ms of r.milestones) {
+          f.ensure(16);
+          f.y -= 16;
+          const bw = badge(ms.approved, colX, f.y);
+          f.line(ms.title, colX + bw + 6, 9, { bold: true });
+          const tw = richWidth(ms.title, F, 9, true);
+          // Kurzstand hinter dem Titel; zu lang → umbrochen auf der Zeile darunter
+          const sx = colX + bw + 6 + tw + 5;
+          const status = `— ${ms.statusLine}`;
+          if (sx + richWidth(status, F, 8.5, false) <= L + W) f.line(status, sx, 8.5, { color: GRAY });
+          else f.text(ms.statusLine, 8.5, 11, { color: GRAY, x: colX + bw + 6, width: L + W - (colX + bw + 6), plain: true });
+        }
+        for (const line of r.skipped) {
+          f.y -= 2;
+          f.text(line, 8.5, 13, { color: GRAY, x: colX, width: L + W - colX, plain: true });
+        }
+        f.y -= 4;
+      }
     }
     f.y -= 14;
     f.line('Erstellt am:', L, 10);
@@ -328,9 +348,7 @@ export async function buildReviewReportPdf(r: ReviewReport, tpl?: ReportTemplate
       f.y -= 18;
       f.text(r.description, 9.5, 13, { color: GRAY });
     }
-    // Rest des Berichts auf der ersten Folgeseite
-    f.page = newPage('cont');
-    f.y = TOP + 14;
+    // die Panels (Meilensteine, Quellen) beginnen je auf einer eigenen Folgeseite
   } else {
     f.text('Architektur Review', 16, 20, { bold: true, plain: true });
     f.y -= 2;
@@ -344,22 +362,24 @@ export async function buildReviewReportPdf(r: ReviewReport, tpl?: ReportTemplate
     for (const line of r.metaLines) f.text(line, 9, 12, { color: GRAY, plain: true });
   }
 
-  // Status auf einen Blick
-  f.y -= 14;
-  f.ensure(40);
-  f.page.drawLine({ start: { x: L, y: f.y }, end: { x: L + W, y: f.y }, thickness: 0.6, color: LIGHT });
-  f.y -= 20;
-  f.ensure(14);
-  f.line('Status', L, 12, { bold: true });
-  for (const ms of r.milestones) {
-    f.ensure(18);
-    f.y -= 18;
-    const w = badge(ms.approved, L, f.y);
-    f.line(ms.title, L + w + 8, 9.5, { bold: true });
-    const titleW = richWidth(ms.title, F, 9.5, true);
-    f.line(`— ${ms.statusLine}`, L + w + 8 + titleW + 6, 8.5, { color: GRAY });
+  // Status auf einen Blick — mit Briefpapier steht er auf dem Deckblatt beim Projektstatus
+  if (!withTpl) {
+    f.y -= 14;
+    f.ensure(40);
+    f.page.drawLine({ start: { x: L, y: f.y }, end: { x: L + W, y: f.y }, thickness: 0.6, color: LIGHT });
+    f.y -= 20;
+    f.ensure(14);
+    f.line('Status', L, 12, { bold: true });
+    for (const ms of r.milestones) {
+      f.ensure(18);
+      f.y -= 18;
+      const w = badge(ms.approved, L, f.y);
+      f.line(ms.title, L + w + 8, 9.5, { bold: true });
+      const titleW = richWidth(ms.title, F, 9.5, true);
+      f.line(`— ${ms.statusLine}`, L + w + 8 + titleW + 6, 8.5, { color: GRAY });
+    }
+    for (const line of r.skipped) f.text(line, 8.5, 15, { color: GRAY, x: L + 8, width: W - 8 });
   }
-  for (const line of r.skipped) f.text(line, 8.5, 15, { color: GRAY, x: L + 8, width: W - 8 });
 
   // Jedes Panel (Meilenstein, Quellen) auf einer eigenen Seite — wie im OnePager je eine Karte
   const panelPage = () => { f.page = newPage('cont'); f.y = TOP + 14; };
