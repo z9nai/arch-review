@@ -157,6 +157,10 @@ export interface QuestionAnswer {
   remarks: string;
   choice?: string;
   sources?: string[]; // ids aus Project.sources — Quellen, die diese Antwort stützen
+  // Auflage (nur M20-Fragen): angekreuzt = es gilt eine Auflage, der Text sagt
+  // welche; abgewählt bleibt der Text erhalten, zählt aber nicht mehr
+  condition?: boolean;
+  conditionText?: string;
 }
 
 // Review-Eintrag: je Thema (Relevanz + Antworten) oder je Meilenstein

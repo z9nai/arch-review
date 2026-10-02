@@ -117,6 +117,15 @@ Zum Ausprobieren kann `sample-data/` als geteilter Ordner gewählt werden
   Pflicht-Bemerkungen; gespeichert unter `reviews.m20` / `reviews.m40`).
   Themen, die laut Foundation keinen Review brauchen (relevant = Nein), sind
   ausgegraut, readonly und auf Nein gesetzt («kein Review nötig»).
+- **Auflagen (M20)**: Jede M20-Frage hat neben Ja/Nein die Checkbox
+  **«Auflage»**. Angekreuzt öffnet sie darunter ein Pflicht-Textfeld (orange
+  markiert): welche Auflage gilt — was bis wann umzusetzen ist. Abgewählt
+  verschwindet das Feld, der Text bleibt erhalten
+  (`reviews.<themeId>.answers.<frageId>.condition` / `conditionText`). Der
+  M20-Kopf zeigt alle Auflagen gesammelt als **Liste (nur lesend)**, je mit
+  Frage-Nummer — ein Klick darauf springt zur Frage; eine Auflage ohne Text
+  steht rot als «(noch nicht beschrieben)». Die Suche im Projekt findet auch
+  Auflagen-Texte.
 - **Abnahme-Kontrollpunkte** (z. B. FINMA-Prüfung, Lieferanten-Prüfung):
   Die **Einschätzung Architektur** ist immer sichtbar und Pflicht — sie
   begründet, warum die Prüfung nötig ist, oder eben warum nicht. Ist der
@@ -293,7 +302,10 @@ erreichte Meilensteine erscheinen grau mit Grund («folgt nach Freigabe des
 vorherigen Meilensteins» bzw. «entfällt: nicht architekturrelevant»).
 Danach folgen die Details je Meilenstein: Freigabe (Prüfer/in), offene
 Fragen und — beim M10 — das Resultat («Architekturrelevant (relevant)»)
-je auf eigener Zeile, das Resultat hervorgehoben. Die Abnahme-Kontrollpunkte
+je auf eigener Zeile, das Resultat hervorgehoben. Beim M20 heisst die
+Freigabe «Geprüft und freigegeben mit Auflagen», sobald eine Auflage
+erfasst ist; die Auflagen folgen als Liste, und jede steht zusätzlich bei
+ihrer Frage. Die Abnahme-Kontrollpunkte
 stehen mit fettem Titel («FINMA-Prüfung — erforderlich · abgenommen durch
 …»), darunter eingerückt und beschriftet die Einschätzung Architektur und
 die Bemerkungen der Abnahme; die Bemerkungen des Meilensteins folgen mit

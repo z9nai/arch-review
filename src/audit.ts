@@ -90,6 +90,7 @@ const FIELD_LABEL: Record<string, string> = {
   responsibleArchitecture: 'Verantwortlich Architektur', classification: 'Klassifikation',
   architectureRelevant: 'Architekturrelevant',
   value: 'Antwort', choice: 'Auswahl', remarks: 'Bemerkungen', sources: 'Quellen',
+  condition: 'Auflage', conditionText: 'Auflage (Text)',
   relevant: 'Relevant', reviewed: 'Geprüft', result: 'Ergebnis', notes: 'Bemerkungen',
   approved: 'Freigegeben', approvedBy: 'Prüfer/in',
   required: 'Erforderlich', assessment: 'Einschätzung Architektur',

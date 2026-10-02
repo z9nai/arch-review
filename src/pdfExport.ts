@@ -211,6 +211,7 @@ export type ReportQuestion = {
   open: boolean;
   remarks?: string;
   sources?: string[];        // Labels der zugeordneten Quellen (Belege der Antwort)
+  condition?: string;        // Auflage (M20) — gesetzt = es gilt eine Auflage
 };
 export type ReportTheme = { heading: string; questions: ReportQuestion[] };
 export type ReportMilestone = {
@@ -221,6 +222,7 @@ export type ReportMilestone = {
   openLine?: string;         // «keine offenen Fragen» — eigene Zeile im Detail
   result?: string;           // «architekturrelevant (…)» — eigene Zeile, fett
   approvedBy?: string;
+  conditions?: { number: string; text: string }[]; // alle Auflagen des Meilensteins (M20)
   checks?: { line: string; assessment?: string; remarks?: string }[]; // Abnahme-Kontrollpunkte
   notes?: string;
   themes: ReportTheme[];
@@ -370,7 +372,7 @@ export async function buildReviewReportPdf(r: ReviewReport, tpl?: ReportTemplate
     f.y -= 2;
     if (ms.info) f.text(ms.info, 8.5, 11.5, { color: GRAY });
     const freigabe = ms.approved
-      ? `Geprüft und freigegeben${ms.approvedBy ? ` von ${ms.approvedBy}` : ''}`
+      ? `Geprüft und freigegeben${ms.conditions?.length ? ' mit Auflagen' : ''}${ms.approvedBy ? ` von ${ms.approvedBy}` : ''}`
       : 'Noch nicht freigegeben';
     f.text(freigabe, 9, 13, { color: GRAY, plain: true });
     f.text(ms.openLine ?? ms.statusLine, 9, 12, { color: GRAY, plain: true });
@@ -379,6 +381,14 @@ export async function buildReviewReportPdf(r: ReviewReport, tpl?: ReportTemplate
       f.y -= 3;
       f.text(ms.result.charAt(0).toUpperCase() + ms.result.slice(1), 10, 14, { bold: true, plain: true });
       f.y -= 3;
+    }
+    // Auflagen: alle auf einen Blick, je mit der Frage-Nummer
+    if (ms.conditions?.length) {
+      f.y -= 5;
+      f.text('Auflagen', 7.5, 10.5, { color: LABEL, plain: true });
+      for (const c of ms.conditions) {
+        f.text(`• ${c.number}: ${c.text || '(noch nicht beschrieben)'}`, 8.5, 11.5, { color: GRAY, x: L + 6, width: W - 6, plain: true });
+      }
     }
     // Kontrollpunkte: Titelzeile fett, Einschätzung/Bemerkungen darunter
     // eingerückt und je mit eigener Beschriftung — sonst liest sich der Text
@@ -422,6 +432,9 @@ export async function buildReviewReportPdf(r: ReviewReport, tpl?: ReportTemplate
           drawRichLine(f.page, ln, L + numW, f.y, 8.5, BLACK);
         }
         if (q.remarks) f.text(q.remarks, 8, 10.5, { color: GRAY, x: L + numW + 8, width: W - numW - 8 });
+        if (q.condition !== undefined) {
+          f.text(`Auflage: ${q.condition || '(noch nicht beschrieben)'}`, 8, 10.5, { color: ORANGE, x: L + numW + 8, width: W - numW - 8, plain: true });
+        }
         if (q.sources?.length) {
           f.text(`Quellen: ${q.sources.join(' · ')}`, 8, 10.5, { color: GRAY, x: L + numW + 8, width: W - numW - 8, plain: true });
         }

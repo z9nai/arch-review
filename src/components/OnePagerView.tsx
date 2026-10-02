@@ -17,6 +17,7 @@ import AuditPanel from './AuditPanel';
 import { fitTextarea, fmtTimestamp, formatBytes, normalizeUrl, nowIsoWithTimezone, sanitizeFilename } from '../util';
 
 const FOUNDATION_MS = MILESTONES[0]; // M10
+const CONDITIONS_MS = 'M20'; // nur hier haben Fragen eine «Auflage»
 const COMMENT_NAME_KEY = 'arch-review.commentName'; // Name für Kommentare ohne Anmeldung (pro Browser)
 // Warnung «Entra-Suche nicht möglich» nur einmal pro Sitzung zeigen
 let directoryWarned = false;
@@ -846,7 +847,8 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
           const remarks = (a?.remarks ?? '').trim();
           const num = number.toLowerCase();
           const text = q.text.toLowerCase();
-          const hay = `${num} ${text} ${answer.toLowerCase()} ${remarks.toLowerCase()}`;
+          const condition = a?.condition ? (a.conditionText ?? '').toLowerCase() : '';
+          const hay = `${num} ${text} ${answer.toLowerCase()} ${remarks.toLowerCase()} ${condition}`;
           if (!searchTerms.every(t => hay.includes(t))) continue;
           const rank = num === compact ? 0 : num.startsWith(compact) ? 1 : searchTerms.every(t => text.includes(t)) ? 2 : 3;
           hits.push({ ms, themeId: theme.id, q, number, answer, remarks, rank });
@@ -942,6 +944,19 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
               {(question.options ?? []).filter(Boolean).map(o => <option key={o} value={o}>{o}</option>)}
             </select>
           )}
+          {question.milestone === CONDITIONS_MS && (
+            <label title="Für diese Frage gilt eine Auflage — welche, steht im Textfeld darunter"
+              className={`flex items-center gap-1.5 ${disabled ? '' : 'cursor-pointer'} ${answer.condition ? (isDark ? 'text-amber-300' : 'text-amber-700') : ''}`}>
+              <input type="checkbox" disabled={disabled} checked={answer.condition === true}
+                onChange={e => {
+                  updateAnswer(themeId, question.id, { condition: e.target.checked });
+                  // frisch angekreuzt: gleich ins Textfeld
+                  if (e.target.checked) setTimeout(() => document.querySelector<HTMLTextAreaElement>(`textarea[data-condition="${CSS.escape(remarksKey)}"]`)?.focus(), 0);
+                }}
+                className="accent-amber-500" />
+              Auflage
+            </label>
+          )}
           {!remarksOpen ? (
             <button type="button" disabled={disabled}
               onClick={() => toggleRemarks(remarksKey, true)}
@@ -959,6 +974,17 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
             </div>
           )}
         </div>
+        {question.milestone === CONDITIONS_MS && answer.condition === true && (
+          <div className={`mt-1.5 pl-3 border-l-2 ${isDark ? 'border-amber-500/50' : 'border-amber-400'}`}>
+            <textarea value={answer.conditionText ?? ''} rows={2} disabled={disabled} data-condition={remarksKey}
+              onChange={e => updateAnswer(themeId, question.id, { conditionText: e.target.value })}
+              data-autogrow
+              placeholder="Auflage — was ist bis wann umzusetzen (erforderlich)"
+              className={`w-full text-[11px] px-2 py-1.5 rounded border outline-none resize-y transition-colors disabled:opacity-50 ${inputCls} ${
+                !(answer.conditionText ?? '').trim() ? (isDark ? 'border-rose-500/40' : 'border-rose-300') : ''
+              }`} />
+          </div>
+        )}
         {(() => {
           // Quellen der Antwort: Tags aus den projektweiten Quellen (Quellen-Abschnitt
           // am Fusse der Seite) — unabhängig von der statischen «Quelle:»-Zeile unten,
@@ -1315,7 +1341,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
     const classRank = model.classifications.findIndex(c => c.id === proj.classification);
     const classLabel = model.classifications.find(c => c.id === proj.classification)?.label ?? null;
     const sourceLabelOf = (id: string) => (proj.sources ?? []).find(s => s.id === id)?.label ?? '(entfernte Quelle)';
-    const answerOf = (themeId: string, q: Question): { answer: string; open: boolean; remarks?: string; sources?: string[] } => {
+    const answerOf = (themeId: string, q: Question): { answer: string; open: boolean; remarks?: string; sources?: string[]; condition?: string } => {
       const a = getThemeReview(proj, themeId).answers?.[q.id];
       const open = isQuestionOpen(themeId, q);
       const kind = q.kind ?? 'yesNo';
@@ -1326,7 +1352,8 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
           : (String(a?.remarks ?? '').trim() ? 'beantwortet' : 'offen');
       const remarks = String(a?.remarks ?? '').trim();
       const sources = (a?.sources ?? []).map(sourceLabelOf);
-      return { answer, open, ...(remarks ? { remarks } : {}), ...(sources.length ? { sources } : {}) };
+      const condition = q.milestone === CONDITIONS_MS && a?.condition === true ? String(a.conditionText ?? '').trim() : undefined;
+      return { answer, open, ...(remarks ? { remarks } : {}), ...(sources.length ? { sources } : {}), ...(condition !== undefined ? { condition } : {}) };
     };
 
     type Report = import('../pdfExport').ReviewReport;
@@ -1378,6 +1405,9 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
         openLine,
         ...(result ? { result } : {}),
         ...(String(review.approvedBy ?? '').trim() ? { approvedBy: String(review.approvedBy).trim() } : {}),
+        ...(ms === CONDITIONS_MS && conditionsOf(ms).length
+          ? { conditions: conditionsOf(ms).map(c => ({ number: c.number, text: c.text })) }
+          : {}),
         ...(checksFor(ms).length
           ? { checks: checksFor(ms).map(c => {
               const s = checkState(review, c.id);
@@ -1614,6 +1644,13 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
   // Abnahme-Kontrollpunkte eines Meilensteins (aus model.json)
   const checksFor = (ms: string) => (model.milestoneChecks ?? []).filter(c => c.milestone === ms);
 
+  // Alle Auflagen eines Meilensteins in Dokumentreihenfolge — erfasst werden
+  // sie bei den Fragen (Häkchen «Auflage» + Text), der Kopf zeigt sie gesammelt
+  const conditionsOf = (ms: string) => themes.flatMap(theme => questionsAt(theme.id, ms)
+    .map(({ q, number }) => ({ themeId: theme.id, q, number, a: getThemeReview(proj, theme.id).answers?.[q.id] }))
+    .filter(x => x.a?.condition === true)
+    .map(({ themeId, q, number, a }) => ({ themeId, q, number, text: String(a?.conditionText ?? '').trim() })));
+
   // Die Übergabe an die Fachstelle hängt an den Abnahme-Kontrollpunkten:
   // Erst wenn einer davon «erforderlich» angekreuzt ist, gibt es den
   // Übergabetext — und die Einschätzung Architektur darin ist der Auftrag.
@@ -1680,6 +1717,31 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
               ))}
             </div>
           )}
+          {/* Auflagen: gesammelt aus den Fragen, nur lesend — ein Klick auf die Nummer springt zur Frage */}
+          {opts.ms === CONDITIONS_MS && (() => {
+            const list = conditionsOf(opts.ms);
+            return (
+              <div>
+                <p className={`text-[10px] uppercase tracking-wider mb-1 ${labelCls}`}>Auflagen{list.length ? ` (${list.length})` : ''}</p>
+                {list.length === 0 ? (
+                  <p className={`text-[11px] ${textMuted}`}>Keine Auflagen — sie werden bei den Fragen erfasst («Auflage»).</p>
+                ) : (
+                  <ul className={`text-[11px] space-y-0.5 list-disc pl-4 ${isDark ? 'text-white/80 marker:text-amber-400' : 'text-black/80 marker:text-amber-600'}`}>
+                    {list.map(c => (
+                      <li key={`${c.themeId}:${c.q.id}`}>
+                        <button type="button" onClick={() => jumpToQuestion({ ms: opts.ms, themeId: c.themeId, q: c.q })}
+                          title={`Zur Frage: ${c.q.text}`}
+                          className="font-mono font-semibold mr-1.5 hover:underline underline-offset-2">{c.number}</button>
+                        {c.text
+                          ? <span className="whitespace-pre-wrap">{c.text}</span>
+                          : <span className={isDark ? 'text-rose-400' : 'text-rose-600'}>(noch nicht beschrieben)</span>}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            );
+          })()}
           {checks.map(c => {
             const s = checkState(opts.review, c.id);
             const byEmpty = String(s.approvedBy ?? '').trim() === '';
