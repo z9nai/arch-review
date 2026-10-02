@@ -134,6 +134,19 @@ Zum Ausprobieren kann `sample-data/` als geteilter Ordner gewählt werden
   Frage-Nummer — ein Klick darauf springt zur Frage; eine Auflage ohne Text
   steht rot als «(noch nicht beschrieben)». Die Suche im Projekt findet auch
   Auflagen-Texte.
+- **Zuständig**: Bei jeder Frage lässt sich mit «Zuständig …» eine Person
+  zuweisen — Suche wie bei «@» (users.json, Kommentar-Autoren, Entra);
+  gewählt steht sie als Chip da (ändern, × entfernt; die eigene blau).
+  Gespeichert bei der Antwort (`answers.<frageId>.assignee` mit Name und
+  E-Mail). Die Zuweisung ist eine Aufgabe, keine Berechtigung: Erfasst wird
+  weiterhin von Reviewern — oder die Person antwortet per «Offene Fragen»
+  (Mail/PDF) und die Antworten kommen über «Antworten importieren» zurück.
+  Der Meilenstein-Kopf zeigt, wer wie viele **offene** Fragen hat; ein
+  Klick filtert die Fragen auf diese Person (alle Meilensteine, Themen mit
+  Treffern aufgeklappt). Oben steht **«Mir zugewiesen (n)»**, solange ich
+  offene Fragen habe; aktiv wird daraus «Nur meine ×». Die Projektliste
+  zeigt je Projekt die Zahl meiner offenen Fragen. Ich: angemeldet über die
+  E-Mail, sonst über den Namen, der auch für Kommentare gilt.
 - **Abnahme-Kontrollpunkte** (z. B. FINMA-Prüfung, Lieferanten-Prüfung):
   Die **Einschätzung Architektur** ist immer sichtbar und Pflicht — sie
   begründet, warum die Prüfung nötig ist, oder eben warum nicht. Ist der
@@ -233,6 +246,11 @@ Themas werden seine Fragen mitgelöscht; bereits erfasste Antworten bleiben
 in den Projektdateien erhalten.
 
 ## Export «Offene Fragen»
+
+Haben Fragen eine zuständige Person, wählt man im Dialog oben **«Für»** eine
+Person: Text und PDF-Formular enthalten dann nur ihre offenen Fragen, mit
+persönlicher Anrede, und die Empfänger-Adresse steht zum Kopieren daneben.
+Ist im OnePager gerade auf eine Person gefiltert, ist sie vorgewählt.
 
 Jeder Meilenstein-Block hat einen Button **«Offene Fragen»**: Er erzeugt
 einen E-Mail-tauglichen Text mit allen noch unbeantworteten Fragen des

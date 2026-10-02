@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { AlertTriangle, ArrowLeft, Check, ChevronDown, ChevronRight, ClipboardPaste, Copy, Download, ExternalLink, Eye, FileDown, FileJson, FileUp, History, Info, Link2, Lock, Mail, MessageSquare, Minus, Pencil, Plus, Save, Search, Trash2, Unlock, X } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Check, ChevronDown, ChevronRight, ClipboardPaste, UserRound, Copy, Download, ExternalLink, Eye, FileDown, FileJson, FileUp, History, Info, Link2, Lock, Mail, MessageSquare, Minus, Pencil, Plus, Save, Search, Trash2, Unlock, X } from 'lucide-react';
 import { marked } from 'marked';
 import { DirectorySearchResult, lockValid, ProjectLock, useStore } from '../store';
 import { useAuth, usePermissions } from '../auth';
 import { Comment, CommentAuthor, DirectoryUser, MILESTONES, MILESTONE_INFO, MILESTONE_TITLES, Project, Question, QuestionAnswer, Review, SourceFile, Theme } from '../types';
-import { assignInitials, authorOf, CommentBubble, CommentsPanel, CommentTargetInfo, countsOf, initialsOf, personKey, toggleReaction } from './Comments';
+import { assignInitials, authorOf, CommentBubble, CommentsPanel, CommentTargetInfo, countsOf, initialsOf, PersonPicker, personKey, toggleReaction } from './Comments';
 import { useTeamsNotify } from './useTeamsNotify';
 import { TEAMS_SCOPES } from '../teams';
 import { DIRECTORY_SCOPES } from '../store';
@@ -112,6 +112,8 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
   const [infoQuestion, setInfoQuestion] = useState<Question | null>(null);
   const [showClassInfo, setShowClassInfo] = useState(false);
   const [exportMs, setExportMs] = useState<string | null>(null);
+  const [exportFor, setExportFor] = useState(''); // «Offene Fragen» nur für diese Person (personKey) — '' = alle
+  const [assigneeFilter, setAssigneeFilter] = useState<string | null>(null); // nur Fragen dieser Person (personKey)
   const [exportHandover, setExportHandover] = useState(false); // true = Übergabetext an die Fachstelle statt offene Fragen des Meilensteins
   const [copiedKey, setCopiedKey] = useState<string | null>(null); // welcher Kopieren-Button zuletzt Erfolg hatte
   const [handoverDeadline, setHandoverDeadline] = useState('');
@@ -869,7 +871,8 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
           const num = number.toLowerCase();
           const text = q.text.toLowerCase();
           const condition = a?.condition ? (a.conditionText ?? '').toLowerCase() : '';
-          const hay = `${num} ${text} ${answer.toLowerCase()} ${remarks.toLowerCase()} ${condition}`;
+          const assignee = a?.assignee ? `${a.assignee.name} ${a.assignee.email}`.toLowerCase() : '';
+          const hay = `${num} ${text} ${answer.toLowerCase()} ${remarks.toLowerCase()} ${condition} ${assignee}`;
           if (!searchTerms.every(t => hay.includes(t))) continue;
           const rank = num === compact ? 0 : num.startsWith(compact) ? 1 : searchTerms.every(t => text.includes(t)) ? 2 : 3;
           hits.push({ ms, themeId: theme.id, q, number, answer, remarks, rank });
@@ -979,6 +982,11 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
               Auflage
             </label>
           )}
+          <PersonPicker value={answer.assignee} disabled={disabled}
+            onChange={u => updateAnswer(themeId, question.id, { assignee: u })}
+            mine={!!answer.assignee && isMine(answer.assignee)}
+            users={mentionUsers} searchUsers={searchDirectory} onDirectoryProblem={onDirectoryProblem}
+            initialsFor={initialsFor} isDark={isDark} />
           {!remarksOpen ? (
             <button type="button" disabled={disabled}
               onClick={() => toggleRemarks(remarksKey, true)}
@@ -1076,12 +1084,17 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
   const questionSection = (ms: string) => (
     <div className="space-y-1">
       {themes.map((theme, ti) => {
-        const qs = questionsAt(theme.id, ms);
+        // Filter «Zuständig»: nur die Fragen dieser Person, Themen ohne Treffer weg, mit Treffern offen
+        const qs = questionsAt(theme.id, ms).filter(({ q }) => {
+          if (!assigneeFilter) return true;
+          const a = assigneeOf(theme.id, q);
+          return !!a && personKey(a) === assigneeFilter;
+        });
         if (qs.length === 0) return null;
         const isFoundation = ms === FOUNDATION_MS;
         const notRelevant = !isFoundation && derivedRelevant(proj, theme.id) === false;
         const key = `${ms}:${theme.id}`;
-        const isOpen = expanded.has(key);
+        const isOpen = expanded.has(key) || !!assigneeFilter;
         const answers = getThemeReview(proj, theme.id).answers ?? {};
         const yesNoQs = qs.filter(({ q }) => (q.kind ?? 'yesNo') === 'yesNo');
         const answered = yesNoQs.filter(({ q }) => (answers[q.id]?.value ?? null) !== null).length;
@@ -1143,6 +1156,45 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
     return !(a?.remarks ?? '').trim();
   };
 
+  // ── Zuständigkeit ─────────────────────────────────────────────────────────
+  const assigneeOf = (themeId: string, q: Question) => getThemeReview(proj, themeId).answers?.[q.id]?.assignee;
+  // ich: angemeldet über die E-Mail, ohne Anmeldung über den Namen
+  const isMine = (a: { name: string; email?: string }) => !!me && (me.email
+    ? personKey(a) === personKey(me)
+    : a.name.trim().toLowerCase() === me.name.trim().toLowerCase());
+  // Wer hat in diesem Meilenstein (bzw. in allen) wie viele offene Fragen —
+  // nur Themen, die geprüft werden; Reihenfolge: meiste zuerst
+  const openByAssignee = (msList: string[] = MILESTONES) => {
+    const m = new Map<string, { person: { name: string; email: string }; count: number }>();
+    for (const ms of msList) for (const theme of themes) {
+      if (ms !== FOUNDATION_MS && derivedRelevant(proj, theme.id) === false) continue;
+      for (const { q } of questionsAt(theme.id, ms)) {
+        const a = assigneeOf(theme.id, q);
+        if (!a || !isQuestionOpen(theme.id, q)) continue;
+        const k = personKey(a);
+        const cur = m.get(k);
+        if (cur) cur.count++; else m.set(k, { person: a, count: 1 });
+      }
+    }
+    return [...m.entries()].sort((x, y) => y[1].count - x[1].count || x[1].person.name.localeCompare(y[1].person.name, 'de'));
+  };
+  // Offene Fragen eines Meilensteins je Thema — für Mail und PDF-Formular,
+  // auf Wunsch nur die einer Person
+  const openQuestionsByTheme = (ms: string, who: string) => themes.flatMap((theme, ti) => {
+    if (ms !== FOUNDATION_MS && derivedRelevant(proj, theme.id) === false) return [];
+    const qs = questionsAt(theme.id, ms).filter(({ q }) => isQuestionOpen(theme.id, q)
+      && (!who || (() => { const a = assigneeOf(theme.id, q); return !!a && personKey(a) === who; })()));
+    return qs.length ? [{ theme, ti, qs }] : [];
+  });
+  // Filter setzen und die Meilensteine mit Treffern aufklappen
+  const filterAssignee = (key: string | null) => {
+    setAssigneeFilter(key);
+    if (!key) return;
+    for (const ms of MILESTONES) {
+      if (themes.some(t => questionsAt(t.id, ms).some(({ q }) => { const a = assigneeOf(t.id, q); return !!a && personKey(a) === key; }))) openMs(ms);
+    }
+  };
+
   // In die Zwischenablage kopieren; writeText kann in restriktiven Umgebungen
   // hängen → Timeout, dann Fallback über ein verstecktes Textfeld.
   const copyToClipboard = async (value: string, key: string) => {
@@ -1191,21 +1243,22 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
     }
   };
 
-  const buildExport = (ms: string): { text: string; count: number } => {
+  // who: nur die Fragen dieser Person (personKey) — mit persönlicher Anrede
+  const buildExport = (ms: string, who = ''): { text: string; count: number } => {
     const title = `${ms} · ${MILESTONE_TITLES[ms] ?? 'Prüfung'}`;
     const lines: string[] = [];
     let count = 0;
+    const person = who ? openByAssignee([ms]).find(([k]) => k === who)?.[1].person : undefined;
+    const firstName = person ? person.name.replace(/\([^)]*\)/g, '').trim().split(/[\s,]+/)[person.name.includes(',') ? 1 : 0] : '';
     lines.push(`Architekturprüfung «${proj.name || proj.slug}» — offene Fragen ${title}`);
     lines.push('');
-    lines.push('Guten Tag');
+    lines.push(firstName ? `Guten Tag ${firstName}` : 'Guten Tag');
     lines.push('');
-    lines.push(`Für die Architekturprüfung sind im Meilenstein ${title} die folgenden Fragen noch offen.`);
+    lines.push(person
+      ? `Für die Architekturprüfung sind im Meilenstein ${title} die folgenden Fragen dir zugewiesen und noch offen.`
+      : `Für die Architekturprüfung sind im Meilenstein ${title} die folgenden Fragen noch offen.`);
     lines.push('Bitte direkt unter der jeweiligen Frage antworten ([X] ankreuzen bzw. Antwort ergänzen).');
-    themes.forEach((theme, ti) => {
-      const isFoundation = ms === FOUNDATION_MS;
-      if (!isFoundation && derivedRelevant(proj, theme.id) === false) return;
-      const qs = questionsAt(theme.id, ms).filter(({ q }) => isQuestionOpen(theme.id, q));
-      if (!qs.length) return;
+    openQuestionsByTheme(ms, who).forEach(({ theme, ti, qs }) => {
       lines.push('');
       lines.push(`${themeLetter(ti)} · ${theme.title}`);
       lines.push('-'.repeat(46));
@@ -1312,13 +1365,10 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
   };
 
   // Gleiche offenen Fragen als ausfüllbares PDF-Formular (pdf-lib, lazy)
-  const downloadPdf = async (ms: string) => {
+  const downloadPdf = async (ms: string, who = '') => {
     const title = `${ms} · ${MILESTONE_TITLES[ms] ?? 'Prüfung'}`;
     const sections: { heading: string; questions: { fieldKey: string; number: string; text: string; hint?: string; kind: 'yesNo' | 'text' | 'choice'; options?: string[] }[] }[] = [];
-    themes.forEach((theme, ti) => {
-      if (ms !== FOUNDATION_MS && derivedRelevant(proj, theme.id) === false) return;
-      const qs = questionsAt(theme.id, ms).filter(({ q }) => isQuestionOpen(theme.id, q));
-      if (!qs.length) return;
+    openQuestionsByTheme(ms, who).forEach(({ theme, ti, qs }) => {
       sections.push({
         heading: `${themeLetter(ti)} · ${theme.title}`,
         questions: qs.map(({ q, number }) => ({
@@ -1347,7 +1397,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `offene-fragen-${proj.slug}-${ms.toLowerCase()}.pdf`;
+      a.download = `offene-fragen-${proj.slug}-${ms.toLowerCase()}${who ? `-${(openByAssignee([ms]).find(([k]) => k === who)?.[1].person.name ?? 'person').toLowerCase().replace(/[^a-z0-9]+/g, '-')}` : ''}.pdf`;
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 4000);
     } catch {
@@ -1363,7 +1413,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
     const classRank = model.classifications.findIndex(c => c.id === proj.classification);
     const classLabel = model.classifications.find(c => c.id === proj.classification)?.label ?? null;
     const sourceLabelOf = (id: string) => (proj.sources ?? []).find(s => s.id === id)?.label ?? '(entfernte Quelle)';
-    const answerOf = (themeId: string, q: Question): { answer: string; open: boolean; remarks?: string; sources?: string[]; condition?: string } => {
+    const answerOf = (themeId: string, q: Question): { answer: string; open: boolean; remarks?: string; sources?: string[]; condition?: string; assignee?: string } => {
       const a = getThemeReview(proj, themeId).answers?.[q.id];
       const open = isQuestionOpen(themeId, q);
       const kind = q.kind ?? 'yesNo';
@@ -1375,7 +1425,9 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
       const remarks = String(a?.remarks ?? '').trim();
       const sources = (a?.sources ?? []).map(sourceLabelOf);
       const condition = q.milestone === CONDITIONS_MS && a?.condition === true ? String(a.conditionText ?? '').trim() : undefined;
-      return { answer, open, ...(remarks ? { remarks } : {}), ...(sources.length ? { sources } : {}), ...(condition !== undefined ? { condition } : {}) };
+      // zuständig nur bei offenen Fragen — beantwortet ist die Aufgabe erledigt
+      const assignee = open && a?.assignee ? a.assignee.name : undefined;
+      return { answer, open, ...(remarks ? { remarks } : {}), ...(sources.length ? { sources } : {}), ...(condition !== undefined ? { condition } : {}), ...(assignee ? { assignee } : {}) };
     };
 
     type Report = import('../pdfExport').ReviewReport;
@@ -1783,6 +1835,30 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
               </div>
             );
           })()}
+          {/* Zuständig: wer hat hier wie viele offene Fragen — Klick filtert die Fragen auf die Person */}
+          {(() => {
+            const list = openByAssignee([opts.ms]);
+            if (!list.length) return null;
+            return (
+              <div>
+                <p className={`text-[10px] uppercase tracking-wider mb-1 ${labelCls}`}>Zuständig (offene Fragen)</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {list.map(([k, { person, count }]) => {
+                    const active = assigneeFilter === k;
+                    return (
+                      <button key={k} type="button" onClick={() => filterAssignee(active ? null : k)}
+                        title={active ? 'Filter aufheben' : `Nur die Fragen von ${person.name} zeigen`}
+                        className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border transition-colors ${active
+                          ? (isDark ? 'border-blue-500/50 bg-blue-500/15 text-blue-200' : 'border-blue-300 bg-blue-50 text-blue-800')
+                          : (isDark ? 'border-white/15 text-white/70 hover:border-white/30' : 'border-black/15 text-black/70 hover:border-black/30')}`}>
+                        <UserRound size={10} /> {person.name}{isMine(person) ? ' (ich)' : ''} <span className="tabular-nums font-semibold">{count}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
           {checks.map(c => {
             const s = checkState(opts.review, c.id);
             const byEmpty = String(s.approvedBy ?? '').trim() === '';
@@ -1968,7 +2044,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
         </button>
         {open && (
           <div className="flex items-center gap-2">
-            <button onClick={() => { setExportMs(ms); setCopiedKey(null); }}
+            <button onClick={() => { setExportMs(ms); setExportFor(assigneeFilter ?? ''); setCopiedKey(null); }}
               title="Offene Fragen als E-Mail-Text exportieren"
               className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
               <Mail size={11} /> Offene Fragen
@@ -2055,6 +2131,33 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
               </div>
             )}
           </div>
+          {/* Filter «Zuständig»: aktiv → Person mit ×; sonst «Mir zugewiesen», wenn ich offene Fragen habe */}
+          {(() => {
+            // nach Person der Zuweisung (auch beantwortete), damit der Filter beim Beantworten bleibt
+            const all = new Map<string, { name: string; email: string }>();
+            for (const ms of MILESTONES) for (const t of themes) for (const { q } of questionsAt(t.id, ms)) {
+              const a = assigneeOf(t.id, q);
+              if (a) all.set(personKey(a), a);
+            }
+            if (assigneeFilter) {
+              const person = all.get(assigneeFilter);
+              return (
+                <button onClick={() => setAssigneeFilter(null)} title="Filter aufheben — alle Fragen zeigen"
+                  className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors ${isDark ? 'border-blue-500/40 text-blue-300 bg-blue-500/10' : 'border-blue-300 text-blue-700 bg-blue-50'}`}>
+                  <UserRound size={11} /> Nur {person && isMine(person) ? 'meine' : (person?.name ?? 'Person')} <X size={10} />
+                </button>
+              );
+            }
+            const myEntry = openByAssignee().find(([, v]) => isMine(v.person));
+            if (!myEntry) return null;
+            const mine = myEntry[1].count;
+            return (
+              <button onClick={() => filterAssignee(myEntry[0])} title="Nur die mir zugewiesenen Fragen zeigen"
+                className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
+                <UserRound size={11} /> Mir zugewiesen ({mine})
+              </button>
+            );
+          })()}
           <button onClick={() => { if (auditOpen) { setAuditOpen(false); return; } setAuditOpen(true); setCommentsOpen(false); }}
             title={auditOpen ? 'Verlauf schliessen' : 'Verlauf — wer hat wann was geändert'}
             className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors ${
@@ -2501,8 +2604,12 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
       {/* Export: offene Fragen als E-Mail-Text */}
       {exportMs && (() => {
         const handover = exportHandover ? buildHandoverExport(exportMs, handoverDeadline) : null;
-        const { text, count } = handover ? { text: handover.text, count: 0 } : buildExport(exportMs);
-        const closeExport = () => { setExportMs(null); setExportHandover(false); setHandoverDeadline(''); };
+        // nur Personen mit offenen Fragen in diesem Meilenstein; eine gewählte, die keine mehr hat, fällt weg
+        const persons = handover ? [] : openByAssignee([exportMs]);
+        const forKey = persons.some(([k]) => k === exportFor) ? exportFor : '';
+        const forPerson = persons.find(([k]) => k === forKey)?.[1].person;
+        const { text, count } = handover ? { text: handover.text, count: 0 } : buildExport(exportMs, forKey);
+        const closeExport = () => { setExportMs(null); setExportHandover(false); setHandoverDeadline(''); setExportFor(''); };
         return (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-6" onClick={closeExport}>
             <div className={`max-w-2xl w-full max-h-[85vh] flex flex-col rounded-xl border p-6 ${isDark ? 'border-white/15 bg-[#16171a]' : 'border-black/15 bg-white'}`}
@@ -2532,6 +2639,30 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
                       <span className={textMuted}>Termin</span>
                       <input type="date" value={handoverDeadline} onChange={e => setHandoverDeadline(e.target.value)}
                         className={`w-40 text-[11px] px-2 py-1 rounded border outline-none transition-colors ${inputCls}`} />
+                    </div>
+                  )}
+                  {!handover && persons.length > 0 && (
+                    <div className={`grid grid-cols-[auto_1fr_auto] gap-x-3 gap-y-1.5 items-center text-[11px] mb-3 ${isDark ? 'text-white/70' : 'text-black/70'}`}>
+                      <span className={textMuted}>Für</span>
+                      <select value={forKey} onChange={e => setExportFor(e.target.value)}
+                        title="Nur die Fragen einer zuständigen Person — mit persönlicher Anrede"
+                        className={`text-[11px] px-2 py-1 rounded border outline-none transition-colors ${inputCls}`}>
+                        <option value="">Alle offenen Fragen</option>
+                        {persons.map(([k, { person, count: n }]) => (
+                          <option key={k} value={k}>{person.name} — {n} {n === 1 ? 'Frage' : 'Fragen'}</option>
+                        ))}
+                      </select>
+                      <span />
+                      {forPerson && (
+                        <>
+                          <span className={textMuted}>An</span>
+                          <span className="truncate" title={forPerson.email}>{forPerson.email}</span>
+                          <button onClick={() => copyToClipboard(forPerson.email, 'to')}
+                            className={`flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
+                            <Copy size={10} /> {copiedKey === 'to' ? '✓ Kopiert' : 'Kopieren'}
+                          </button>
+                        </>
+                      )}
                     </div>
                   )}
                   {handover ? (
@@ -2568,7 +2699,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
                       </button>
                     )}
                     {!handover && (
-                      <button onClick={() => downloadPdf(exportMs)} disabled={pdfBusy}
+                      <button onClick={() => downloadPdf(exportMs, forKey)} disabled={pdfBusy}
                         className={`flex-1 flex items-center justify-center gap-1.5 text-xs py-2 rounded border transition-colors disabled:opacity-40 ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
                         <FileDown size={12} /> {pdfBusy ? 'Erzeuge PDF …' : 'PDF-Formular'}
                       </button>

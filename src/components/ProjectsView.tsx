@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { Plus, RefreshCw, ChevronRight, FileJson, FileUp, Lock, Copy, Trash2, MessageSquare, Search, X, Loader2 } from 'lucide-react';
+import { Plus, RefreshCw, ChevronRight, FileJson, FileUp, Lock, Copy, Trash2, MessageSquare, Search, X, Loader2, UserRound } from 'lucide-react';
 import { useStore } from '../store';
 import { deriveStatus, openMilestone, STATUS_META } from '../status';
 import { extractPdfText, hasMs10Data, Ms10Data, parseMs10Text } from '../ms10';
 import { fmtTimestamp, slugify, SLUG_RE } from '../util';
-import { usePermissions } from '../auth';
+import { useAuth, usePermissions } from '../auth';
 import { parseProjectImport } from '../projectJson';
 import { Project } from '../types';
 
@@ -20,6 +20,31 @@ function StatusBadge({ status, isDark }: { status: keyof typeof STATUS_META; isD
 export default function ProjectsView({ onOpen }: { onOpen: (slug: string) => void }) {
   const { isDark, model, projects, projectsLoading, projectsLoaded, refreshProjects, createProject, duplicateProject, importProject, deleteProject } = useStore();
   const { canEdit } = usePermissions();
+  const { user: authUser } = useAuth();
+  // Wer bin ich — angemeldet die E-Mail, sonst der Name, der auch für Kommentare gilt
+  const myKey = (() => {
+    if (authUser?.email) return authUser.email.toLowerCase();
+    if (authUser?.name) return authUser.name.trim().toLowerCase();
+    try { return localStorage.getItem('arch-review.commentName')?.trim().toLowerCase() || null; } catch { return null; }
+  })();
+  // Mir zugewiesene, noch offene Fragen eines Projekts (offen wie im OnePager:
+  // Ja/Nein ohne Wert, Auswahl ohne Option, Text ohne Antwort)
+  const myOpenQuestions = (data: Project): number => {
+    if (!myKey) return 0;
+    let n = 0;
+    for (const [themeId, r] of Object.entries(data.reviews ?? {})) {
+      for (const [qid, a] of Object.entries(r.answers ?? {})) {
+        const who = a.assignee;
+        // angemeldet über die E-Mail, sonst über den Namen
+        if (!who || (authUser?.email ? (who.email ?? '').toLowerCase() : who.name.trim().toLowerCase()) !== myKey) continue;
+        const q = model?.questions.find(x => x.id === qid && x.themeId === themeId);
+        const kind = q?.kind ?? 'yesNo';
+        const open = kind === 'yesNo' ? (a.value ?? null) === null : kind === 'choice' ? !a.choice : !(a.remarks ?? '').trim();
+        if (open && q?.enabled !== false) n++;
+      }
+    }
+    return n;
+  };
 
   // Liste aktuell halten (Sperren, Kommentare, fremde Änderungen): beim
   // Öffnen der Liste, bei Tab-Fokus und jede Minute
@@ -321,6 +346,15 @@ export default function ProjectsView({ onOpen }: { onOpen: (slug: string) => voi
                         {ms} offen
                       </span>
                     )}
+                    {(() => {
+                      const mine = myOpenQuestions(p.data);
+                      return mine > 0 && (
+                        <span title={`${mine} ${mine === 1 ? 'offene Frage ist' : 'offene Fragen sind'} dir zugewiesen`}
+                          className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border whitespace-nowrap ${isDark ? 'bg-violet-500/15 text-violet-300 border-violet-500/30' : 'bg-violet-50 text-violet-700 border-violet-300'}`}>
+                          <UserRound size={9} /> {mine}
+                        </span>
+                      );
+                    })()}
                     {!!p.openComments && (
                       <span title={`${p.openComments} offene${p.openComments === 1 ? 'r Kommentar' : ' Kommentare'}`}
                         className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border whitespace-nowrap ${isDark ? 'bg-blue-500/15 text-blue-300 border-blue-500/30' : 'bg-blue-50 text-blue-700 border-blue-300'}`}>

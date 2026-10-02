@@ -161,6 +161,10 @@ export interface QuestionAnswer {
   // welche; abgewählt bleibt der Text erhalten, zählt aber nicht mehr
   condition?: boolean;
   conditionText?: string;
+  // Wer die Frage beantworten soll (Person aus users.json bzw. Entra) —
+  // eine Aufgabe, keine Berechtigung: erfasst wird weiterhin von Reviewern
+  // bzw. über «Offene Fragen» (Mail) und «Antworten importieren»
+  assignee?: { name: string; email: string };
 }
 
 // Review-Eintrag: je Thema (Relevanz + Antworten) oder je Meilenstein

@@ -5,7 +5,7 @@
 // erledigten — Kommentaren). Die Daten hält OnePagerView (Sidecar-Datei via
 // store.loadComments/updateComments); hier nur Darstellung und Formulare.
 import React, { useEffect, useRef, useState } from 'react';
-import { AtSign, Check, ChevronLeft, ChevronRight, Clock, CornerDownRight, List, MessageSquare, RotateCcw, Send, Smile, SmilePlus, Trash2, X } from 'lucide-react';
+import { AtSign, Check, ChevronLeft, ChevronRight, Clock, CornerDownRight, List, MessageSquare, RotateCcw, Send, Smile, SmilePlus, Trash2, UserRound, X } from 'lucide-react';
 import type { Comment, CommentAuthor, DirectoryUser } from '../types';
 import type { DirectorySearchResult } from '../store';
 import { fmtTimestamp } from '../util';
@@ -392,6 +392,129 @@ export function MentionTextarea(p: {
         </div>
       )}
     </div>
+  );
+}
+
+// ── Zuständige Person (z. B. für eine Frage) ─────────────────────────────────
+// Wie bei «@»: zuerst die im Ordner bekannten Personen (users.json,
+// Kommentar-Autoren), dann Treffer aus Entra (Graph-Suche, entprellt).
+// Gewählt: Chip mit Namen (mailto im Tooltip), × entfernt; leer: «Zuständig …».
+export function PersonPicker(p: {
+  value: { name: string; email: string } | undefined;
+  onChange: (u: { name: string; email: string } | undefined) => void;
+  users: DirectoryUser[];
+  searchUsers: (q: string) => Promise<DirectorySearchResult>;
+  onDirectoryProblem: (r: Extract<DirectorySearchResult, { ok: false }>) => void;
+  initialsFor: (p: { name: string; email?: string }) => string;
+  isDark: boolean;
+  disabled?: boolean;
+  /** hervorgehoben, z. B. wenn ich selbst zuständig bin */
+  mine?: boolean;
+}) {
+  const { isDark } = p;
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [remote, setRemote] = useState<DirectoryUser[]>([]);
+  const [remoteBusy, setRemoteBusy] = useState(false);
+  const [sel, setSel] = useState(0);
+  const remoteOff = useRef(false); // Suche einmal gescheitert → in dieser Sitzung nicht mehr versuchen
+  const muted = isDark ? 'text-white/40' : 'text-black/40';
+
+  // Entra-Suche entprellt
+  useEffect(() => {
+    if (!open || remoteOff.current) { setRemote([]); return; }
+    const q = query.trim();
+    if (q.length < 2) { setRemote([]); return; }
+    let alive = true;
+    setRemoteBusy(true);
+    const t = setTimeout(async () => {
+      const r = await p.searchUsers(q);
+      if (!alive) return;
+      setRemoteBusy(false);
+      if (r.ok) setRemote(r.users);
+      else { setRemote([]); remoteOff.current = true; p.onDirectoryProblem(r); }
+    }, 300);
+    return () => { alive = false; clearTimeout(t); setRemoteBusy(false); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, open]);
+
+  const q = query.trim().toLowerCase();
+  // Rang: Name beginnt mit … › ein Wort beginnt mit … › kommt vor (Name/E-Mail)
+  const rank = (u: DirectoryUser) => {
+    const n = u.name.toLowerCase();
+    if (!q || n.startsWith(q)) return 0;
+    if (n.split(/\s+/).some(w => w.startsWith(q)) || u.email.toLowerCase().startsWith(q)) return 1;
+    if (n.includes(q) || u.email.toLowerCase().includes(q)) return 2;
+    return 9;
+  };
+  const local = p.users.map(u => ({ u, r: rank(u) })).filter(x => x.r < 9).sort((a, b) => a.r - b.r).map(x => x.u).slice(0, 6);
+  const items = [...local, ...remote.filter(r => !local.some(l => l.email.toLowerCase() === r.email.toLowerCase()))].slice(0, 10);
+  useEffect(() => { setSel(0); }, [query, items.length]);
+
+  const pick = (u: DirectoryUser) => { p.onChange({ name: u.name, email: u.email }); setOpen(false); setQuery(''); };
+  const close = () => { setOpen(false); setQuery(''); };
+
+  if (p.value && !open) {
+    return (
+      <span title={`Zuständig: ${p.value.name}${p.value.email ? ` · ${p.value.email}` : ''}`}
+        className={`inline-flex items-center gap-1 h-5 pl-1 pr-1 rounded-full border text-[10px] whitespace-nowrap ${p.mine
+          ? (isDark ? 'border-blue-500/50 bg-blue-500/15 text-blue-200' : 'border-blue-300 bg-blue-50 text-blue-800')
+          : (isDark ? 'border-white/15 bg-white/5 text-white/70' : 'border-black/15 bg-black/5 text-black/70')}`}>
+        <span className={`inline-flex items-center justify-center min-w-[18px] h-3.5 px-1 rounded-full text-[9px] font-bold ${isDark ? 'bg-blue-500/20 text-blue-300' : 'bg-blue-100 text-blue-700'}`}>
+          {p.initialsFor(p.value)}
+        </span>
+        <span className="truncate max-w-[160px]">{p.value.name}</span>
+        {!p.disabled && (
+          <>
+            <button type="button" title="Andere Person wählen" onClick={() => setOpen(true)}
+              className="px-0.5 rounded hover:underline">ändern</button>
+            <button type="button" title="Zuständigkeit entfernen" onClick={() => p.onChange(undefined)}
+              className={`rounded-full p-0.5 transition-colors ${isDark ? 'hover:text-rose-400' : 'hover:text-rose-500'}`}>
+              <X size={9} />
+            </button>
+          </>
+        )}
+      </span>
+    );
+  }
+  if (!open) {
+    return (
+      <button type="button" disabled={p.disabled} onClick={() => setOpen(true)}
+        title="Jemandem die Beantwortung dieser Frage zuweisen"
+        className="inline-flex items-center gap-1 hover:underline underline-offset-2 disabled:no-underline">
+        <UserRound size={10} /> Zuständig …
+      </button>
+    );
+  }
+  return (
+    <span className="relative inline-block">
+      <input autoFocus value={query} onChange={e => setQuery(e.target.value)}
+        placeholder="Name oder E-Mail …"
+        onBlur={() => setTimeout(close, 150)}
+        onKeyDown={e => {
+          if (e.key === 'ArrowDown') { e.preventDefault(); setSel(s => Math.min(s + 1, Math.max(items.length - 1, 0))); }
+          else if (e.key === 'ArrowUp') { e.preventDefault(); setSel(s => Math.max(s - 1, 0)); }
+          else if (e.key === 'Enter' && items[sel]) { e.preventDefault(); pick(items[sel]); }
+          else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); }
+        }}
+        className={`w-48 text-[11px] px-2 py-1 rounded border outline-none transition-colors ${isDark
+          ? 'bg-white/5 border-white/10 text-white placeholder-white/25 focus:border-white/30'
+          : 'bg-black/5 border-black/10 text-black placeholder-black/25 focus:border-black/30'}`} />
+      <div className={`absolute left-0 top-full mt-1 z-30 w-72 rounded border shadow-lg overflow-hidden ${isDark ? 'bg-neutral-900 border-white/15' : 'bg-white border-black/15'}`}>
+        {items.map((u, i) => (
+          <button key={u.email} type="button" onMouseDown={e => { e.preventDefault(); pick(u); }}
+            className={`w-full flex items-center gap-2 px-2 py-1.5 text-left text-[11px] ${i === sel ? (isDark ? 'bg-white/10' : 'bg-black/5') : ''}`}>
+            <span className={`inline-flex items-center justify-center min-w-[26px] h-5 px-1.5 rounded-full text-[10px] font-bold border ${isDark ? 'bg-blue-500/15 text-blue-300 border-blue-500/30' : 'bg-blue-50 text-blue-700 border-blue-300'}`}>{p.initialsFor(u)}</span>
+            <span className={`truncate ${isDark ? 'text-white/85' : 'text-black/85'}`}>{u.name}</span>
+            <span className={`truncate ml-auto text-[10px] ${muted}`}>{u.email}</span>
+          </button>
+        ))}
+        {items.length === 0 && !remoteBusy && (
+          <p className={`px-2 py-1.5 text-[10px] ${muted}`}>{q.length < 2 ? 'Name oder E-Mail eingeben' : 'Niemand gefunden'}</p>
+        )}
+        {remoteBusy && <p className={`px-2 py-1 text-[10px] flex items-center gap-1 ${muted}`}><AtSign size={9} /> Entra durchsuchen …</p>}
+      </div>
+    </span>
   );
 }
 

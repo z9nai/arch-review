@@ -12,7 +12,7 @@ export const EXPORT_FORMAT = 'arch-review-project';
 const INSTRUCTIONS = [
   'Export eines Projekts der Architekturprüfung. Bearbeitet wird nur «project»; «catalog» ist eine Lesehilfe und wird beim Import ignoriert.',
   'Antworten stehen unter project.reviews.<themeId>.answers.<questionId> — themeId und questionId wie in catalog.questions.',
-  'Eine Antwort: { "value": true | false | null, "remarks": "Text", "choice": "Option" }. value = Ja/Nein/offen; bei kind "choice" steht die gewählte Option (exakt aus options) in choice und value bleibt null; bei kind "text" zählt nur remarks. Nur M20-Fragen: "condition": true = es gilt eine Auflage, "conditionText" = welche.',
+  'Eine Antwort: { "value": true | false | null, "remarks": "Text", "choice": "Option" }. value = Ja/Nein/offen; bei kind "choice" steht die gewählte Option (exakt aus options) in choice und value bleibt null; bei kind "text" zählt nur remarks. Nur M20-Fragen: "condition": true = es gilt eine Auflage, "conditionText" = welche. "assignee": { "name", "email" } = wer die Frage beantworten soll.',
   'Meilenstein-Köpfe liegen unter project.reviews.m10 / m20 / m40 (notes = Bemerkungen; reviewed/approved/approvedBy = Prüf- und Freigabevermerke).',
   'project.classification ist eine id aus catalog.classifications oder null.',
   'Nicht ändern: slug, ids, sources (Anhänge), Felder, deren Bedeutung unklar ist — unbekannte Felder bleiben beim Import erhalten.',

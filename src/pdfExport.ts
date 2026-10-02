@@ -212,6 +212,7 @@ export type ReportQuestion = {
   remarks?: string;
   sources?: string[];        // Labels der zugeordneten Quellen (Belege der Antwort)
   condition?: string;        // Auflage (M20) — gesetzt = es gilt eine Auflage
+  assignee?: string;         // zuständige Person — nur bei offenen Fragen
 };
 export type ReportTheme = { heading: string; questions: ReportQuestion[] };
 export type ReportMilestone = {
@@ -432,6 +433,9 @@ export async function buildReviewReportPdf(r: ReviewReport, tpl?: ReportTemplate
           drawRichLine(f.page, ln, L + numW, f.y, 8.5, BLACK);
         }
         if (q.remarks) f.text(q.remarks, 8, 10.5, { color: GRAY, x: L + numW + 8, width: W - numW - 8 });
+        if (q.assignee) {
+          f.text(`Zuständig: ${q.assignee}`, 8, 10.5, { color: GRAY, x: L + numW + 8, width: W - numW - 8, plain: true });
+        }
         if (q.condition !== undefined) {
           f.text(`Auflage: ${q.condition || '(noch nicht beschrieben)'}`, 8, 10.5, { color: ORANGE, x: L + numW + 8, width: W - numW - 8, plain: true });
         }
