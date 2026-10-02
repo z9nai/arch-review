@@ -4,11 +4,11 @@
 // («Weiter»/«Zurück» durch alle Stellen mit offenen — auf Wunsch auch
 // erledigten — Kommentaren). Die Daten hält OnePagerView (Sidecar-Datei via
 // store.loadComments/updateComments); hier nur Darstellung und Formulare.
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { AtSign, Bold, Check, ChevronLeft, ChevronRight, Clock, CornerDownRight, Italic, List, MessageSquare, RemoveFormatting, RotateCcw, Send, Smile, SmilePlus, Trash2, UserRound, X } from 'lucide-react';
 import type { Comment, CommentAuthor, DirectoryUser } from '../types';
 import type { DirectorySearchResult } from '../store';
-import { fmtTimestamp } from '../util';
+import { fitTextarea, fmtTimestamp } from '../util';
 import { clearFormat, renderRich, setColor, TEXT_COLORS, toggleList, toggleWrap, type Edit } from '../richText';
 
 // Eine kommentierbare Stelle: key = Anker (siehe Comment.target), label wie im
@@ -431,15 +431,31 @@ export function MentionTextarea(p: {
     setTimeout(() => { const t = ref.current; if (t) { t.focus({ preventScroll: true }); t.setSelectionRange(caret, caret); } }, 0);
   };
 
-  // Bearbeiten beginnen (Klick auf die formatierte Anzeige): Cursor ans Ende
+  // Bearbeiten beginnen (Klick auf die formatierte Anzeige): Fokus und Cursor
+  // ans Ende setzt der Layout-Effekt unten, sobald das Textfeld steht
+  const focusPending = useRef(false);
   const startEdit = () => {
-    if (p.disabled) return;
+    if (p.disabled || editing) return;
+    focusPending.current = true;
     setEditing(true);
-    setTimeout(() => { const t = ref.current; if (t) { t.focus({ preventScroll: true }); t.setSelectionRange(t.value.length, t.value.length); } }, 0);
   };
 
   const muted = isDark ? 'text-white/40' : 'text-black/40';
   const showRendered = !!p.rich && !editing && p.value.trim() !== '';
+
+  // Höhe selbst nachführen (nicht erst, wenn die Seite neu zeichnet): sonst
+  // schrumpft das Feld beim Wechsel aus der formatierten Anzeige auf «rows»,
+  // der Inhalt darunter springt hoch und der Klick landet daneben (Fokus weg)
+  useLayoutEffect(() => {
+    const t = ref.current;
+    if (!t || showRendered) return;
+    if (p.autogrow) fitTextarea(t);
+    if (focusPending.current) {
+      focusPending.current = false;
+      t.focus({ preventScroll: true });
+      t.setSelectionRange(t.value.length, t.value.length);
+    }
+  }, [showRendered, p.value, p.autogrow, ref]);
   const barBtn = `w-6 h-6 inline-flex items-center justify-center rounded transition-colors ${isDark ? 'text-white/80 hover:bg-white/10' : 'text-black/80 hover:bg-black/5'}`;
   return (
     <div ref={wrapRef} className="relative">
