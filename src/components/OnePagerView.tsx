@@ -1951,7 +1951,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
       <div className={`px-4 pt-3 flex items-center justify-between gap-3 ${open ? '' : 'pb-3'}`}>
         <button type="button" onClick={() => setMsOpen(prev => ({ ...prev, [ms]: !open }))}
           title={open ? 'Zuklappen' : 'Aufklappen'} aria-expanded={open}
-          className={`flex items-center gap-1.5 min-w-0 text-left ${isDark ? 'text-white/50 hover:text-white/80' : 'text-black/50 hover:text-black/80'}`}>
+          className={`flex items-center gap-1.5 min-w-0 text-left transition-opacity hover:opacity-70 ${isDark ? 'text-white' : 'text-black'}`}>
           {open ? <ChevronDown size={13} className="flex-shrink-0" /> : <ChevronRight size={13} className="flex-shrink-0" />}
           <h3 className="text-[11px] font-semibold uppercase tracking-widest truncate">{ms} · {MILESTONE_TITLES[ms] ?? 'Prüfung'}</h3>
           {!open && (
@@ -2289,7 +2289,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
         <div className={`px-4 pt-3 ${isMsOpen('sources') ? 'pb-1' : 'pb-3'}`}>
           <button type="button" onClick={() => setMsOpen(prev => ({ ...prev, sources: !isMsOpen('sources') }))}
             title={isMsOpen('sources') ? 'Zuklappen' : 'Aufklappen'} aria-expanded={isMsOpen('sources')}
-            className={`flex items-center gap-1.5 text-left ${isDark ? 'text-white/50 hover:text-white/80' : 'text-black/50 hover:text-black/80'}`}>
+            className={`flex items-center gap-1.5 text-left transition-opacity hover:opacity-70 ${isDark ? 'text-white' : 'text-black'}`}>
             {isMsOpen('sources') ? <ChevronDown size={13} className="flex-shrink-0" /> : <ChevronRight size={13} className="flex-shrink-0" />}
             <h3 className="text-[11px] font-semibold uppercase tracking-widest">
               Quellen{(proj.sources ?? []).length ? ` (${(proj.sources ?? []).length})` : ''}
