@@ -5,7 +5,7 @@
 // erledigten — Kommentaren). Die Daten hält OnePagerView (Sidecar-Datei via
 // store.loadComments/updateComments); hier nur Darstellung und Formulare.
 import React, { useEffect, useRef, useState } from 'react';
-import { AtSign, Check, ChevronLeft, ChevronRight, Clock, CornerDownRight, List, MessageSquare, RotateCcw, Send, Trash2, X } from 'lucide-react';
+import { AtSign, Check, ChevronLeft, ChevronRight, Clock, CornerDownRight, List, MessageSquare, RotateCcw, Send, SmilePlus, Trash2, X } from 'lucide-react';
 import type { Comment, CommentAuthor, DirectoryUser } from '../types';
 import type { DirectorySearchResult } from '../store';
 import { fmtTimestamp } from '../util';
@@ -102,6 +102,104 @@ export function AuthorChip({ author, initials, isDark }: { author: CommentAuthor
   return author.email
     ? <a href={`mailto:${author.email}`} title={title} className={`${cls} hover:underline`}>{text}</a>
     : <span title={title} className={cls}>{text}</span>;
+}
+
+// ── Reaktionen ───────────────────────────────────────────────────────────────
+// Eine kleine feste Auswahl statt eines ganzen Emoji-Pickers: reicht für
+// Zustimmung/Dank/Rückfrage und bleibt in jeder Schrift gleich lesbar.
+export const REACTIONS = ['👍', '❤️', '😄', '🎉', '🤔', '👀'] as const;
+
+// Eigene Reaktion setzen bzw. zurücknehmen — als Funktion auf einen
+// Kommentar, damit sie im Read-modify-write (updateComments) auf dem
+// neuesten Stand läuft und gleichzeitige Reaktionen anderer erhalten bleiben.
+export function toggleReaction(c: Comment, emoji: string, who: { name: string; email?: string }): Comment {
+  const key = personKey(who);
+  const list = c.reactions?.[emoji] ?? [];
+  const mine = list.some(x => personKey(x) === key);
+  const nextList = mine ? list.filter(x => personKey(x) !== key) : [...list, { name: who.name, ...(who.email ? { email: who.email } : {}) }];
+  const reactions = { ...(c.reactions ?? {}), [emoji]: nextList };
+  if (!nextList.length) delete reactions[emoji];
+  const { reactions: _old, ...rest } = c;
+  void _old;
+  return Object.keys(reactions).length ? { ...rest, reactions } : rest;
+}
+
+// Reaktionen unter einem Kommentar: je Emoji ein Chip mit Anzahl (eigene
+// hervorgehoben, Namen im Tooltip); Klick setzt bzw. nimmt die eigene zurück
+function ReactionChips({ c, me, isDark, onToggle }: {
+  c: Comment; me: { name: string; email?: string } | null; isDark: boolean; onToggle: ((emoji: string) => void) | null;
+}) {
+  const entries = Object.entries(c.reactions ?? {}).filter(([, l]) => l.length);
+  if (!entries.length) return null;
+  const myKey = me ? personKey(me) : null;
+  return (
+    <div className="flex flex-wrap gap-1 mt-1">
+      {entries.map(([emoji, list]) => {
+        const mine = !!myKey && list.some(x => personKey(x) === myKey);
+        return (
+          <button key={emoji} type="button" disabled={!onToggle} onClick={() => onToggle?.(emoji)}
+            title={`${list.map(x => x.name).join(', ')}${onToggle ? (mine ? ' — klicken nimmt deine Reaktion zurück' : ' — klicken reagiert ebenso') : ''}`}
+            className={`inline-flex items-center gap-1 h-5 px-1.5 rounded-full border text-[11px] leading-none transition-colors disabled:cursor-default ${
+              mine
+                ? (isDark ? 'border-blue-500/50 bg-blue-500/15 text-blue-200' : 'border-blue-300 bg-blue-50 text-blue-800')
+                : (isDark ? 'border-white/15 text-white/70 hover:border-white/30' : 'border-black/15 text-black/70 hover:border-black/30')}`}>
+            {/* Farb-Emojis übernehmen die Transparenz der Textfarbe — deshalb voll deckend */}
+            <span className={isDark ? 'text-white' : 'text-black'}>{emoji}</span><span className="text-[10px] tabular-nums">{list.length}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// Smiley-Knopf mit der Auswahl; schliesst bei Auswahl, Klick daneben oder Esc.
+// Die Auswahl liegt fest am Fenster (position: fixed) — im scrollenden
+// Faden des Panels würde sie sonst abgeschnitten.
+function ReactionPicker({ isDark, disabled, onPick, className }: {
+  isDark: boolean; disabled: boolean; onPick: (emoji: string) => void; className: string;
+}) {
+  const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
+  const open = pos !== null;
+  const setOpen = (o: boolean | ((prev: boolean) => boolean)) => {
+    const next = typeof o === 'function' ? o(open) : o;
+    if (!next) { setPos(null); return; }
+    const r = ref.current?.getBoundingClientRect();
+    if (!r) return;
+    // unter dem Knopf, am unteren Fensterrand darüber
+    const below = r.bottom + 4;
+    setPos({ top: below + 40 > window.innerHeight ? r.top - 40 : below, right: window.innerWidth - r.right });
+  };
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const down = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); } };
+    // fest am Fenster: beim Scrollen bliebe sie stehen, während der Knopf wandert
+    const scroll = () => setOpen(false);
+    document.addEventListener('mousedown', down);
+    window.addEventListener('keydown', key, true);
+    window.addEventListener('scroll', scroll, true);
+    return () => { document.removeEventListener('mousedown', down); window.removeEventListener('keydown', key, true); window.removeEventListener('scroll', scroll, true); };
+  }, [open]);
+  return (
+    <span ref={ref} className="relative inline-flex">
+      <button type="button" disabled={disabled} className={className} onClick={() => setOpen(o => !o)}
+        title={disabled ? 'Zum Reagieren zuerst einen Namen eingeben' : 'Reagieren'}>
+        <SmilePlus size={11} />
+      </button>
+      {pos && (
+        <span style={{ top: pos.top, right: pos.right }}
+          className={`fixed z-50 flex gap-0.5 p-1 rounded-lg border shadow-lg ${isDark ? 'bg-[#1f2024] border-white/15 text-white' : 'bg-white border-black/15 text-black'}`}>
+          {REACTIONS.map(e => (
+            <button key={e} type="button" onClick={() => { onPick(e); setOpen(false); }}
+              className={`w-7 h-7 rounded text-[15px] leading-none transition-colors ${isDark ? 'hover:bg-white/10' : 'hover:bg-black/5'}`}>
+              {e}
+            </button>
+          ))}
+        </span>
+      )}
+    </span>
+  );
 }
 
 // Sprechblase an einer Stelle: zeigt die Zahl offener Kommentare; nur
@@ -295,6 +393,7 @@ interface PanelProps {
   onAdd: (target: string, text: string, mentions: DirectoryUser[], parentId?: string) => Promise<boolean>;
   onResolve: (id: string, resolved: boolean) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  onReact: (id: string, emoji: string) => Promise<void>; // eigene Reaktion setzen/zurücknehmen
   notice?: string;                        // z. B. Kommentardatei beschädigt/gesichert
 }
 
@@ -397,6 +496,9 @@ export function CommentsPanel(p: PanelProps) {
             <Clock size={9} className="flex-shrink-0 opacity-70" aria-label="Teams-Nachricht ausstehend" />
           )}
           <span className="ml-auto flex items-center gap-0.5 flex-shrink-0">
+            {p.canComment && (
+              <ReactionPicker isDark={isDark} disabled={!p.author} className={iconBtn} onPick={e => void p.onReact(c.id, e)} />
+            )}
             {p.canComment && !isReply && (
               <button type="button" title="Antworten" className={iconBtn}
                 onClick={() => { setReplyTo(replyTo === c.id ? null : c.id); setReplyDraft(''); }}>
@@ -419,6 +521,7 @@ export function CommentsPanel(p: PanelProps) {
           </span>
         </div>
         <p className={`text-[11px] leading-relaxed whitespace-pre-wrap break-words mt-0.5 ${textBase}`}>{renderWithMentions(c.text, c.mentions, isDark)}</p>
+        <ReactionChips c={c} me={p.author} isDark={isDark} onToggle={p.canComment && p.author ? e => void p.onReact(c.id, e) : null} />
         {c.resolved && (
           <p className={`text-[10px] mt-0.5 ${isDark ? 'text-emerald-400/80' : 'text-emerald-600'}`}>
             ✓ erledigt{c.resolvedBy ? ` von ${p.initialsFor(c.resolvedBy)}` : ''}{c.resolvedAt ? ` · ${fmtTimestamp(c.resolvedAt)}` : ''}

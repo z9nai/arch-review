@@ -4,7 +4,7 @@ import { marked } from 'marked';
 import { DirectorySearchResult, lockValid, ProjectLock, useStore } from '../store';
 import { useAuth, usePermissions } from '../auth';
 import { Comment, CommentAuthor, DirectoryUser, MILESTONES, MILESTONE_INFO, MILESTONE_TITLES, Project, Question, QuestionAnswer, Review, SourceFile, Theme } from '../types';
-import { assignInitials, authorOf, CommentBubble, CommentsPanel, CommentTargetInfo, countsOf, initialsOf, personKey } from './Comments';
+import { assignInitials, authorOf, CommentBubble, CommentsPanel, CommentTargetInfo, countsOf, initialsOf, personKey, toggleReaction } from './Comments';
 import { useTeamsNotify } from './useTeamsNotify';
 import { TEAMS_SCOPES } from '../teams';
 import { DIRECTORY_SCOPES } from '../store';
@@ -441,6 +441,10 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
     await mutateComments(prev => prev.map(c => c.id !== id ? c : resolved
       ? { ...c, resolved: true, resolvedAt: nowIsoWithTimezone(), ...(commentAuthor ? { resolvedBy: commentAuthor } : {}) }
       : (({ resolved: _r, resolvedAt: _a, resolvedBy: _b, ...rest }) => rest)(c)));
+  };
+  const reactComment = async (id: string, emoji: string) => {
+    if (!commentAuthor) { showToast('Bitte zuerst einen Namen eingeben.'); return; }
+    await mutateComments(prev => prev.map(c => (c.id === id ? toggleReaction(c, emoji, commentAuthor) : c)));
   };
   const deleteComment = async (id: string) => {
     await mutateComments(prev => prev.filter(c => c.id !== id && c.parentId !== id));
@@ -2685,7 +2689,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
           ? (c.author.email ?? '').toLowerCase() === commentAuthor.email.toLowerCase()
           : c.author.name === commentAuthor.name))}
         {...(authUser ? {} : { askName: { value: commentName, onChange: setCommentNameStored } })}
-        onAdd={addComment} onResolve={resolveComment} onDelete={deleteComment} />
+        onAdd={addComment} onResolve={resolveComment} onDelete={deleteComment} onReact={reactComment} />
     )}
     </div>
   );

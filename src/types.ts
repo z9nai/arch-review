@@ -217,6 +217,9 @@ export interface Comment {
   resolvedAt?: string;
   resolvedBy?: CommentAuthor;
   mentions?: DirectoryUser[]; // per @ erwähnte Personen (im Text steht «@Name»)
+  // Reaktionen (👍 ❤️ …): je Emoji die Personen, die so reagiert haben —
+  // nochmals klicken nimmt die eigene Reaktion zurück (siehe toggleReaction)
+  reactions?: Record<string, { name: string; email?: string }[]>;
   // Teams-Benachrichtigung (siehe Model.notifications.teams): E-Mails der
   // Personen, die noch zu benachrichtigen sind bzw. schon benachrichtigt
   // wurden. Verschickt wird nur vom Browser der Autorin/des Autors.

@@ -333,6 +333,15 @@ die Bildschirmmitte und markiert sie. «Erledigte einblenden» nimmt
 erledigte Fäden in Übersicht und Schrittfolge auf. Esc schliesst das Panel,
 Ctrl/Cmd+Enter sendet.
 
+**Reaktionen:** Das Smiley-Icon an jedem Kommentar und jeder Antwort öffnet
+eine kleine Auswahl (👍 ❤️ 😄 🎉 🤔 👀). Reaktionen stehen als Chips mit
+Anzahl unter dem Text; die eigene ist hervorgehoben, der Tooltip nennt, wer
+so reagiert hat. Ein Klick auf einen Chip reagiert ebenso bzw. nimmt die
+eigene Reaktion zurück. Reagieren kann, wer kommentieren kann; gespeichert
+wird in der Kommentar-Datei (`reactions`: Emoji → Personen), auf dem
+neuesten Stand wie jede Kommentar-Änderung. Reaktionen lösen keine
+Teams-Nachricht aus.
+
 Autor/in ist die angemeldete Person: **Kürzel** (z. B. «PM») als Chip mit
 `mailto:`-Link auf ihre E-Mail-Adresse, daneben Name und Zeitpunkt. Die
 Kürzel sind pro Projekt eindeutig: ein Buchstabe Vorname plus einer vom
