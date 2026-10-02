@@ -326,12 +326,14 @@ jederzeit einen PDF-Bericht des Architektur-Reviews. Zuoberst steht der
 M10 zusätzlich die Architekturrelevanz mit Klassifikation. Noch nicht
 erreichte Meilensteine erscheinen grau mit Grund («folgt nach Freigabe des
 vorherigen Meilensteins» bzw. «entfällt: nicht architekturrelevant»).
-Danach folgen die Details je Meilenstein: Freigabe (Prüfer/in), offene
+Danach folgen die Details je Meilenstein — jeder Meilenstein und die
+Quellen beginnen wie die Panels im OnePager **auf einer eigenen Seite**:
+Freigabe (Prüfer/in), offene
 Fragen und — beim M10 — das Resultat («Architekturrelevant (relevant)»)
 je auf eigener Zeile, das Resultat hervorgehoben. Beim M20 heisst die
 Freigabe «Geprüft und freigegeben mit Auflagen», sobald eine Auflage
 erfasst ist; die Auflagen folgen als Liste, und jede steht zusätzlich bei
-ihrer Frage. Die Abnahme-Kontrollpunkte
+ihrer Frage. Bei zugewiesenen Fragen steht «Zuständig: …». Die Abnahme-Kontrollpunkte
 stehen mit fettem Titel («FINMA-Prüfung — erforderlich · abgenommen durch
 …»), darunter eingerückt und beschriftet die Einschätzung Architektur und
 die Bemerkungen der Abnahme; die Bemerkungen des Meilensteins folgen mit

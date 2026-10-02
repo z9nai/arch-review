@@ -212,7 +212,7 @@ export type ReportQuestion = {
   remarks?: string;
   sources?: string[];        // Labels der zugeordneten Quellen (Belege der Antwort)
   condition?: string;        // Auflage (M20) — gesetzt = es gilt eine Auflage
-  assignee?: string;         // zuständige Person — nur bei offenen Fragen
+  assignee?: string;         // zuständige Person (Frage zugewiesen)
 };
 export type ReportTheme = { heading: string; questions: ReportQuestion[] };
 export type ReportMilestone = {
@@ -361,9 +361,12 @@ export async function buildReviewReportPdf(r: ReviewReport, tpl?: ReportTemplate
   }
   for (const line of r.skipped) f.text(line, 8.5, 15, { color: GRAY, x: L + 8, width: W - 8 });
 
+  // Jedes Panel (Meilenstein, Quellen) auf einer eigenen Seite — wie im OnePager je eine Karte
+  const panelPage = () => { f.page = newPage('cont'); f.y = TOP + 14; };
+
   // Details je Meilenstein
   for (const ms of r.milestones) {
-    f.ensure(80);
+    panelPage();
     f.y -= 26;
     f.line(ms.title, L, 12, { bold: true });
     const titleW = richWidth(ms.title, F, 12, true);
@@ -455,7 +458,7 @@ export async function buildReviewReportPdf(r: ReviewReport, tpl?: ReportTemplate
 
   // Quellen (Belege und Web-Referenzen) am Schluss — wie im OnePager
   if (r.sources?.length) {
-    f.ensure(70);
+    panelPage();
     f.y -= 26;
     f.line('Quellen', L, 12, { bold: true });
     f.y -= 7;

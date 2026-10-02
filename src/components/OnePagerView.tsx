@@ -1425,8 +1425,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
       const remarks = String(a?.remarks ?? '').trim();
       const sources = (a?.sources ?? []).map(sourceLabelOf);
       const condition = q.milestone === CONDITIONS_MS && a?.condition === true ? String(a.conditionText ?? '').trim() : undefined;
-      // zuständig nur bei offenen Fragen — beantwortet ist die Aufgabe erledigt
-      const assignee = open && a?.assignee ? a.assignee.name : undefined;
+      const assignee = a?.assignee?.name;
       return { answer, open, ...(remarks ? { remarks } : {}), ...(sources.length ? { sources } : {}), ...(condition !== undefined ? { condition } : {}), ...(assignee ? { assignee } : {}) };
     };
 
