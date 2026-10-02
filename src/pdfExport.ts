@@ -436,8 +436,11 @@ export async function buildReviewReportPdf(r: ReviewReport, tpl?: ReportTemplate
     }
 
     for (const theme of ms.themes) {
-      f.ensure(46);
-      f.y -= 18;
+      // Trennlinie vor jedem Thema, damit die Themen sich klar absetzen
+      f.ensure(52);
+      f.y -= 9;
+      f.page.drawLine({ start: { x: L, y: f.y }, end: { x: L + W, y: f.y }, thickness: 0.4, color: LIGHT });
+      f.y -= 15;
       f.line(theme.heading, L, 10, { bold: true });
       for (const q of theme.questions) {
         const aW = richWidth(q.answer, F, 9, true);
