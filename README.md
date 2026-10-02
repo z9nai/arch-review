@@ -77,7 +77,10 @@ Entwicklung: `?graph=http://localhost:3999/v1.0` leitet Graph auf einen Mock um.
 
 Fehlen `config/model.json` oder `projects/` im gewählten Ordner, legt die App sie an
 (`config/model.json` mit dem Standard-Katalog aus `src/defaultModel.ts`). Eine
-vorhandene, aber defekte `model.json` wird nie überschrieben. Ältere Ordner
+vorhandene, aber defekte `model.json` wird nie überschrieben. Auch eine defekte
+`users.json` nicht: sie wird vor dem nächsten Eintrag unverändert als
+`users.broken-<Zeitstempel>.json` gesichert, dann beginnt die Liste neu
+(klappt die Sicherung nicht, bleibt alles, wie es ist). Ältere Ordner
 mit `model.json` im Hauptordner funktionieren weiter (die App liest und
 schreibt sie dort), bis ein Admin sie nach `config/` verschiebt.
 
