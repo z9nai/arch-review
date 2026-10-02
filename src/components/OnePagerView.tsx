@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { AlertTriangle, ArrowLeft, Check, ClipboardPaste, Copy, Download, ExternalLink, Eye, FileDown, FileJson, FileUp, Info, Link2, Lock, Mail, MessageSquare, Minus, Pencil, Plus, Save, Search, Trash2, Unlock, X } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Check, ClipboardPaste, Copy, Download, ExternalLink, Eye, FileDown, FileJson, FileUp, History, Info, Link2, Lock, Mail, MessageSquare, Minus, Pencil, Plus, Save, Search, Trash2, Unlock, X } from 'lucide-react';
 import { marked } from 'marked';
 import { DirectorySearchResult, lockValid, ProjectLock, useStore } from '../store';
 import { useAuth, usePermissions } from '../auth';
@@ -11,7 +11,9 @@ import { DIRECTORY_SCOPES } from '../store';
 import { blockingChecks, checkState, deriveStatus, emptyReview, getMilestoneReview, getThemeReview, STATUS_META } from '../status';
 import { applyMs10, extractPdfText, hasMs10Data, Ms10Data, MS10_FIELD_LABELS, parseMs10Text } from '../ms10';
 import { DEFAULT_MODEL } from '../defaultModel';
-import { buildProjectExport, describeImportChanges, downloadJson, parseProjectImport } from '../projectJson';
+import { buildProjectExport, describeImportChanges, downloadJson, parseProjectImport, questionNumbers } from '../projectJson';
+import { AuditEntry, AuditOrigin, makeEntry, targetLabel } from '../audit';
+import AuditPanel from './AuditPanel';
 import { fitTextarea, fmtTimestamp, formatBytes, normalizeUrl, nowIsoWithTimezone, sanitizeFilename } from '../util';
 
 const FOUNDATION_MS = MILESTONES[0]; // M10
@@ -83,7 +85,7 @@ function Highlight({ text, terms, cls }: { text: string; terms: string[]; cls: s
 // focusCommentId: aus einem Deep Link (?project=…&comment=…) — öffnet das
 // Kommentar-Panel an der Stelle dieses Kommentars, sobald die Kommentare da sind
 export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: string; onBack: () => void; focusCommentId?: string }) {
-  const { isDark, model, loadProject, saveProject, acquireLock, renewLock, releaseLock, readLock, sessionId,
+  const { isDark, model, loadProject, saveProject, loadAudit, auditAuthor, acquireLock, renewLock, releaseLock, readLock, sessionId,
     uploadSourceFile, downloadSourceFile, deleteSourceFile, loadComments, updateComments,
     knownUsers, searchDirectory } = useStore();
   const { user: authUser, tryToken, requestConsent } = useAuth();
@@ -103,7 +105,8 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
   const [lastSavedAt, setLastSavedAt] = useState('');
   const [toast, setToast] = useState('');
   const [importData, setImportData] = useState<Ms10Data | null>(null);
-  const [jsonImport, setJsonImport] = useState<{ project: Project; warnings: string[]; changes: string[] } | null>(null);
+  const [jsonImport, setJsonImport] = useState<{ project: Project; warnings: string[]; changes: string[]; fileName: string } | null>(null);
+  const [ms10FileName, setMs10FileName] = useState('');
   const [infoTheme, setInfoTheme] = useState<Theme | null>(null);
   const [infoQuestion, setInfoQuestion] = useState<Question | null>(null);
   const [showClassInfo, setShowClassInfo] = useState(false);
@@ -139,6 +142,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
   // Kommentare (Sidecar-Datei, unabhängig von Sperre und Autosave)
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentsOpen, setCommentsOpen] = useState(false);
+  const [auditOpen, setAuditOpen] = useState(false); // Verlauf (Änderungsprotokoll) statt Kommentare
   const [commentTarget, setCommentTarget] = useState<string | null>(null); // null = Übersicht
   const [showResolved, setShowResolved] = useState(false);
   const [commentName, setCommentName] = useState(() => { try { return localStorage.getItem(COMMENT_NAME_KEY) ?? ''; } catch { return ''; } });
@@ -166,17 +170,43 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
     : 'bg-black/5 border-black/10 text-black placeholder-black/20 focus:border-black/30';
   const cardCls = `rounded-xl border ${border} ${isDark ? 'bg-white/2' : 'bg-black/2'}`;
 
+  // ── Änderungsprotokoll (siehe audit.ts) ───────────────────────────────────
+  // `auditBase` ist der Stand beim letzten Schnitt. Geschnitten wird bei jedem
+  // Speichern (alles bis dahin war Handarbeit) und vor wie nach einer
+  // Änderung mit Herkunft (Import, beim Laden nachgeführt) — die wird ein
+  // eigener Eintrag. Die Einträge warten, bis das Projekt gespeichert ist.
+  const auditBase = useRef<Project | null>(null);
+  const auditQueue = useRef<AuditEntry[]>([]);
+  const modelRef = useRef(model);
+  modelRef.current = model;
+  const cutAudit = useCallback((to: Project | null, origin: AuditOrigin = { source: 'manual' }) => {
+    const from = auditBase.current;
+    if (!from || !to) return;
+    const e = makeEntry(from, to, modelRef.current, origin, auditAuthor());
+    if (e) auditQueue.current.push(e);
+    auditBase.current = to;
+  }, [auditAuthor]);
+  // Frisch gelesener Stand: neue Basis; was syncDerived daran nachführt,
+  // ist ein Eintrag «beim Laden»
+  const rebase = useCallback((loaded: Project): Project => {
+    const synced = syncRef.current(loaded);
+    auditBase.current = loaded;
+    auditQueue.current = [];
+    cutAudit(synced, { source: 'load', note: 'Abgeleitete Werte nachgeführt' });
+    return synced;
+  }, [cutAudit]);
+
   const reload = useCallback(async () => {
     const res = await loadProject(slug);
     if (!res) { setNotFound(true); return; }
     // Abgeleitete Werte gleich nachziehen; weicht das Ergebnis ab,
     // schreibt der Autosave die migrierte Fassung
-    setProj(syncRef.current(res.data));
+    setProj(rebase(res.data));
     setBaseline(JSON.stringify(res.data));
     setVersion(res.version);
     setNotFound(false);
     setConflict(false);
-  }, [loadProject, slug]);
+  }, [loadProject, slug, rebase]);
 
   useEffect(() => { reload(); }, [reload]);
 
@@ -238,7 +268,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
     else setLockState({ kind: 'free' });
     const res = await loadProject(slug);
     if (res && res.version !== version) {
-      setProj(syncRef.current(res.data));
+      setProj(rebase(res.data));
       setBaseline(JSON.stringify(res.data));
       setVersion(res.version);
     }
@@ -416,6 +446,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
     }
     setCommentTarget(key);
     setCommentsOpen(true);
+    setAuditOpen(false);
   };
   // Aktive Stelle in die Mitte des Scrollbereichs holen
   useEffect(() => {
@@ -667,7 +698,12 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
       // Nichts mehr synchron passiert seit dem Timer-Feuern/Aufruf oben —
       // dieser Check ist daher race-frei gegenueber einem Unmount.
       if (!mountedRef.current) return 'skipped';
-      const res = await saveProject(data, force ? null : version);
+      cutAudit(data);
+      const audit = auditQueue.current.splice(0);
+      const res = await saveProject(data, force ? null : version, audit);
+      // nicht gespeichert (oder nur das Protokoll nicht): mit dem nächsten Speichern nochmals
+      if (res.status !== 'saved' || res.auditError) auditQueue.current.unshift(...audit);
+      if (res.status === 'saved' && res.auditError) showToast(`Gespeichert, aber das Änderungsprotokoll nicht: ${res.auditError}`);
       if (res.status === 'saved') {
         setProj(data);
         setBaseline(JSON.stringify(data));
@@ -700,6 +736,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
       const data = parseMs10Text(await extractPdfText(await file.arrayBuffer()));
       if (!hasMs10Data(data)) { showToast('Im PDF wurden keine MS10-Felder gefunden.'); return; }
       setImportData(data);
+      setMs10FileName(file.name);
     } catch (e) {
       console.error('[arch-review] pickMs10:', e);
       showToast('PDF konnte nicht gelesen werden.');
@@ -708,7 +745,10 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
 
   const applyImport = () => {
     if (!importData || !proj || !model) return;
-    setProj(applyMs10(proj, importData));
+    const next = applyMs10(proj, importData);
+    cutAudit(proj);
+    cutAudit(next, { source: 'ms10-import', ...(ms10FileName ? { note: ms10FileName } : {}) });
+    setProj(next);
     setImportData(null);
     showToast('MS10-Felder übernommen.');
   };
@@ -735,12 +775,15 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
     if (res.project.slug && res.project.slug !== proj.slug) {
       warnings.unshift(`Die Datei stammt vom Projekt «${res.project.slug}» — der Inhalt wird trotzdem in «${proj.slug}» übernommen.`);
     }
-    setJsonImport({ project: res.project, warnings, changes: describeImportChanges(proj, mergeImport(proj, res.project), model) });
+    setJsonImport({ project: res.project, warnings, changes: describeImportChanges(proj, mergeImport(proj, res.project), model), fileName: file.name });
   };
 
   const applyJsonImport = () => {
-    if (!jsonImport) return;
-    setProj(p => (p ? mergeImport(p, jsonImport.project) : p));
+    if (!jsonImport || !proj) return;
+    const next = mergeImport(proj, jsonImport.project);
+    cutAudit(proj);
+    cutAudit(next, { source: 'json-import', note: jsonImport.fileName });
+    setProj(next);
     showToast(`JSON übernommen — ${jsonImport.changes.length} ${jsonImport.changes.length === 1 ? 'Änderung' : 'Änderungen'}.`);
     setJsonImport(null);
   };
@@ -1534,8 +1577,8 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
   };
 
   const applyAnswersImport = (items: ImportItem[]) => {
-    setProj(p => {
-      if (!p) return p;
+    if (!proj) return;
+    const next = (p => {
       const reviews = { ...p.reviews };
       for (const it of items) {
         const review = { ...emptyReview(), ...(reviews[it.themeId] ?? {}) };
@@ -1545,7 +1588,10 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
         reviews[it.themeId] = { ...review, answers };
       }
       return syncDerived({ ...p, reviews });
-    });
+    })(proj);
+    cutAudit(proj);
+    cutAudit(next, { source: 'answers-import', ...(answersMs ? { note: `Antworten ${answersMs}` } : {}) });
+    setProj(next);
     showToast(`${items.length} ${items.length === 1 ? 'Antwort' : 'Antworten'} übernommen.`);
     setAnswersMs(null);
     setAnswersText('');
@@ -1760,8 +1806,43 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
   const openCommentCount = comments.filter(c => !c.parentId && c.resolved !== true).length;
   placeLabelRef.current = t => commentTargets().find(x => x.key === t)?.label ?? t;
 
+  // Verlauf: Stelle im Protokoll → heutiger Name bzw. Anker im OnePager
+  let auditNumbers: Map<Question, string> | undefined;
+  const auditLabelNow = (target: string): string | null => {
+    const [kind, a, b] = target.split(':');
+    const exists = kind === 'q' ? allQuestions.some(q => q.themeId === a && q.id === b)
+      : kind === 'theme' ? themes.some(t => t.id === a)
+        : kind === 'check' ? (model.milestoneChecks ?? []).some(c => c.milestone === a && c.id === b)
+          : kind === 'source' ? (proj.sources ?? []).some(s => s.id === a)
+            : true;
+    if (!exists) return null;
+    const m = { ...model, themes, questions: allQuestions };
+    auditNumbers ??= questionNumbers(m);
+    return targetLabel(target, m, proj, auditNumbers);
+  };
+  const visibleAnchors = new Set(commentTargets().map(t => t.key));
+  const auditAnchor = (target: string): string | null => {
+    const [kind, a] = target.split(':');
+    const key = kind === 'project' ? 'project:description'
+      : kind === 'ms' ? `ms:${a}:notes`
+        : kind === 'theme' ? [...visibleAnchors].find(k => k.startsWith(`q:${a}:`)) ?? null
+          : kind === 'q' || kind === 'check' ? target
+            : null;
+    return key && visibleAnchors.has(key) ? key : null;
+  };
+  const gotoAudit = (target: string) => {
+    const key = auditAnchor(target);
+    if (!key) return;
+    if (key.startsWith('q:')) {
+      const [, themeId, qId] = key.split(':');
+      const q = allQuestions.find(x => x.id === qId && x.themeId === themeId);
+      if (q) setExpanded(prev => new Set(prev).add(`${q.milestone}:${themeId}`));
+    }
+    setSearchHit({ key, n: Date.now() });
+  };
+
   return (
-    <div ref={rootRef} className={`p-6 pb-24 mx-auto flex items-start gap-4 ${commentsOpen ? 'max-w-[1424px]' : 'max-w-5xl'}`}>
+    <div ref={rootRef} className={`p-6 pb-24 mx-auto flex items-start gap-4 ${commentsOpen || auditOpen ? 'max-w-[1424px]' : 'max-w-5xl'}`}>
     <div className="flex-1 min-w-0 max-w-5xl mx-auto">
       {/* Kopfzeile */}
       <div className="flex items-center justify-between mb-4">
@@ -1831,7 +1912,15 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
               </div>
             )}
           </div>
-          <button onClick={() => { if (commentsOpen && commentTarget === null) setCommentsOpen(false); else openCommentTarget(null); }}
+          <button onClick={() => { if (auditOpen) { setAuditOpen(false); return; } setAuditOpen(true); setCommentsOpen(false); }}
+            title={auditOpen ? 'Verlauf schliessen' : 'Verlauf — wer hat wann was geändert'}
+            className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors ${
+              auditOpen
+                ? (isDark ? 'border-white/40 text-white bg-white/10' : 'border-black/40 text-black bg-black/10')
+                : (isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black')}`}>
+            <History size={11} /> Verlauf
+          </button>
+          <button onClick={() => { setAuditOpen(false); if (commentsOpen && commentTarget === null) setCommentsOpen(false); else openCommentTarget(null); }}
             title="Alle Kommentare — Übersicht und Schritt für Schritt durchgehen"
             className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors ${
               commentsOpen
@@ -2568,6 +2657,13 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
         </div>
       )}
     </div>
+
+    {/* Verlauf: Änderungsprotokoll; bleibt beim Scrollen stehen */}
+    {auditOpen && !commentsOpen && (
+      <AuditPanel slug={slug} version={version} isDark={isDark} load={loadAudit}
+        labelNow={auditLabelNow} canGoto={t => auditAnchor(t) !== null} onGoto={gotoAudit}
+        onClose={() => setAuditOpen(false)} />
+    )}
 
     {/* Kommentar-Panel: Faden der aktiven Stelle bzw. Übersicht; bleibt beim Scrollen stehen */}
     {commentsOpen && (

@@ -69,7 +69,8 @@ Entwicklung: `?graph=http://localhost:3999/v1.0` leitet Graph auf einen Mock um.
 ├── projects/
 │   ├── <slug>.json         eine Datei pro Projekt (Review-Zustand)
 │   ├── <slug>.lock.json    Bearbeitungssperre (Sidecar, temporär)
-│   └── <slug>.comments.json Kommentare zum Projekt (Sidecar)
+│   ├── <slug>.comments.json Kommentare zum Projekt (Sidecar)
+│   └── <slug>.audit.jsonl  Änderungsprotokoll (Verlauf), eine Zeile je Eintrag
 ├── factsheets/             Word-Vorgaben (nur verlinkt)
 └── projekte/               Word-Nachweise (nur verlinkt)
 ```
@@ -444,6 +445,63 @@ Im SharePoint-Modus gilt das
 Microsoft-Graph-Limit für einfache Uploads von **4 MB** je Datei (grössere
 Dateien bräuchten einen Upload in mehreren Teilen — aktuell nicht
 implementiert); im lokalen Ordner gibt es keine solche Grenze.
+
+## Verlauf — wer hat wann was geändert
+
+Die App protokolliert **jede Änderung** an einem Projekt. Der Knopf
+**«Verlauf»** neben «Kommentare» öffnet das Protokoll rechts, wo sonst die
+Kommentare stehen:
+
+```
+Verlauf  2 Einträge                                              ✕
+[🔍 Suchen — Stelle, Feld, Wert, Notiz …                         ]
+[Alle Stellen       ▾] [Alle Personen       ▾] [Jederzeit         ▾]
+Von Hand  MS10-Import  JSON-Import  Antworten-Import  Beim Laden
+┌ 02.10.2026 09:14 Max Muster                            Von Hand ┐
+│ ~ M10A1 Ist der Inhalt NICHT für die Veröffentlichung … · Antwort│
+│   offen → Nein                                                  │
+└─────────────────────────────────────────────────────────────────┘
+┌ 02.10.2026 08:50 Max Muster                         JSON-Import ┐
+│ core-datenbank-migration.arch-review.json                       │
+│ ~ M20B3 … · Bemerkungen   alt → neu                             │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+- **Jeder Eintrag**: Zeitpunkt, wer (die Anmeldung; ohne Anmeldung der
+  Name, der auch für Kommentare gilt), **Herkunft** — von Hand, MS10-Import,
+  JSON-Import, Antworten-Import, beim Laden (abgeleitete Werte wie
+  Themen-Relevanz nachgeführt) — mit Notiz (z. B. Dateiname) und je Änderung
+  die Stelle mit Feld und **vorher → nachher**.
+- **Stellen**: Projektangaben, Fragen (mit Nummer und Text), Themen
+  (Relevanz), Meilenstein-Köpfe, Abnahme-Kontrollpunkte, Quellen. Ein Klick
+  springt hin (Thema wird aufgeklappt, die Stelle kurz hervorgehoben); was
+  zurzeit nicht sichtbar ist, bleibt ohne Link, was es nicht mehr gibt,
+  steht mit «(entfallen)» in der Auswahl.
+- **Filtern** nach Stelle, Person, Zeitraum (heute, 7 / 30 Tage, von–bis),
+  Herkunft und mit einer Textsuche über Stelle, Feld, Werte und Notiz.
+- **Erfasst** wird alles, weil die App zwei Stände vergleicht (`src/audit.ts`,
+  `diffProjects`): von Hand ist, was sich zwischen zwei Speicherläufen
+  ändert; ein Import wird ein eigener Eintrag mit seiner Herkunft. Anlegen,
+  Duplizieren und Import als neues Projekt schreiben den ersten Eintrag.
+  Kommentare stehen nicht drin — sie sind selbst ein Verlauf.
+- **Tippen** erzeugt je Autosave eine Zeile; die Anzeige fasst aufeinander
+  folgende Einträge derselben Person innerhalb von zehn Minuten zusammen
+  (erstes «vorher», letztes «nachher» je Feld).
+- **Lange Texte** (über 400 Zeichen, z. B. Beschrieb, Bemerkungen) stehen
+  nicht ganz im Protokoll, sondern als Ausschnitt um die geänderte Stelle
+  («…Kontext **alt** Kontext…» → «…Kontext **neu** Kontext…»). Solche
+  Ausschnitte fasst die Anzeige nicht zusammen, sie stehen nacheinander.
+
+Das Protokoll liegt **neben** dem Projekt in `projects/<slug>.audit.jsonl`,
+nie in ihm — nicht im JSON-Export, nicht in einer Kopie. Es wird nur
+angehängt, und erst, wenn das Projekt gespeichert ist; schlägt das fehl,
+geht es mit dem nächsten Speichern nochmals. Wer gleichzeitig anhängt,
+bekommt einen Konflikt (lastModified bzw. ETag) und liest neu. Über 2000
+Einträge wandert der ältere Teil in ein Archiv
+`<slug>.audit-<Zeitstempel>.jsonl`; die laufende Datei behält die letzten
+1000. Eine kaputte Zeile kostet nur sich selbst. Die Projektliste liest nur
+`.json` und sieht die Protokolle nicht. Mit dem Projekt wird auch das
+Protokoll gelöscht (Archive bleiben liegen).
 
 ## MS10-Import
 

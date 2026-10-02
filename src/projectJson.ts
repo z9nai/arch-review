@@ -40,7 +40,7 @@ const letterOf = (index: number) => String.fromCharCode(65 + (index % 26));
 
 // Fragenummer wie im OnePager (M20B3): Meilenstein + Themen-Buchstabe +
 // Position über den vollen Katalog
-function questionNumbers(model: Model): Map<Question, string> {
+export function questionNumbers(model: Model): Map<Question, string> {
   const out = new Map<Question, string>();
   model.themes.forEach((t, ti) => {
     for (const ms of MILESTONES) {
@@ -90,7 +90,7 @@ export function downloadJson(data: unknown, filename: string) {
 }
 
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
-const MS_KEY_RE = /^(m\d+|ms\d+|foundation)$/i;
+export const MS_KEY_RE = /^(m\d+|ms\d+|foundation)$/i;
 
 export type ImportParse =
   | { ok: true; project: Project; warnings: string[] }

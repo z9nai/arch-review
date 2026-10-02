@@ -7,6 +7,7 @@ import { LocalBackend, StorageBackend } from './backend';
 import { GRAPH_SCOPES, GraphBackend, resolveFolderLink, SharePointFolder } from './graph';
 import { PENDING_FOLDER_KEY, useAuth } from './auth';
 import { assessModelSecurity, LEGACY_MODEL_PATH, MODEL_PATH, SecurityReport } from './security';
+import { appendAudit, auditPath, AuditAuthor, AuditEntry, AuditOrigin, emptyProject, makeEntry, parseAudit } from './audit';
 
 export interface ProjectListItem {
   slug: string;
@@ -35,7 +36,8 @@ export type LockResult =
   | { status: 'error'; message: string };
 
 export type SaveResult =
-  | { status: 'saved'; version: string }
+  /** `auditError`: gespeichert, aber das Protokoll nicht — die Einträge gehen mit dem nächsten Speichern nochmals */
+  | { status: 'saved'; version: string; auditError?: string }
   | { status: 'conflict'; currentVersion: string }
   | { status: 'error'; message: string };
 
@@ -87,7 +89,12 @@ interface StoreCtx {
   projectsLoaded: boolean;
   refreshProjects: () => Promise<void>;
   loadProject: (slug: string) => Promise<{ data: Project; version: string } | null>;
-  saveProject: (data: Project, expectedVersion: string | null) => Promise<SaveResult>;
+  /** `audit`: Protokoll-Einträge zu diesem Stand — angehängt, sobald das Projekt geschrieben ist */
+  saveProject: (data: Project, expectedVersion: string | null, audit?: AuditEntry[]) => Promise<SaveResult>;
+  /** Änderungsprotokoll projects/<slug>.audit.jsonl (älteste zuerst); null = nicht lesbar */
+  loadAudit: (slug: string) => Promise<AuditEntry[] | null>;
+  /** wer gerade ändert — fürs Protokoll (Anmeldung, sonst der Kommentar-Name) */
+  auditAuthor: () => AuditAuthor;
   createProject: (name: string, slug: string, ms10?: Ms10Data) => Promise<{ ok: true } | { ok: false; message: string }>;
   /** Kopie anlegen: Antworten/Klassifikation bleiben, Freigaben werden zurückgesetzt */
   duplicateProject: (sourceSlug: string, name: string, slug: string) => Promise<{ ok: true } | { ok: false; message: string }>;
@@ -293,6 +300,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   authRef.current = auth;
   const idsRef = useRef(auth.ids);
   idsRef.current = auth.ids;
+  // wer gerade ändert — angemeldet die Anmeldung, sonst der Name, der auch
+  // für Kommentare ohne Anmeldung gilt (pro Browser)
+  const auditAuthor = useCallback((): AuditAuthor => {
+    const u = authRef.current.user;
+    if (u?.name?.trim()) return u.email ? { name: u.name.trim(), email: u.email } : { name: u.name.trim() };
+    let stored = '';
+    try { stored = localStorage.getItem('arch-review.commentName')?.trim() ?? ''; } catch { /* ignore */ }
+    return { name: stored || 'Unbekannt' };
+  }, []);
+  // erster Eintrag eines neuen Projekts: alles, was dabei entstand
+  const auditCreated = async (be: StorageBackend, project: Project, origin: AuditOrigin) => {
+    const first = makeEntry(emptyProject(project), project, modelRef.current, origin, auditAuthor());
+    if (first) await appendAudit(be, project.slug, [first]);
+  };
 
   // Stammdaten liegen in config/model.json — der Ordner config/ bekommt in
   // SharePoint eigene Berechtigungen (nur Admins schreiben, siehe
@@ -619,7 +640,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   // Schreibt projects/<slug>.json. Mit expectedVersion wird vor dem Schreiben
   // geprüft, ob die Datei inzwischen extern geändert wurde (Konflikt).
   // null = bewusst überschreiben.
-  const saveProject = useCallback(async (data: Project, expectedVersion: string | null): Promise<SaveResult> => {
+  const saveProject = useCallback(async (data: Project, expectedVersion: string | null, audit: AuditEntry[] = []): Promise<SaveResult> => {
     const be = backendRef.current;
     if (!be) return { status: 'error', message: 'Kein Ordner gewählt.' };
     let json: string;
@@ -640,7 +661,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       next.sort((a, b) => (a.data.name || a.slug).localeCompare(b.data.name || b.slug, 'de'));
       return next;
     });
-    return { status: 'saved', version: w.version };
+    // erst nach dem Projekt: ins Protokoll kommt nur, was auch gespeichert ist
+    const a = await appendAudit(be, data.slug, audit);
+    return { status: 'saved', version: w.version, ...(a.ok ? {} : { auditError: a.message }) };
+  }, []);
+
+  const loadAudit = useCallback(async (slug: string) => {
+    const be = backendRef.current;
+    if (!be) return null;
+    try {
+      const read = await be.read(auditPath(slug));
+      return read ? parseAudit(read.text) : [];
+    } catch {
+      return null;
+    }
   }, []);
 
   const createProject = useCallback(async (name: string, slug: string, ms10?: Ms10Data) => {
@@ -670,6 +704,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
     setProjects(prev => [...prev, { slug, data: project, version: w.version }]
       .sort((a, b) => (a.data.name || a.slug).localeCompare(b.data.name || b.slug, 'de')));
+    await auditCreated(be, project, ms10 ? { source: 'ms10-import', note: 'Projekt aus MS10-PDF angelegt' } : { source: 'manual', note: 'Projekt angelegt' });
     return { ok: true as const };
   }, []);
 
@@ -774,6 +809,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
     setProjects(prev => [...prev, { slug, data: project, version: w.version }]
       .sort((a, b) => (a.data.name || a.slug).localeCompare(b.data.name || b.slug, 'de')));
+    // das Protokoll der Vorlage geht nicht mit — die Kopie beginnt mit sich selbst
+    await auditCreated(be, project, { source: 'manual', note: `Kopie von «${src.data.name || sourceSlug}»` });
     return { ok: true as const };
   }, [loadProject]);
 
@@ -800,6 +837,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
     setProjects(prev => [...prev, { slug, data: project, version: w.version }]
       .sort((a, b) => (a.data.name || a.slug).localeCompare(b.data.name || b.slug, 'de')));
+    await auditCreated(be, project, { source: 'json-import', note: 'Projekt aus JSON angelegt' });
     return { ok: true as const };
   }, []);
 
@@ -823,6 +861,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (still) return { ok: false as const, message: 'Projekt konnte nicht gelöscht werden (keine Berechtigung?).' };
       await be.delete(`projects/${slug}.lock.json`);
       await be.delete(`projects/${slug}.comments.json`);
+      // das Protokoll gehört zum Projekt — ein neues mit demselben Slug fängt leer an
+      // (Archive bleiben liegen: die Liste kennt sie nicht, und sie stören nicht)
+      await be.delete(auditPath(slug));
       setProjects(prev => prev.filter(p => p.slug !== slug));
       return { ok: true as const };
     } catch (e) {
@@ -950,7 +991,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       pickDirectory, savedHandleName, reconnectDirectory,
       connectSharePoint, savedSharePoint, reconnectSharePoint, forgetSharePoint, queueSharePoint, disconnect,
       model, modelError, modelPath, saveModel, checkModelSecurity,
-      projects, projectsLoading, projectsLoaded, refreshProjects, loadProject, saveProject, createProject, duplicateProject, importProject, deleteProject,
+      projects, projectsLoading, projectsLoaded, refreshProjects, loadProject, saveProject, loadAudit, auditAuthor, createProject, duplicateProject, importProject, deleteProject,
       uploadSourceFile, downloadSourceFile, deleteSourceFile,
       loadComments, updateComments,
       knownUsers, searchDirectory, requestDirectoryConsent,
