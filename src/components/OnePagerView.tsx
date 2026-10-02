@@ -120,10 +120,11 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
   const [answersPdfItems, setAnswersPdfItems] = useState<ImportItem[] | null>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set()); // "M10:themeId"
-  // Meilenstein-Panels einklappbar: ohne eigene Wahl ist offen, was beim
-  // Öffnen des Projekts noch nicht freigegeben war — erledigte Meilensteine
-  // sind zu, der aktuelle offen; ein später dazukommender (M40 nach der
-  // M20-Freigabe) ist ebenfalls offen
+  // Panels einklappbar (Meilensteine, Projektangaben, Quellen): ohne eigene
+  // Wahl ist von den Meilensteinen offen, was beim Öffnen des Projekts noch
+  // nicht freigegeben war — erledigte sind zu, der aktuelle offen; ein später
+  // dazukommender (M40 nach der M20-Freigabe) ist ebenfalls offen.
+  // Projektangaben und Quellen sind zu Beginn zu.
   const [msOpen, setMsOpen] = useState<Record<string, boolean>>({});
   const approvedAtLoad = useRef<Set<string>>(new Set());
   const [openRemarks, setOpenRemarks] = useState<Set<string>>(new Set()); // "themeId:frageId"
@@ -459,11 +460,13 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
   };
 
   // Stelle im Panel öffnen: Thema aufklappen (falls Frage) und hinscrollen
-  const isMsOpen = (ms: string) => msOpen[ms] ?? !approvedAtLoad.current.has(ms);
+  const isMsOpen = (key: string) => msOpen[key] ?? (key === 'project' || key === 'sources' ? false : !approvedAtLoad.current.has(key));
   const openMs = (ms: string | null | undefined) => { if (ms) setMsOpen(prev => (prev[ms] ? prev : { ...prev, [ms]: true })); };
-  // Meilenstein einer Stelle (Frage, Bemerkungen, Kontrollpunkt) — fürs Aufklappen vor dem Hinspringen
+  // Panel einer Stelle (Meilenstein einer Frage, Bemerkung, Kontrollpunkt;
+  // Projektangaben für den Beschrieb) — fürs Aufklappen vor dem Hinspringen
   const msOfTarget = (key: string): string | null => {
     const [kind, a, b] = key.split(':');
+    if (kind === 'project') return 'project';
     if (kind === 'q') return allQuestions.find(x => x.themeId === a && x.id === b)?.milestone ?? null;
     if (kind === 'ms' || kind === 'check') return a ?? null;
     return null;
@@ -2107,8 +2110,14 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
 
       {/* Kopf: Projektangaben */}
       <div className={`${cardCls} p-4 mb-4`}>
-        <div className="flex items-center justify-between gap-4 mb-4">
+        <div className={`flex items-center justify-between gap-4 ${isMsOpen('project') ? 'mb-4' : ''}`}>
           <div className="flex items-center gap-2 min-w-0">
+            <button type="button" onClick={() => setMsOpen(prev => ({ ...prev, project: !isMsOpen('project') }))}
+              title={isMsOpen('project') ? 'Beschrieb und Verantwortliche zuklappen' : 'Beschrieb und Verantwortliche aufklappen'}
+              aria-expanded={isMsOpen('project')}
+              className={`p-0.5 -ml-1 rounded flex-shrink-0 transition-colors ${isDark ? 'text-white/50 hover:text-white/80' : 'text-black/50 hover:text-black/80'}`}>
+              {isMsOpen('project') ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+            </button>
             <input value={proj.name} disabled={ro}
               onChange={e => setField('name', e.target.value)}
               placeholder={proj.slug}
@@ -2157,6 +2166,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
             <StatusBadge status={status} isDark={isDark} />
           </div>
         </div>
+        {isMsOpen('project') && (<>
         {/* Beschrieb über die gesamte Breite */}
         <div className={`mb-3 transition-colors ${anchorCls('project:description')}`} data-comment-target="project:description">
           <div className="flex items-center gap-2 mb-1">
@@ -2181,6 +2191,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
               className={`w-full text-xs px-3 py-2 rounded border outline-none transition-colors ${inputCls}`} />
           </div>
         </div>
+        </>)}
       </div>
 
       {/* M10 · Foundation-Prüfung */}
@@ -2275,11 +2286,17 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
 
       {/* Quellen: Belege/Referenzdokumente zum Herunterladen */}
       <div className={`${cardCls} mb-4`}>
-        <div className="px-4 pt-3 pb-1">
-          <h3 className={`text-[11px] font-semibold uppercase tracking-widest ${isDark ? 'text-white/50' : 'text-black/50'}`}>
-            Quellen
-          </h3>
+        <div className={`px-4 pt-3 ${isMsOpen('sources') ? 'pb-1' : 'pb-3'}`}>
+          <button type="button" onClick={() => setMsOpen(prev => ({ ...prev, sources: !isMsOpen('sources') }))}
+            title={isMsOpen('sources') ? 'Zuklappen' : 'Aufklappen'} aria-expanded={isMsOpen('sources')}
+            className={`flex items-center gap-1.5 text-left ${isDark ? 'text-white/50 hover:text-white/80' : 'text-black/50 hover:text-black/80'}`}>
+            {isMsOpen('sources') ? <ChevronDown size={13} className="flex-shrink-0" /> : <ChevronRight size={13} className="flex-shrink-0" />}
+            <h3 className="text-[11px] font-semibold uppercase tracking-widest">
+              Quellen{(proj.sources ?? []).length ? ` (${(proj.sources ?? []).length})` : ''}
+            </h3>
+          </button>
         </div>
+        {isMsOpen('sources') && (<>
         <div className="px-4 pb-3">
           {(proj.sources ?? []).length === 0 ? (
             <p className={`text-[11px] ${textMuted}`}>Noch keine Quellen hinterlegt.</p>
@@ -2385,6 +2402,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
             </div>
           </div>
         )}
+        </>)}
       </div>
 
       {/* Speicherleiste */}
