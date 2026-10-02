@@ -2286,7 +2286,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
 
       {/* Quellen: Belege/Referenzdokumente zum Herunterladen */}
       <div className={`${cardCls} mb-4`}>
-        <div className={`px-4 pt-3 ${isMsOpen('sources') ? 'pb-1' : 'pb-3'}`}>
+        <div className={`px-4 pt-3 ${isMsOpen('sources') ? '' : 'pb-3'}`}>
           <button type="button" onClick={() => setMsOpen(prev => ({ ...prev, sources: !isMsOpen('sources') }))}
             title={isMsOpen('sources') ? 'Zuklappen' : 'Aufklappen'} aria-expanded={isMsOpen('sources')}
             className={`flex items-center gap-1.5 text-left transition-opacity hover:opacity-70 ${isDark ? 'text-white' : 'text-black'}`}>
@@ -2297,6 +2297,11 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
           </button>
         </div>
         {isMsOpen('sources') && (<>
+        {/* Kurzbeschrieb wie bei den Meilensteinen */}
+        <p className={`px-4 pt-1 pb-3 text-[11px] ${textMuted}`}>
+          Belege und Referenzdokumente zum Projekt — hochgeladene Dateien oder Web-Links. Jede Person mit Zugriff
+          auf das Projekt kann sie öffnen; bei jeder Antwort lassen sich die Quellen zuordnen, die sie stützen.
+        </p>
         <div className="px-4 pb-3">
           {(proj.sources ?? []).length === 0 ? (
             <p className={`text-[11px] ${textMuted}`}>Noch keine Quellen hinterlegt.</p>
