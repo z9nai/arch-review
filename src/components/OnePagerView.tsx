@@ -1681,7 +1681,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
       opts.update({ checks: next, ...(stillBlocked && opts.review.approved ? { approved: false, reviewed: false } : {}) });
     };
     return (
-      <div className="px-4 py-3 grid grid-cols-1 md:grid-cols-[minmax(280px,auto)_1fr] gap-x-6 gap-y-3 items-stretch">
+      <div className="px-4 py-3">
         <div className="space-y-3">
           <div className={`flex items-center gap-2 text-xs flex-wrap ${isDark ? 'text-white/70' : 'text-black/70'}`}>
             {opts.chipLabel} {derivedChip(opts.chipValue)}
@@ -1717,6 +1717,25 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
               ))}
             </div>
           )}
+          {/* Bemerkungen in voller Breite, gleich nach Freigabe bzw. deren Sperrgrund */}
+          {(() => {
+            const notesKey = `ms:${opts.ms}:notes`;
+            return (
+              <div data-comment-target={notesKey} className={`flex flex-col transition-colors ${anchorCls(notesKey)}`}>
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <span className={`text-[10px] uppercase tracking-wider ${labelCls}`}>Bemerkungen</span>
+                  {bubble(notesKey)}
+                </div>
+                <textarea disabled={ro} value={opts.review.notes} required rows={3}
+                  onChange={e => opts.update({ notes: e.target.value })}
+                  data-autogrow
+                  placeholder="Bemerkungen (erforderlich)"
+                  className={`w-full min-h-[76px] text-[11px] px-2 py-1.5 rounded border outline-none resize-none overflow-hidden transition-colors ${inputCls} ${
+                    notesEmpty ? (isDark ? 'border-rose-500/40' : 'border-rose-300') : ''
+                  }`} />
+              </div>
+            );
+          })()}
           {/* Auflagen: gesammelt aus den Fragen, nur lesend — ein Klick auf die Nummer springt zur Frage */}
           {opts.ms === CONDITIONS_MS && (() => {
             const list = conditionsOf(opts.ms);
@@ -1815,24 +1834,6 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
             </button>
           )}
         </div>
-        {(() => {
-          const notesKey = `ms:${opts.ms}:notes`;
-          return (
-            <div data-comment-target={notesKey} className={`flex flex-col transition-colors ${anchorCls(notesKey)}`}>
-              <div className="flex items-center justify-between gap-2 mb-1">
-                <span className={`text-[10px] uppercase tracking-wider ${labelCls}`}>Bemerkungen</span>
-                {bubble(notesKey)}
-              </div>
-              <textarea disabled={ro} value={opts.review.notes} required rows={3}
-                onChange={e => opts.update({ notes: e.target.value })}
-                data-autogrow
-                placeholder="Bemerkungen (erforderlich)"
-                className={`w-full flex-auto min-h-[76px] text-[11px] px-2 py-1.5 rounded border outline-none resize-none overflow-hidden transition-colors ${inputCls} ${
-                  notesEmpty ? (isDark ? 'border-rose-500/40' : 'border-rose-300') : ''
-                }`} />
-            </div>
-          );
-        })()}
       </div>
     );
   };
