@@ -409,6 +409,14 @@ auf dem neuesten Stand wiederholt. Andere Sitzungen sehen neue Kommentare
 alle 30 s bzw. beim Tab-Fokus. Mit dem Projekt wird auch die Kommentar-Datei
 gelöscht.
 
+Ist die Kommentar-Datei beschädigt (kein gültiges JSON, z. B. nach einem
+abgebrochenen Sync), zeigt das Panel einen Hinweis statt «keine Kommentare».
+Sie wird nie stillschweigend überschrieben: Der nächste Kommentar legt sie
+zuerst unverändert als `projects/<slug>.comments.broken-<Zeitstempel>.json`
+ab und beginnt dann eine neue Datei; klappt die Sicherung nicht, wird nichts
+geschrieben. Die Projektliste liest nur `<slug>.json` und sieht solche
+Sicherungen nicht.
+
 Am Projektende steht ein Abschnitt **«Quellen»**: Belege und
 Referenzdokumente (Prüfformulare, Factsheets, Word-Nachweise, …) lassen sich
 mit Label und kurzem Beschrieb hochladen; jede Person mit Zugriff auf das

@@ -111,8 +111,10 @@ interface StoreCtx {
   // Kommentare (Sidecar projects/<slug>.comments.json, unabhängig von der
   // Bearbeitungssperre): lesen und atomar ändern (Lesen → Funktion anwenden →
   // Schreiben mit ETag; bei Konflikt wird auf dem neuesten Stand wiederholt)
-  loadComments: (slug: string) => Promise<Comment[]>;
-  updateComments: (slug: string, mutate: (prev: Comment[]) => Comment[]) => Promise<{ ok: true; comments: Comment[] } | { ok: false; message: string }>;
+  // damaged: die Datei ist beschädigt — angezeigt wird nichts; beim nächsten
+  // Schreiben wird sie gesichert (backup = Pfad der Sicherung) und neu begonnen
+  loadComments: (slug: string) => Promise<{ comments: Comment[]; damaged: boolean }>;
+  updateComments: (slug: string, mutate: (prev: Comment[]) => Comment[]) => Promise<{ ok: true; comments: Comment[]; backup?: string } | { ok: false; message: string }>;
   // Personen für @-Erwähnungen: users.json im geteilten Ordner (jede
   // angemeldete Person trägt sich beim Öffnen ein) und Entra-Suche über Graph
   knownUsers: DirectoryUser[];
@@ -260,12 +262,15 @@ function parseLock(text: string): ProjectLock | null {
 export const lockValid = (l: ProjectLock | null | undefined): l is ProjectLock =>
   !!l && Date.parse(l.until) > Date.now();
 
-function parseComments(text: string): Comment[] {
+// null = Datei beschädigt (kein JSON, keine Liste «comments») — das ist
+// etwas anderes als «noch keine Kommentare» und darf nie wie leer
+// überschrieben werden (siehe updateComments)
+function parseComments(text: string): Comment[] | null {
   try {
     const f = JSON.parse(text) as Partial<CommentsFile>;
-    return Array.isArray(f?.comments) ? f.comments.filter(c => c && typeof c.id === 'string' && typeof c.target === 'string') : [];
+    return Array.isArray(f?.comments) ? f.comments.filter(c => c && typeof c.id === 'string' && typeof c.target === 'string') : null;
   } catch {
-    return [];
+    return null;
   }
 }
 
@@ -394,9 +399,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           if (lockValid(l) && l.session !== sessionId()) locks.set(f.name.replace(/\.lock\.json$/, ''), l);
         } else if (f.name.endsWith('.comments.json')) {
           // offene Fäden = Wurzelkommentare ohne «erledigt»
-          const cs = read ? parseComments(read.text) : [];
+          const cs = (read ? parseComments(read.text) : null) ?? [];
           openComments.set(f.name.replace(/\.comments\.json$/, ''), cs.filter(c => !c.parentId && c.resolved !== true).length);
-        } else if (read) {
+        } else if (read && /^[^.]+\.json$/.test(f.name)) {
+          // nur <slug>.json — Sicherungen wie <slug>.comments.broken-….json sind keine Projekte
           projectReads.push({ slug: f.name.replace(/\.json$/, ''), text: read.text, version: read.version });
         }
       });
@@ -904,20 +910,26 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   // ── Kommentare ────────────────────────────────────────────────────────────
   const commentsPath = (slug: string) => `projects/${slug}.comments.json`;
 
-  const loadComments = useCallback(async (slug: string): Promise<Comment[]> => {
+  const loadComments = useCallback(async (slug: string): Promise<{ comments: Comment[]; damaged: boolean }> => {
     const be = backendRef.current;
-    if (!be) return [];
+    if (!be) return { comments: [], damaged: false };
     try {
       const read = await be.read(commentsPath(slug));
-      return read ? parseComments(read.text) : [];
+      if (!read) return { comments: [], damaged: false };
+      const comments = parseComments(read.text);
+      return comments ? { comments, damaged: false } : { comments: [], damaged: true };
     } catch {
-      return [];
+      return { comments: [], damaged: false };
     }
   }, []);
 
   // Read-modify-write mit ETag: Kommentare sind Einzelobjekte mit id, die
   // Änderungsfunktion ist auf jedem Stand anwendbar (hinzufügen, erledigen,
   // löschen) — deshalb lässt sich ein Konflikt durch Wiederholen auflösen.
+  // Ist die Datei beschädigt (z. B. abgebrochener Sync), wird sie zuerst
+  // unverändert als <slug>.comments.broken-<Zeitstempel>.json gesichert;
+  // erst dann beginnt eine neue Datei. Klappt die Sicherung nicht, wird
+  // nichts geschrieben.
   const updateComments = useCallback(async (slug: string, mutate: (prev: Comment[]) => Comment[]) => {
     const be = backendRef.current;
     if (!be) return { ok: false as const, message: 'Kein Ordner gewählt.' };
@@ -926,11 +938,21 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       try { cur = await be.read(commentsPath(slug)); } catch (e) {
         return { ok: false as const, message: e instanceof Error ? e.message : String(e) };
       }
-      const prev = cur ? parseComments(cur.text) : [];
-      const comments = mutate(prev);
+      let prev = cur ? parseComments(cur.text) : [];
+      let backup: string | undefined;
+      if (!prev && cur) {
+        backup = `projects/${slug}.comments.broken-${nowIsoWithTimezone().replace(/[^0-9]/g, '').slice(0, 14)}.json`;
+        const b = await be.write(backup, cur.text, { createOnly: true });
+        if (!b.ok && b.reason !== 'exists') {
+          return { ok: false as const, message: `Die Kommentardatei ist beschädigt und konnte nicht gesichert werden (${b.message}) — es wurde nichts geändert.` };
+        }
+        prev = [];
+      }
+      const comments = mutate(prev ?? []);
       const file: CommentsFile = { version: 1, comments };
+      // gegen die gelesene Version: hat jemand die Datei inzwischen repariert, gilt dessen Stand
       const w = await be.write(commentsPath(slug), JSON.stringify(file, null, 2), cur ? { ifMatch: cur.version } : { createOnly: true });
-      if (w.ok) return { ok: true as const, comments };
+      if (w.ok) return { ok: true as const, comments, ...(backup ? { backup } : {}) };
       if (w.reason === 'conflict' || w.reason === 'exists') continue; // jemand war schneller → auf neuem Stand wiederholen
       return { ok: false as const, message: w.reason === 'forbidden' ? w.message : 'Kommentar konnte nicht gespeichert werden.' };
     }

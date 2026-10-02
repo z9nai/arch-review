@@ -141,6 +141,8 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
   const [editUrl, setEditUrl] = useState('');
   // Kommentare (Sidecar-Datei, unabhängig von Sperre und Autosave)
   const [comments, setComments] = useState<Comment[]>([]);
+  // Kommentardatei beschädigt bzw. gesichert — Hinweis im Panel (siehe store.updateComments)
+  const [commentsNotice, setCommentsNotice] = useState('');
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [auditOpen, setAuditOpen] = useState(false); // Verlauf (Änderungsprotokoll) statt Kommentare
   const [commentTarget, setCommentTarget] = useState<string | null>(null); // null = Übersicht
@@ -318,7 +320,13 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
   // Personen kommentieren unabhängig von der Bearbeitungssperre).
   useEffect(() => {
     let alive = true;
-    const pull = async () => { const c = await loadComments(slug); if (alive) setComments(c); };
+    const pull = async () => {
+      const r = await loadComments(slug);
+      if (!alive) return;
+      setComments(r.comments);
+      if (r.damaged) setCommentsNotice('Die Kommentardatei ist beschädigt und kann nicht gelesen werden. Mit dem nächsten Kommentar wird sie unverändert gesichert und neu begonnen.');
+      else setCommentsNotice(n => (n.startsWith('Die Kommentardatei ist beschädigt') ? '' : n));
+    };
     void pull();
     const t = setInterval(() => { void pull(); }, 30_000);
     const onVis = () => { if (document.visibilityState === 'visible') void pull(); };
@@ -348,6 +356,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
     const res = await updateComments(slug, fn);
     if (!res.ok) { showToast(res.message); return false; }
     setComments(res.comments);
+    if (res.backup) setCommentsNotice(`Die bisherige Kommentardatei war beschädigt und wurde unverändert als ${res.backup} gesichert; die Kommentare beginnen neu.`);
     return true;
   };
   const teamsSettings = model?.notifications?.teams;
@@ -2667,7 +2676,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
 
     {/* Kommentar-Panel: Faden der aktiven Stelle bzw. Übersicht; bleibt beim Scrollen stehen */}
     {commentsOpen && (
-      <CommentsPanel isDark={isDark} comments={comments} targets={commentTargets()}
+      <CommentsPanel isDark={isDark} comments={comments} targets={commentTargets()} notice={commentsNotice}
         users={mentionUsers} searchUsers={searchDirectory} onDirectoryProblem={onDirectoryProblem} initialsFor={initialsFor}
         active={commentTarget} showResolved={showResolved} onToggleResolved={setShowResolved}
         onSelect={openCommentTarget} onClose={() => setCommentsOpen(false)}

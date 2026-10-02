@@ -295,6 +295,7 @@ interface PanelProps {
   onAdd: (target: string, text: string, mentions: DirectoryUser[], parentId?: string) => Promise<boolean>;
   onResolve: (id: string, resolved: boolean) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  notice?: string;                        // z. B. Kommentardatei beschädigt/gesichert
 }
 
 export function CommentsPanel(p: PanelProps) {
@@ -535,6 +536,11 @@ export function CommentsPanel(p: PanelProps) {
           <X size={13} />
         </button>
       </div>
+      {p.notice && (
+        <p className={`px-3 py-2 border-b text-[10px] leading-snug ${isDark ? 'border-amber-500/30 bg-amber-500/10 text-amber-200' : 'border-amber-300 bg-amber-50 text-amber-900'}`}>
+          {p.notice}
+        </p>
+      )}
       <div className={`px-3 py-1.5 border-b ${border} flex items-center gap-3`}>
         <label className={`flex items-center gap-1.5 text-[10px] cursor-pointer ${textMuted}`}>
           <input type="checkbox" checked={showResolved} onChange={e => p.onToggleResolved(e.target.checked)} className="accent-blue-500" />
