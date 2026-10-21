@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { Plus, RefreshCw, ChevronRight, FileJson, FileUp, Lock, Copy, Trash2, MessageSquare, Search, X, Loader2, UserRound } from 'lucide-react';
+import { Plus, RefreshCw, Check, ChevronRight, FileJson, FileUp, Lock, Copy, Trash2, MessageSquare, Search, X, Loader2, UserRound } from 'lucide-react';
 import { useStore } from '../store';
-import { deriveStatus, openMilestone, STATUS_META } from '../status';
+import { approvedMilestones, deriveStatus, openMilestone, STATUS_META } from '../status';
 import { extractPdfText, hasMs10Data, Ms10Data, parseMs10Text } from '../ms10';
 import { fmtTimestamp, slugify, SLUG_RE } from '../util';
 import { useAuth, usePermissions } from '../auth';
@@ -341,6 +341,12 @@ export default function ProjectsView({ onOpen }: { onOpen: (slug: string) => voi
                   <div className="flex items-center gap-3">
                     <span className={`text-sm font-semibold truncate ${isDark ? 'text-white' : 'text-black'}`}>{p.data.name || p.slug}</span>
                     <StatusBadge status={status} isDark={isDark} />
+                    {approvedMilestones(p.data).map(m => (
+                      <span key={m} title={`${m} freigegeben`}
+                        className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border whitespace-nowrap ${isDark ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' : 'bg-emerald-50 text-emerald-700 border-emerald-300'}`}>
+                        <Check size={9} /> {m}
+                      </span>
+                    ))}
                     {ms && (
                       <span className={`inline-block text-[10px] px-2 py-0.5 rounded-full border whitespace-nowrap ${isDark ? 'bg-amber-500/15 text-amber-300 border-amber-500/30' : 'bg-amber-50 text-amber-700 border-amber-300'}`}>
                         {ms} offen

@@ -57,6 +57,11 @@ export function openMilestone(project: Project): string | null {
   return null;
 }
 
+// Freigegebene Meilensteine (für die grünen Tags in der Projektliste)
+export function approvedMilestones(project: Project): string[] {
+  return MILESTONES.filter(ms => getMilestoneReview(project, ms).approved === true);
+}
+
 // Projektstatus (abgeleitet, nicht gespeichert)
 export function deriveStatus(project: Project): ProjectStatus {
   if (project.architectureRelevant === false) return 'notRelevant';
