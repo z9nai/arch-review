@@ -3,3 +3,5 @@ dist/
 .DS_Store
 /.claude/*
 /.idea/*
+# Bearbeitungssperren (temporär, je Sitzung)
+sample-data/projects/*.lock.json

@@ -35,7 +35,11 @@ function ReviewTags({ review, isDark, onOpen, showName }: { review: ProjectListI
 
 // Übersicht aller Projekte (config/portfolio.json) mit manuellem
 // Review-Status und den Meilenstein-Tags der zugehörigen Reviews
-export default function PortfolioView({ onOpen, onBack }: { onOpen: (slug: string) => void; onBack: () => void }) {
+export default function PortfolioView({ onOpen, onBack, onAdmin }: {
+  onOpen: (slug: string) => void;
+  onBack: () => void;
+  onAdmin?: () => void; // nur für Admins: zum Excel-Import (Admin → Projektliste)
+}) {
   const { isDark, projects, portfolio, portfolioError, refreshPortfolio, refreshProjects, projectsLoading, updatePortfolio } = useStore();
   const { canAdmin } = usePermissions();
   const [qNumber, setQNumber] = useState('');
@@ -123,6 +127,7 @@ export default function PortfolioView({ onOpen, onBack }: { onOpen: (slug: strin
         {portfolio?.lastImport && (
           <span className={`text-[11px] ${textMuted}`}>
             Letzter Import: {fmtTimestamp(portfolio.lastImport.at)}{portfolio.lastImport.by ? ` · ${portfolio.lastImport.by}` : ''}
+            {onAdmin && <> · <button type="button" onClick={onAdmin} className="underline underline-offset-2 hover:opacity-70">Admin → Projektliste</button></>}
           </span>
         )}
       </div>
@@ -174,7 +179,9 @@ export default function PortfolioView({ onOpen, onBack }: { onOpen: (slug: strin
 
       {portfolio && items.length === 0 && (
         <p className={`text-sm mb-6 ${textMuted}`}>
-          Noch keine Projekte in der Liste.{canAdmin ? ' Import der Excel-Liste unter Admin → Projektliste.' : ' Ein Admin importiert sie aus Excel.'}
+          Noch keine Projekte in der Liste.{onAdmin
+            ? <> Import der Excel-Liste unter <button type="button" onClick={onAdmin} className="underline underline-offset-2 hover:opacity-70">Admin → Projektliste</button>.</>
+            : ' Ein Admin importiert sie aus Excel.'}
         </p>
       )}
       {items.length > 0 && visible.length === 0 && <p className={`text-sm mb-6 ${textMuted}`}>Kein Projekt passt zum Filter.</p>}
@@ -274,7 +281,7 @@ export default function PortfolioView({ onOpen, onBack }: { onOpen: (slug: strin
 
       {detailRow && (
         <PortfolioDetail project={detailRow.p} reviews={detailRow.reviews} order={portfolio?.detailColumns ?? []}
-          statusControl={statusControl(detailRow.p)} isDark={isDark}
+          statusControl={statusControl(detailRow.p)} isDark={isDark} onAdmin={onAdmin ? () => { setDetailKey(null); onAdmin(); } : undefined}
           onOpen={slug => { setDetailKey(null); onOpen(slug); }} onClose={() => setDetailKey(null)} />
       )}
     </div>
@@ -285,7 +292,7 @@ const fmtDate = (iso: string) => iso.split('-').reverse().join('.');
 
 // Detail-Dialog eines Projekts: Nummer, Name, Status, die beim Import
 // gewählten Excel-Spalten und die verknüpften Reviews
-function PortfolioDetail({ project: p, reviews, order, statusControl, isDark, onOpen, onClose }: {
+function PortfolioDetail({ project: p, reviews, order, statusControl, isDark, onOpen, onClose, onAdmin }: {
   project: PortfolioProject;
   reviews: ProjectListItem[];
   order: string[];
@@ -293,6 +300,7 @@ function PortfolioDetail({ project: p, reviews, order, statusControl, isDark, on
   isDark: boolean;
   onOpen: (slug: string) => void;
   onClose: () => void;
+  onAdmin?: () => void;
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -339,7 +347,9 @@ function PortfolioDetail({ project: p, reviews, order, statusControl, isDark, on
             {p.createdDate && field('Erstellt', fmtDate(p.createdDate))}
             {keys.map(k => field(k, value(details[k])))}
             {!p.createdDate && keys.length === 0 && (
-              <p className={`text-[11px] ${textMuted}`}>Keine Details importiert — die Spalten wählt ein Admin beim Excel-Import (Admin → Projektliste).</p>
+              <p className={`text-[11px] ${textMuted}`}>Keine Details importiert — die Spalten wählt ein Admin beim Excel-Import ({onAdmin
+                ? <button type="button" onClick={onAdmin} className="underline underline-offset-2 hover:opacity-70">Admin → Projektliste</button>
+                : 'Admin → Projektliste'}).</p>
             )}
           </dl>
           <div>

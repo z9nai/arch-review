@@ -11,7 +11,7 @@ import { nowIsoWithTimezone } from '../util';
 // Liste gemischt (Schlüssel = Projektnummer): neue Projekte kommen mit Status
 // «offen» dazu, bestehende behalten ihren Status, fehlende bleiben stehen.
 // Ein Regex auf die Projektnummer filtert die Zeilen (z. B. nur KP-Projekte).
-export default function PortfolioImport({ state }: { state?: AdminState }) {
+export default function PortfolioImport({ state, onOverview }: { state?: AdminState; onOverview?: () => void }) {
   const { isDark, portfolio, portfolioError, updatePortfolio } = useStore();
   const { user } = useAuth();
   const [file, setFile] = useState<{ name: string; table: ImportTable } | null>(null);
@@ -99,7 +99,9 @@ export default function PortfolioImport({ state }: { state?: AdminState }) {
 
   return (
     <AdminSection id="portfolio" icon={<FileSpreadsheet size={13} />} title="Projektliste" isDark={isDark} state={state}
-      hint="Alle Projekte der Organisation für die Projektübersicht — auch solche ohne Architektur-Review."
+      hint={<>Alle Projekte der Organisation für die {onOverview
+        ? <button type="button" onClick={onOverview} className="underline underline-offset-2 hover:opacity-70">Projektübersicht</button>
+        : 'Projektübersicht'} — auch solche ohne Architektur-Review.</>}
       more={<>Excel-Import (erstes Tabellenblatt, Kopfzeile wird gesucht): neue Projekte kommen mit Status «{PORTFOLIO_STATUS_META[NEW_PROJECT_STATUS].label}» dazu,
           bereits importierte behalten ihren Status (Name, Datum und Details werden nachgeführt), Projekte, die in der Datei fehlen,
           bleiben stehen. Gespeichert in <span className="font-mono">{PORTFOLIO_PATH}</span>.</>}>
@@ -201,7 +203,12 @@ export default function PortfolioImport({ state }: { state?: AdminState }) {
           </div>
         )}
         {err && <p className={`text-[11px] ${errCls}`}>{err}</p>}
-        {done && <p className={`text-[11px] ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>{done}</p>}
+        {done && (
+          <p className={`text-[11px] ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
+            {done}
+            {onOverview && <> <button type="button" onClick={onOverview} className="underline underline-offset-2 hover:opacity-70">Zur Übersicht</button></>}
+          </p>
+        )}
     </AdminSection>
   );
 }

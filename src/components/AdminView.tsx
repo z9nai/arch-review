@@ -73,7 +73,11 @@ function zustaende(m: Model, security: AdminState, portfolio: PortfolioFile | nu
 // (Titel + Info-Markdown, Nummerierung A–Z) und Fragen (Text, Meilenstein- und
 // Themen-Zuordnung, Nummer automatisch z. B. M10F1).
 // Schreibt in die model.json im geteilten Ordner (config/model.json; Autosave).
-export default function AdminView({ onBack }: { onBack: () => void }) {
+export default function AdminView({ onBack, focusSection, onOverview }: {
+  onBack: () => void;
+  focusSection?: string;   // Abschnitt, der beim Öffnen angesprungen wird (z. B. 'portfolio')
+  onOverview?: () => void; // zur Projektübersicht
+}) {
   const { isDark, model, modelPath, saveModel, storage, portfolio } = useStore();
   const c = cls(isDark);
   const [securityState, setSecurityState] = useState<AdminState>({ tone: 'off', label: 'prüft …' });
@@ -185,6 +189,14 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
     window.addEventListener('beforeunload', h);
     return () => window.removeEventListener('beforeunload', h);
   }, [dirty]);
+
+  // Querverweis (z. B. aus der Projektübersicht): Abschnitt anspringen, sobald er gerendert ist
+  const hasDraft = !!draft;
+  useEffect(() => {
+    if (!hasDraft || !focusSection) return;
+    const t = setTimeout(() => document.getElementById(focusSection)?.scrollIntoView({ block: 'start' }), 50);
+    return () => clearTimeout(t);
+  }, [hasDraft, focusSection]);
 
   if (!draft) return <div className={`p-6 text-xs ${textMuted}`}>Lade Stammdaten …</div>;
 
@@ -551,7 +563,7 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
       })()}
 
       {/* Projektliste: Excel-Import für die Projektübersicht */}
-      <PortfolioImport state={z.portfolio} />
+      <PortfolioImport state={z.portfolio} onOverview={onOverview} />
 
       {/* Reviewbericht-Vorlage (Briefpapier) */}
       <AdminSection id="report" icon={<FileText size={13} />} title="Reviewbericht-Vorlage" isDark={isDark} state={z.report}

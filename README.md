@@ -466,10 +466,15 @@ Teams, `?teamsdelay=<Sekunden>` verkürzt die Wartezeit,
 `?teamsfail=consent|forbidden` simuliert fehlende Berechtigungen,
 `?noauth&me=vorname.nachname@firma.ch` simuliert eine angemeldete Person.
 
-**Deep Links**: `?project=<slug>` öffnet ein Projekt direkt,
-`?project=<slug>&comment=<id>` zusätzlich das Kommentar-Panel an der Stelle
-dieses Kommentars. Die Parameter überleben den Microsoft-Login-Redirect (im
-Tab gemerkt) und werden nach dem Einlösen aus der Adresse entfernt.
+**Deep Links**: Die Adresse folgt der Ansicht und lässt sich direkt teilen —
+`?project=<slug>` (OnePager), `?view=overview` (Projektübersicht),
+`?view=admin` bzw. `?view=admin&section=<id>` (Administration, Abschnitt wie
+`portfolio` angesprungen), ohne Parameter die Projektliste. Zurück/Vor im
+Browser wechseln die Ansicht. `?project=<slug>&comment=<id>` öffnet zusätzlich
+das Kommentar-Panel an der Stelle dieses Kommentars; `comment` fällt danach aus
+der Adresse. Die Parameter überleben den Microsoft-Login-Redirect (im Tab
+gemerkt); andere Parameter (z. B. `?opfs`) bleiben stehen. Ohne Admin-Rolle
+führt `?view=admin` zur Projektliste.
 
 In der **Projektliste** zeigt ein blaues Sprechblasen-Badge die Zahl der
 offenen Kommentar-Fäden je Projekt. Das Suchfeld in der Kopfzeile filtert

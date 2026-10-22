@@ -64,7 +64,8 @@ interface StoreCtx {
   toggleTheme: () => void;
   storage: StorageInfo | null;
   // lokaler Ordner
-  pickDirectory: () => Promise<void>;
+  /** null = gewählt oder abgebrochen; sonst Grund, warum keine Ordnerwahl möglich war */
+  pickDirectory: () => Promise<string | null>;
   savedHandleName: string | null;
   reconnectDirectory: () => Promise<void>;
   // SharePoint-Ordner
@@ -592,17 +593,32 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [loadModel, loadUsersIn, refreshProjectsIn, loadPortfolioIn]);
 
   // ── lokaler Ordner ────────────────────────────────────────────────────────
-  const pickDirectory = useCallback(async () => {
+  const pickDirectory = useCallback(async (): Promise<string | null> => {
+    // ?opfs = Testmodus: Origin Private File System statt Dateidialog (Entwicklung/Tests)
+    const opfs = new URLSearchParams(location.search).has('opfs');
+    if (!opfs && typeof window.showDirectoryPicker !== 'function') {
+      return 'Dieser Browser kann keinen lokalen Ordner öffnen — bitte Chrome oder Edge verwenden, oder einen SharePoint-Ordner verbinden.';
+    }
+    const started = performance.now();
     try {
-      // ?opfs = Testmodus: Origin Private File System statt Dateidialog (Entwicklung/Tests)
-      const dir = new URLSearchParams(location.search).has('opfs')
-        ? await navigator.storage.getDirectory()
-        : await window.showDirectoryPicker({ mode: 'readwrite' });
+      const dir = opfs ? await navigator.storage.getDirectory() : await window.showDirectoryPicker({ mode: 'readwrite' });
       await persistHandle(dir);
       storeSharePoint(null); setSavedSharePoint(null);
       await activate(new LocalBackend(dir), { kind: 'local', name: dir.name || 'Ordner' });
+      return null;
     } catch (e: unknown) {
-      if (e instanceof Error && e.name !== 'AbortError') console.error('[arch-review] pickDirectory:', e);
+      const ms = Math.round(performance.now() - started);
+      const name = e instanceof Error ? e.name : 'Fehler';
+      console.warn(`[arch-review] pickDirectory: ${name} nach ${ms} ms`, e);
+      if (name === 'AbortError') {
+        // sofort «abgebrochen», ohne dass ein Dialog zu sehen war: eingebettete
+        // Browser (z. B. die Vorschau in einer Desktop-App) zeigen keinen
+        // Ordner-Dialog. Echtes Abbrechen durch die Person dauert länger.
+        return ms < 400
+          ? `Der Ordner-Dialog wurde sofort abgebrochen (nach ${ms} ms) — dieser Browser zeigt keine Ordnerwahl (z. B. eine eingebettete Vorschau). Bitte die App in Chrome oder Edge öffnen.`
+          : null; // von der Person abgebrochen
+      }
+      return `Ordner konnte nicht geöffnet werden (${name} nach ${ms} ms): ${e instanceof Error ? e.message : String(e)}`;
     }
   }, [activate]);
 

@@ -1,45 +1,81 @@
 import { useEffect, useState } from 'react';
-import { Sun, Moon, FolderOpen, AlertTriangle, Wrench, LogIn, Cloud, X, Link2, Check, LayoutList } from 'lucide-react';
+import { Sun, Moon, FolderOpen, AlertTriangle, Wrench, LogIn, Cloud, X, Link2, Check, LayoutList, ClipboardList } from 'lucide-react';
 import { useStore } from './store';
 import { GUID_RE, knownClientId, LEVEL_LABELS, parseSetupLink, setupLink, PENDING_FOLDER_KEY, resolveTenantId, useAuth, usePermissions } from './auth';
 import ProjectsView from './components/ProjectsView';
 import OnePagerView from './components/OnePagerView';
 import AdminView from './components/AdminView';
 import PortfolioView from './components/PortfolioView';
-import { AccountChip, Breadcrumb, HeaderButton } from './components/Header';
+import { AccountChip, HeaderButton } from './components/Header';
 
-type View = { kind: 'projects' } | { kind: 'project'; slug: string; commentId?: string } | { kind: 'admin' } | { kind: 'portfolio' };
+type View = { kind: 'projects' } | { kind: 'project'; slug: string; commentId?: string } | { kind: 'admin'; section?: string } | { kind: 'portfolio' };
 
-// Deep Link (?project=<slug>&comment=<id>, siehe util.deepLink): beim Start
-// aus der URL nehmen und im Tab merken — so überlebt er den Login-Redirect —
-// und einlösen, sobald Ordner und model.json da sind.
+// Ansicht in der URL — so lässt sich jede Seite als Link teilen:
+//   ?project=<slug>[&comment=<id>]   OnePager (comment: Kommentar öffnen, siehe util.deepLink)
+//   ?view=overview                   Projektübersicht
+//   ?view=admin[&section=<id>]       Administration, Abschnitt angesprungen
+//   (nichts)                         Projektliste
+// Beim Start wird die Ansicht aus der URL im Tab gemerkt — so überlebt sie
+// den Login-Redirect — und eingelöst, sobald Ordner und model.json da sind.
+// Danach folgt die URL jeder Ansicht (Verlauf: Zurück/Vor funktionieren).
+// Andere Parameter (z. B. ?opfs, ?noauth) bleiben stehen.
 const DEEP_LINK_KEY = 'arch-review.deepLink';
-function takeDeepLink(): { slug: string; commentId?: string } | null {
+const VIEW_PARAMS = ['project', 'comment', 'view', 'section'];
+
+function viewFromUrl(href: string): View | null {
+  const q = new URL(href).searchParams;
+  const slug = (q.get('project') ?? '').trim();
+  const commentId = (q.get('comment') ?? '').trim();
+  const section = (q.get('section') ?? '').trim();
+  if (slug) return { kind: 'project', slug, ...(commentId ? { commentId } : {}) };
+  if (q.get('view') === 'overview') return { kind: 'portfolio' };
+  if (q.get('view') === 'admin') return { kind: 'admin', ...(section ? { section } : {}) };
+  return null;
+}
+
+function urlForView(view: View): string {
+  const u = new URL(window.location.href);
+  // übrige Parameter unverändert lassen (URLSearchParams machte aus ?opfs ein ?opfs=)
+  const keep = u.search.slice(1).split('&').filter(p => p && !VIEW_PARAMS.includes(decodeURIComponent(p.split('=')[0])));
+  const add: string[] = [];
+  if (view.kind === 'project') add.push(`project=${encodeURIComponent(view.slug)}`);
+  else if (view.kind === 'portfolio') add.push('view=overview');
+  else if (view.kind === 'admin') {
+    add.push('view=admin');
+    if (view.section) add.push(`section=${encodeURIComponent(view.section)}`);
+  }
+  const q = [...keep, ...add].join('&');
+  return `${u.origin}${u.pathname}${q ? `?${q}` : ''}${u.hash}`;
+}
+
+function takeDeepLink(): View | null {
   try {
-    const u = new URL(window.location.href);
-    const slug = (u.searchParams.get('project') ?? '').trim();
-    const commentId = (u.searchParams.get('comment') ?? '').trim();
-    if (slug) {
-      u.searchParams.delete('project'); u.searchParams.delete('comment');
-      window.history.replaceState(null, '', u.toString());
-      const link = { slug, ...(commentId ? { commentId } : {}) };
-      sessionStorage.setItem(DEEP_LINK_KEY, JSON.stringify(link));
-      return link;
+    const fromUrl = viewFromUrl(window.location.href);
+    if (fromUrl) {
+      sessionStorage.setItem(DEEP_LINK_KEY, JSON.stringify(fromUrl));
+      return fromUrl;
     }
     const stored = sessionStorage.getItem(DEEP_LINK_KEY);
-    return stored ? JSON.parse(stored) as { slug: string; commentId?: string } : null;
+    return stored ? JSON.parse(stored) as View : null;
   } catch {
     return null;
   }
 }
 
 export default function App() {
-  const { isDark, toggleTheme, storage, projects, pickDirectory, savedHandleName, reconnectDirectory, model, modelError,
+  const { isDark, toggleTheme, storage, pickDirectory, savedHandleName, reconnectDirectory, model, modelError,
     connectSharePoint, savedSharePoint, reconnectSharePoint, forgetSharePoint, queueSharePoint, disconnect } = useStore();
   const [spOpen, setSpOpen] = useState(false);
   const [spLink, setSpLink] = useState('');
   const [spBusy, setSpBusy] = useState(false);
   const [spError, setSpError] = useState('');
+  // Lokaler Ordner: warum die Ordnerwahl nicht ging (z. B. eingebetteter Browser)
+  const [pickError, setPickError] = useState('');
+  const [picking, setPicking] = useState(false); // Ordner-Dialog offen
+  const doPickDirectory = async () => {
+    setPickError(''); setPicking(true);
+    try { setPickError((await pickDirectory()) ?? ''); } finally { setPicking(false); }
+  };
   const auth = useAuth();
   const { canAdmin, canView, level } = usePermissions();
   const [view, setView] = useState<View>({ kind: 'projects' });
@@ -56,13 +92,36 @@ export default function App() {
   const gated = (loginPending && (auth.sharePointMode || !!storage)) || configPending;
   const dirHandle = storage; // Kurzname: verbundener Speicher (lokal oder SharePoint)
 
-  // Deep Link einlösen, sobald die App bereit ist
+  // Deep Link einlösen, sobald die App bereit ist; bis dahin bleibt die URL
+  // unangetastet (sonst ginge der Link vor dem Laden verloren)
   const [deepLinkPending] = useState(() => takeDeepLink());
+  const ready = !!storage && !!model && !gated;
+  const [linkTaken, setLinkTaken] = useState(false);
   useEffect(() => {
-    if (!deepLinkPending || !storage || !model || gated) return;
+    if (!ready || linkTaken) return;
     try { sessionStorage.removeItem(DEEP_LINK_KEY); } catch { /* ignore */ }
-    setView({ kind: 'project', slug: deepLinkPending.slug, ...(deepLinkPending.commentId ? { commentId: deepLinkPending.commentId } : {}) });
-  }, [deepLinkPending, storage, model, gated]);
+    if (deepLinkPending) setView(deepLinkPending.kind === 'admin' && !canAdmin ? { kind: 'projects' } : deepLinkPending);
+    setLinkTaken(true);
+  }, [ready, linkTaken, deepLinkPending, canAdmin]);
+
+  // URL folgt der Ansicht: neuer Verlaufseintrag je Wechsel; der Kommentar-
+  // Anker gilt nur beim Öffnen und fällt aus der URL
+  useEffect(() => {
+    if (!ready || !linkTaken) return;
+    const url = urlForView(view);
+    if (url === window.location.href) return;
+    const cur = viewFromUrl(window.location.href);
+    // gleiches Projekt, nur der Kommentar-Anker fällt weg → ersetzen statt neuer Eintrag
+    if (cur?.kind === 'project' && view.kind === 'project' && cur.slug === view.slug) window.history.replaceState(null, '', url);
+    else window.history.pushState(null, '', url);
+  }, [ready, linkTaken, view]);
+
+  // Zurück/Vor im Browser
+  useEffect(() => {
+    const onPop = () => setView(viewFromUrl(window.location.href) ?? { kind: 'projects' });
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
 
   // SharePoint verbinden — zuerst der Link, dann (falls nötig) die Anmeldung.
   // Einrichtungs-Link (Teilen) eingefügt → IDs und Ordner daraus. Sonst:
@@ -184,18 +243,22 @@ export default function App() {
 
   return (
     <div className={`flex flex-col h-screen ${bg} ${textBase}`}>
-      {/* Kopfzeile (wie orch-spec): links Logo und Firma, dann der Ort;
-          rechts Navigation, Ordner, Konto, Darstellung. Sie teilt sich die
-          Breite mit dem Inhalt darunter (max-w-5xl, px-6), damit beides
-          fluchtet. Die Herkunft steht davon unberührt ganz rechts am
-          Fensterrand; der Platz dafür ist reserviert, wo die Zeile sonst bis
-          dorthin liefe. */}
+      {/* Kopfzeile in drei Spalten: die mittlere ist so breit wie der Inhalt
+          darunter (max-w-5xl, px-6) — Logo und Firma links, die Navigation
+          der App (Projekte, Übersicht, Admin) rechtsbündig damit. Alles
+          andere — Teilen, Ordner, Konto, Darstellung, Herkunft — steht rechts
+          am Fensterrand (die Herkunft steht im Footer). Spalten: Rand wie neben dem Inhalt | bis 64rem |
+          Rest, mindestens so breit wie die rechte Gruppe — fasst der Rand die
+          Gruppe nicht, wird die Mitte schmaler statt zu überlappen. */}
       {/* Gleiche Scrollleisten-Spur wie der Inhalt darunter — sonst rückt
           dieser um eine halbe Scrollleiste, sobald er scrollt */}
-      <div className={`relative border-b ${border} ${topBg} flex-shrink-0 overflow-hidden [scrollbar-gutter:stable]`}>
-        <div className="flex items-center gap-3 py-2 max-w-5xl mx-auto px-6 max-xl:pr-14">
+      <div className={`border-b ${border} ${topBg} flex-shrink-0 overflow-hidden [scrollbar-gutter:stable]`}>
+        <div className="grid items-center py-2"
+          style={{ gridTemplateColumns: 'max(0px, calc((100% - 64rem) / 2)) minmax(0, 64rem) minmax(max-content, 1fr)' }}>
+          <div />
+          <div className="flex items-center gap-2 px-6 min-w-0">
           {/* Wortmarke: Logo und Firma fett, «Arch Review» klein daneben */}
-          <button onClick={() => setView({ kind: 'projects' })} className="flex items-center gap-2 flex-shrink-0" title="Architekturprüfung — zur Projektliste">
+          <button onClick={() => setView({ kind: 'projects' })} className="flex items-center gap-2 flex-shrink-0 mr-2" title="Architekturprüfung — zur Projektliste">
             {model?.logo && (
               <img src={model.logo} alt={model.company ?? ''} className="h-6 max-w-[9rem] object-contain flex-shrink-0" />
             )}
@@ -207,34 +270,28 @@ export default function App() {
             )}
           </button>
 
-          {/* Ort: Projekte › Titel bzw. Administration — die Glieder führen zurück */}
+          {/* Navigation */}
           {!gated && !denied && dirHandle && model && (
-            <Breadcrumb isDark={isDark} items={[
-              { label: 'Projekte', onClick: view.kind !== 'projects' ? () => setView({ kind: 'projects' }) : undefined },
-              ...(view.kind === 'admin' ? [{ label: 'Administration' }] : []),
-              ...(view.kind === 'portfolio' ? [{ label: 'Übersicht' }] : []),
-              ...(view.kind === 'project' ? [{ label: String(projects.find(p => p.slug === view.slug)?.data.title || view.slug) }] : []),
-            ]} />
-          )}
-
-          <div className="ml-auto flex items-center gap-2">
-            {/* Projektübersicht: alle Projekte, auch ohne Review */}
-            {!gated && !denied && dirHandle && model && (
+            <div className="ml-auto flex items-center gap-2">
+              <HeaderButton isDark={isDark} icon={<ClipboardList size={12} />} label="Projekte"
+                active={view.kind === 'projects' || view.kind === 'project'}
+                title="Projekte — alle Architektur-Reviews"
+                onClick={() => setView({ kind: 'projects' })} />
               <HeaderButton isDark={isDark} icon={<LayoutList size={12} />} label="Übersicht" active={view.kind === 'portfolio'}
                 title="Übersicht — alle Projekte mit Review-Status, auch ohne Architektur-Review"
-                onClick={() => setView(v => v.kind === 'portfolio' ? { kind: 'projects' } : { kind: 'portfolio' })} />
-            )}
-            {/* Admin-Modus: Auftritt, Anmeldung, Themen und Fragen pflegen */}
-            {dirHandle && model && canAdmin && (
-              <HeaderButton isDark={isDark} icon={<Wrench size={12} />} label="Admin" active={view.kind === 'admin'}
-                title="Admin — Auftritt, Sicherheit, Anmeldung, Benachrichtigungen, Themen und Fragen"
-                onClick={() => setView(v => v.kind === 'admin' ? { kind: 'projects' } : { kind: 'admin' })} />
-            )}
+                onClick={() => setView({ kind: 'portfolio' })} />
+              {canAdmin && (
+                <HeaderButton isDark={isDark} icon={<Wrench size={12} />} label="Admin" active={view.kind === 'admin'}
+                  title="Admin — Auftritt, Sicherheit, Anmeldung, Benachrichtigungen, Projektliste, Themen und Fragen"
+                  onClick={() => setView({ kind: 'admin' })} />
+              )}
+            </div>
+          )}
+          </div>
 
-            {/* Kontext: Teilen, Ordner, Konto */}
-            {((!gated && !denied && dirHandle) || (auth.status === 'signedIn' && auth.user)) && (
-              <span className={`w-px h-5 mx-1 ${isDark ? 'bg-white/10' : 'bg-black/10'}`} />
-            )}
+          {/* Kontext rechts: Teilen, Ordner, Konto, Darstellung */}
+          <div className="flex justify-end px-4">
+          <div className="flex items-center gap-2">
             {!gated && !denied && shareLink && (
               <HeaderButton isDark={isDark} onClick={copyShareLink}
                 icon={shareCopied ? <Check size={12} /> : <Link2 size={12} />} label={shareCopied ? 'Kopiert' : 'Teilen'}
@@ -254,20 +311,16 @@ export default function App() {
             )}
 
             {/* Darstellung */}
-            <span className={`w-px h-5 mx-1 ${isDark ? 'bg-white/10' : 'bg-black/10'}`} />
+            {((!gated && !denied && dirHandle) || (auth.status === 'signedIn' && auth.user)) && (
+              <span className={`w-px h-5 mx-1 ${isDark ? 'bg-white/10' : 'bg-black/10'}`} />
+            )}
             <button onClick={toggleTheme} title={isDark ? 'Helle Darstellung' : 'Dunkle Darstellung'}
               className={`flex items-center gap-1 p-1.5 rounded transition-colors ${isDark ? 'text-white/35 hover:text-white/70' : 'text-black/35 hover:text-black/70'}`}>
               {isDark ? <Sun size={13} /> : <Moon size={13} />}
             </button>
           </div>
+          </div>
         </div>
-
-        <a href="https://z9nai.ch" target="_blank" rel="noopener noreferrer"
-          title="Z9nAI GmbH — zur Webseite"
-          className={`absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-1.5 ${textMuted} opacity-80 hover:opacity-100 transition-opacity`}>
-          <span className="text-[10px] whitespace-nowrap hidden xl:inline">by z9nai GmbH</span>
-          <img src="favicon.png" alt="" className="w-5 h-5" />
-        </a>
       </div>
 
       {/* Main content */}
@@ -368,14 +421,16 @@ export default function App() {
                       className={`w-full flex items-center justify-center gap-2 text-xs px-4 py-2 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
                       <FolderOpen size={12} /> Wieder verbinden: {savedHandleName}
                     </button>
-                    <button onClick={pickDirectory} className={`text-[10px] ${textMuted} hover:underline`}>anderen lokalen Ordner wählen</button>
+                    <button onClick={doPickDirectory} className={`text-[10px] ${textMuted} hover:underline`}>anderen lokalen Ordner wählen</button>
                   </>
                 ) : (
-                  <button onClick={pickDirectory}
-                    className={`w-full flex items-center justify-center gap-2 text-xs px-4 py-2 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
-                    <FolderOpen size={12} /> Lokalen Ordner wählen
+                  <button onClick={doPickDirectory} disabled={picking}
+                    className={`w-full flex items-center justify-center gap-2 text-xs px-4 py-2 rounded border transition-colors disabled:opacity-60 ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
+                    <FolderOpen size={12} /> {picking ? 'Ordner-Dialog offen …' : 'Lokalen Ordner wählen'}
                   </button>
                 )}
+                {picking && <p className={`text-[11px] leading-relaxed ${textMuted}`}>Bitte im Dialog einen Ordner wählen — erscheint keiner, liegt er evtl. hinter dem Browserfenster.</p>}
+                {pickError && <p className={`text-[11px] leading-relaxed ${isDark ? 'text-rose-400' : 'text-rose-600'}`}>{pickError}</p>}
               </div>
               <p className={`text-[10px] leading-relaxed mt-5 ${textMuted}`}>
                 SharePoint: Link zum Ordner einfügen, Anmeldung mit dem Microsoft-Konto, Berechtigungen aus SharePoint —
@@ -399,15 +454,28 @@ export default function App() {
         ) : view.kind === 'projects' ? (
           <ProjectsView onOpen={slug => setView({ kind: 'project', slug })} />
         ) : view.kind === 'portfolio' ? (
-          <PortfolioView onOpen={slug => setView({ kind: 'project', slug })} onBack={() => setView({ kind: 'projects' })} />
+          <PortfolioView onOpen={slug => setView({ kind: 'project', slug })} onBack={() => setView({ kind: 'projects' })}
+            onAdmin={canAdmin ? () => setView({ kind: 'admin', section: 'portfolio' }) : undefined} />
         ) : view.kind === 'admin' ? (
           canAdmin
-            ? <AdminView onBack={() => setView({ kind: 'projects' })} />
+            ? <AdminView onBack={() => setView({ kind: 'projects' })} focusSection={view.section} onOverview={() => setView({ kind: 'portfolio' })} />
             : <ProjectsView onOpen={slug => setView({ kind: 'project', slug })} />
         ) : (
           <OnePagerView slug={view.slug} focusCommentId={view.commentId} onBack={() => setView({ kind: 'projects' })} />
         )}
       </div>
+
+      {/* Footer: Herkunft, ganz rechts am Fensterrand */}
+      <footer className={`border-t ${border} ${topBg} flex-shrink-0 [scrollbar-gutter:stable] overflow-hidden`}>
+        <div className="px-4 py-1.5 flex justify-end">
+          <a href="https://z9nai.ch" target="_blank" rel="noopener noreferrer"
+            title="Z9nAI GmbH — zur Webseite"
+            className={`flex items-center gap-1.5 ${textMuted} opacity-80 hover:opacity-100 transition-opacity`}>
+            <span className="text-[10px] whitespace-nowrap">by z9nai GmbH</span>
+            <img src="favicon.png" alt="" className="w-4 h-4" />
+          </a>
+        </div>
+      </footer>
 
       {/* SharePoint-Ordner verbinden */}
       {spOpen && (
