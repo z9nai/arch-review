@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Archive, ArchiveRestore, ArrowLeft, ChevronDown, ChevronUp, Copy, ExternalLink, Minus, Plus, Save, ShieldCheck, Trash2, Upload } from 'lucide-react';
+import { Archive, ArchiveRestore, BookOpen, ChevronDown, ChevronLeft, ChevronUp, Copy, ExternalLink, FileSpreadsheet, FileText, Image, KeyRound, Layers, ListChecks, Mail, MessageSquare, Minus, Plus, Save, ShieldCheck, Trash2, Upload } from 'lucide-react';
 import { PDFDocument } from 'pdf-lib';
 import { useStore } from '../store';
 import { MILESTONES, MILESTONE_TITLES, Model, Question, TeamsNotifySettings } from '../types';
@@ -10,6 +10,11 @@ import { DEFAULT_HANDOVER_BODY, DEFAULT_HANDOVER_SUBJECT } from './OnePagerView'
 import { autoGrow, slugify } from '../util';
 import { GUID_RE, LEVEL_LABELS, setupLink, useAuth } from '../auth';
 import SecurityPanel from './SecurityPanel';
+import PortfolioImport from './PortfolioImport';
+import BrandingForm, { LOGO_MAX } from './BrandingForm';
+import { AdminSection, FieldLabel, StateTile, Switch, type AdminState } from './adminUi';
+import type { PortfolioFile } from '../portfolio';
+import { cls } from '../ui';
 
 function genId(): string {
   return 'q' + Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-4);
@@ -19,11 +24,59 @@ function themeLetter(index: number): string {
   return String.fromCharCode(65 + (index % 26));
 }
 
-// Admin-Modus: Themen (Titel + Info-Markdown, Nummerierung A–Z) und Fragen
-// (Text, Meilenstein- und Themen-Zuordnung, Nummer automatisch z. B. M10F1).
+type Bereich = 'branding' | 'security' | 'auth' | 'teams' | 'portfolio' | 'report' | 'handover' | 'classification' | 'themes' | 'questions';
+
+/** Der Zustand je Bereich — für Statusleiste und Kartenkopf dieselbe Quelle. */
+function zustaende(m: Model, security: AdminState, portfolio: PortfolioFile | null): Record<Bereich, AdminState> {
+  const auth = m.auth;
+  const authOk = !!auth?.enabled && GUID_RE.test(auth.tenantId.trim()) && GUID_RE.test(auth.clientId.trim());
+  const teams = m.notifications?.teams;
+  const active = m.questions.filter(q => !q.archived && q.enabled !== false);
+  return {
+    branding: m.company
+      ? { tone: 'ok', label: m.company, detail: m.logo ? 'Firma und Logo gesetzt' : 'Firma gesetzt, kein Logo' }
+      : { tone: 'warn', label: 'nicht eingerichtet', detail: 'Die Kopfzeile heisst «Arch Review»' },
+    security,
+    auth: !auth?.enabled
+      ? { tone: 'off', label: 'aus', detail: 'ohne Anmeldung, jeder darf alles' }
+      : authOk
+        ? { tone: 'ok', label: 'aktiv', detail: 'Microsoft Entra ID' }
+        : { tone: 'error', label: 'IDs fehlen', detail: 'Tenant- oder Client-ID ist keine GUID' },
+    teams: !teams?.enabled
+      ? { tone: 'off', label: 'aus', detail: 'keine Teams-Nachricht bei Erwähnungen' }
+      : authOk
+        ? { tone: 'ok', label: 'aktiv', detail: `nach ${teams.delayMinutes ?? DEFAULT_TEAMS_DELAY_MINUTES} Minuten` }
+        : { tone: 'warn', label: 'aktiv, ohne Anmeldung', detail: 'Senden braucht die Anmeldung (Entra ID)' },
+    portfolio: !portfolio
+      ? { tone: 'off', label: 'lädt …' }
+      : portfolio.projects.length
+        ? { tone: 'ok', label: `${portfolio.projects.length} Projekte`, detail: portfolio.lastImport ? `Import ${portfolio.lastImport.at.slice(0, 10).split('-').reverse().join('.')}` : undefined }
+        : { tone: 'off', label: 'leer', detail: 'Excel importieren' },
+    report: m.reportTemplate
+      ? { tone: 'ok', label: 'Briefpapier', detail: m.reportTemplate.fileName ?? 'Vorlage.pdf' }
+      : { tone: 'off', label: 'ohne Vorlage', detail: 'einfacher Text-Export' },
+    handover: m.handover?.to
+      ? { tone: 'ok', label: m.handover.to, detail: m.handover.name ? `Ansprechperson ${m.handover.name}` : undefined }
+      : { tone: 'warn', label: 'kein Empfänger', detail: 'Mail ohne Adresse' },
+    classification: { tone: 'ok', label: `${m.classifications.length} Stufen`, detail: m.classifications.map(c => c.label).join(' · ') },
+    themes: { tone: m.themes.length ? 'ok' : 'warn', label: `${m.themes.length} Themen` },
+    questions: {
+      tone: active.length ? 'ok' : 'warn', label: `${active.length} aktiv`,
+      detail: MILESTONES.map(ms => `${ms} ${active.filter(q => q.milestone === ms).length}`).join(' · '),
+    },
+  };
+}
+
+// Admin-Modus (Aufbau wie orch-spec): oben eine Statusleiste mit je einer
+// Kachel pro Bereich, darunter die Bereiche als Karten — Auftritt, Sicherheit,
+// Anmeldung, Teams, Projektliste, Bericht, Übergabe, Klassifikation, Themen
+// (Titel + Info-Markdown, Nummerierung A–Z) und Fragen (Text, Meilenstein- und
+// Themen-Zuordnung, Nummer automatisch z. B. M10F1).
 // Schreibt in die model.json im geteilten Ordner (config/model.json; Autosave).
 export default function AdminView({ onBack }: { onBack: () => void }) {
-  const { isDark, model, modelPath, saveModel, storage } = useStore();
+  const { isDark, model, modelPath, saveModel, storage, portfolio } = useStore();
+  const c = cls(isDark);
+  const [securityState, setSecurityState] = useState<AdminState>({ tone: 'off', label: 'prüft …' });
   const [draft, setDraft] = useState<Model | null>(null);
   const [baseline, setBaseline] = useState('');
   const [openInfo, setOpenInfo] = useState<Set<string>>(new Set());
@@ -46,7 +99,7 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
   const inputCls = isDark
     ? 'bg-white/5 border-white/10 text-white placeholder-white/20 focus:border-white/30'
     : 'bg-black/5 border-black/10 text-black placeholder-black/20 focus:border-black/30';
-  const cardCls = `rounded-xl border ${border} ${isDark ? 'bg-white/2' : 'bg-black/2'}`;
+  const cardCls = `rounded-lg border ${border} ${isDark ? 'bg-white/2' : 'bg-black/2'}`;
 
   // Entwurf aus den Stammdaten; Fehlendes aus dem eingebauten Standard
   // materialisieren, damit sichtbar ist, was die App effektiv anzeigt.
@@ -86,9 +139,6 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
     }
     if (!mat.classificationInfoMd && DEFAULT_MODEL.classificationInfoMd) {
       mat.classificationInfoMd = DEFAULT_MODEL.classificationInfoMd;
-    }
-    if (!mat.company && DEFAULT_MODEL.company) {
-      mat.company = DEFAULT_MODEL.company;
     }
     setDraft(mat);
     setBaseline(JSON.stringify(mat));
@@ -311,28 +361,52 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
     return `${q.milestone}${ti >= 0 ? themeLetter(ti) : 'X'}${inGroup.findIndex(x => x.id === q.id) + 1}`;
   };
 
+  // ── Statusleiste: je Bereich eine Kachel, Klick springt hin ──────────────
+  const z = zustaende(draft, securityState, portfolio);
+  const bereiche: Array<{ id: string; icon: React.ReactNode; title: string; z: AdminState }> = [
+    { id: 'branding', icon: <Image size={13} />, title: 'Auftritt', z: z.branding },
+    { id: 'security', icon: <ShieldCheck size={13} />, title: 'Sicherheit', z: z.security },
+    { id: 'auth', icon: <KeyRound size={13} />, title: 'Anmeldung', z: z.auth },
+    { id: 'teams', icon: <MessageSquare size={13} />, title: 'Teams', z: z.teams },
+    { id: 'portfolio', icon: <FileSpreadsheet size={13} />, title: 'Projektliste', z: z.portfolio },
+    { id: 'report', icon: <FileText size={13} />, title: 'Bericht', z: z.report },
+    { id: 'handover', icon: <Mail size={13} />, title: 'Übergabe', z: z.handover },
+    { id: 'classification', icon: <Layers size={13} />, title: 'Klassifikation', z: z.classification },
+    { id: 'themes', icon: <BookOpen size={13} />, title: 'Themen', z: z.themes },
+    { id: 'questions', icon: <ListChecks size={13} />, title: 'Fragen', z: z.questions },
+  ];
+  const springe = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
   return (
-    <div className="p-6 max-w-4xl mx-auto pb-24">
-      <div className="flex items-center justify-between mb-4">
-        <button onClick={onBack} className={`flex items-center gap-1.5 text-xs ${textMuted} hover:opacity-70`}>
-          <ArrowLeft size={12} /> Projekte
+    <div className="max-w-5xl mx-auto px-6 py-6 pb-24 space-y-5">
+      <div>
+        <button onClick={onBack} className={`flex items-center gap-1 text-[11px] ${c.muted} hover:underline`}>
+          <ChevronLeft size={12} /> Projekte
         </button>
-        <div className={`text-[11px] ${textMuted}`}>
-          Admin — Meilensteine sind fix: {MILESTONES.join(' / ')}
-        </div>
+        <h1 className={`text-base font-semibold mt-1 ${c.text}`}>Administration</h1>
+        <p className={`text-[11px] ${c.muted}`}>
+          Einstellungen für alle, gespeichert in <span className="font-mono">{modelPath}</span> des Ordners.
+          {' '}Meilensteine sind fix: {MILESTONES.join(' / ')}.
+        </p>
       </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+        {bereiche.map(b => (
+          <StateTile key={b.id} icon={b.icon} title={b.title} state={b.z} isDark={isDark} onClick={() => springe(b.id)} />
+        ))}
+      </div>
+
+      <AdminSection id="branding" icon={<Image size={13} />} title="Auftritt" isDark={isDark} state={z.branding}
+        hint="Firma und Logo stehen links in der Kopfzeile."
+        more={<>Ohne Firma heisst die App dort schlicht «Arch Review». Die Firma erscheint ausserdem als «Quelle» bei
+          eigenen Fragen. Das Logo liegt als Data-URI in der model.json — eine zweite Datei im geteilten Ordner wäre
+          umständlicher, eine Adresse von aussen gäbe es in der Bankenzone nicht. Deshalb muss es klein bleiben
+          (bis {LOGO_MAX / 1024} KB).</>}>
+        <BrandingForm draft={draft} isDark={isDark} onChange={patch => setDraft(d => d ? { ...d, ...patch } : d)} />
+      </AdminSection>
 
       {/* Wer darf die Stammdaten ändern? (SharePoint-Berechtigungen) */}
-      <SecurityPanel />
-
-      {/* Firma: erscheint als Quelle bei eigenen Fragen */}
-      <div className={`${cardCls} mb-8 px-4 py-3 flex items-center gap-3 flex-wrap`}>
-        <label className={`text-[10px] uppercase tracking-wider ${labelCls}`}>Firma</label>
-        <input value={draft.company ?? ''} placeholder="Eigene Firma"
-          onChange={e => setDraft(d => d ? { ...d, company: e.target.value || undefined } : d)}
-          className={`w-64 text-xs px-3 py-1.5 rounded border outline-none transition-colors ${inputCls}`} />
-        <span className={`text-[10px] ${textMuted}`}>wird als «Quelle» bei eigenen Fragen angezeigt</span>
-      </div>
+      <SecurityPanel onState={setSecurityState} />
 
       {/* Anmeldung über Microsoft Entra ID */}
       {(() => {
@@ -347,11 +421,12 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
             value && !ok ? (isDark ? 'border-rose-500/40' : 'border-rose-300') : ''}`;
         const appUrl = `${window.location.origin}${import.meta.env.BASE_URL}`;
         return (
-          <>
-            <h2 className={`text-sm font-semibold uppercase tracking-widest mb-4 ${isDark ? 'text-white/50' : 'text-black/50'}`}>
-              Anmeldung (Microsoft Entra ID)
-            </h2>
-            <div className={`${cardCls} mb-8 px-4 py-3 space-y-3`}>
+          <AdminSection id="auth" icon={<KeyRound size={13} />} title="Anmeldung" isDark={isDark} state={z.auth}
+            action={<Switch on={a.enabled} onChange={on => setAuth({ enabled: on })} disabled={!canEnable && !a.enabled} isDark={isDark}
+              title={canEnable ? (a.enabled ? 'Anmeldung ausschalten' : 'Anmeldung einschalten — Login für alle Benutzer dieses Ordners') : 'Erst beide IDs als GUID erfassen'} />}
+            hint="Anmeldung über Microsoft Entra ID — Tenant- und Client-ID der App-Registrierung, drei Rollen."
+            more={<>Beides sind öffentliche Werte, keine Geheimnisse. Mit «an» wird der Login für alle Benutzer dieses
+              Ordners verlangt; für SharePoint ist er immer nötig.</>}>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
                   <label className={`block text-[10px] uppercase tracking-wider mb-1 ${labelCls}`}>Verzeichnis-ID (Tenant)</label>
@@ -378,28 +453,12 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
                   </div>
                 ))}
               </div>
-              {/* Status + Schalter — unmissverständlich */}
-              <div className={`flex items-center gap-3 flex-wrap rounded-lg border px-3 py-2 ${
-                a.enabled
-                  ? (isDark ? 'border-emerald-500/30 bg-emerald-500/10' : 'border-emerald-300 bg-emerald-50')
-                  : (isDark ? 'border-amber-500/30 bg-amber-500/10' : 'border-amber-300 bg-amber-50')}`}>
-                <span className={`text-[10px] font-bold uppercase tracking-wider ${
-                  a.enabled ? (isDark ? 'text-emerald-300' : 'text-emerald-700') : (isDark ? 'text-amber-300' : 'text-amber-700')}`}>
-                  Anmeldung {a.enabled ? 'aktiv' : 'aus'}
-                </span>
-                <label className={`flex items-center gap-2 text-xs ${canEnable ? 'cursor-pointer' : 'opacity-60'} ${isDark ? 'text-white/80' : 'text-black/80'}`}>
-                  <input type="checkbox" checked={a.enabled} disabled={!canEnable}
-                    onChange={e => setAuth({ enabled: e.target.checked })}
-                    className="accent-blue-500 w-3.5 h-3.5" />
-                  {a.enabled ? 'Login wird für alle Benutzer dieses Ordners verlangt' : 'Anmeldung einschalten'}
-                </label>
-                {!canEnable && (
-                  <span className={`text-[10px] ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>
-                    Einschalten erst möglich, wenn {!tenantOk && !clientOk ? 'beide IDs' : !tenantOk ? 'die Verzeichnis-ID' : 'die Anwendungs-ID'} als
-                    gültige GUID erkannt {(!tenantOk && !clientOk) ? 'sind' : 'ist'} (Format 8-4-4-4-12, nur die ID ohne Beschriftung).
-                  </span>
-                )}
-              </div>
+              {!canEnable && (
+                <p className={`text-[10px] ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>
+                  Einschalten erst möglich, wenn {!tenantOk && !clientOk ? 'beide IDs' : !tenantOk ? 'die Verzeichnis-ID' : 'die Anwendungs-ID'} als
+                  gültige GUID erkannt {(!tenantOk && !clientOk) ? 'sind' : 'ist'} (Format 8-4-4-4-12, nur die ID ohne Beschriftung).
+                </p>
+              )}
               {/* Verteilung an die Benutzer: Einrichtungs-Link / Konfigurationsdatei */}
               <div className="flex items-center gap-2 flex-wrap">
                 <span className={`text-[10px] uppercase tracking-wider ${labelCls}`}>Für Benutzer</span>
@@ -448,21 +507,56 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
                   <ExternalLink size={10} /> Anleitung: App-Registrierung in Entra Schritt für Schritt
                 </a>
               </div>
-            </div>
-          </>
+          </AdminSection>
         );
       })()}
 
+      {/* Teams-Benachrichtigung bei @-Erwähnungen in Kommentaren */}
+      {(() => {
+        const t = draft.notifications?.teams ?? { enabled: false };
+        const update = (patch: Partial<TeamsNotifySettings>) =>
+          setDraft(d => d ? { ...d, notifications: { ...(d.notifications ?? {}), teams: { ...t, ...patch } } } : d);
+        return (
+          <AdminSection id="teams" icon={<MessageSquare size={13} />} title="Benachrichtigungen (Teams)" isDark={isDark} state={z.teams}
+            action={<Switch on={t.enabled === true} onChange={on => update({ enabled: on })} isDark={isDark} />}
+            hint="Wer in einem Kommentar per «@» erwähnt wird oder eine Antwort bekommt, erhält eine Teams-Chat-Nachricht."
+            more={<>Gesendet wird von der kommentierenden Person selbst (Microsoft Graph, 1:1-Chat, mit @-Mention und
+              Link auf den Kommentar), nach der Wartezeit, gesammelt je Empfänger/in, jede Erwähnung nur einmal.
+              Braucht in der App-Registrierung die delegierten Berechtigungen <span className="font-mono">Chat.Create</span>,{' '}
+              <span className="font-mono">ChatMessage.Send</span> und <span className="font-mono">User.ReadBasic.All</span>;
+              jede Person stimmt beim ersten Mal selbst zu.</>}>
+            <div>
+              <FieldLabel isDark={isDark} hint="nach dem letzten Kommentar — so werden mehrere Erwähnungen zu einer Nachricht">Wartezeit</FieldLabel>
+              <div className="relative w-28">
+                <input type="number" min={0} max={120} value={t.delayMinutes ?? DEFAULT_TEAMS_DELAY_MINUTES}
+                  onChange={e => update({ delayMinutes: Math.max(0, Number(e.target.value) || 0) })}
+                  className={`w-full text-[11px] pl-2 pr-10 py-1.5 rounded border outline-none ${inputCls}`} />
+                <span className={`absolute right-2 top-1/2 -translate-y-1/2 text-[10px] pointer-events-none ${c.muted}`}>Min.</span>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <FieldLabel isDark={isDark} hint={t.template == null ? 'leer = Standard' : undefined}>Vorlage Nachricht</FieldLabel>
+              <textarea value={t.template ?? ''} rows={3}
+                onChange={e => update({ template: e.target.value || undefined })}
+                onFocus={autoGrow} onInput={autoGrow}
+                placeholder={`Leer = Standard:\n${DEFAULT_TEAMS_TEMPLATE}`}
+                className={`w-full text-[11px] px-2 py-1.5 rounded border outline-none resize-none overflow-hidden transition-colors font-mono ${inputCls}`} />
+              <p className={`text-[10px] ${textMuted}`}>
+                Platzhalter: {'{{empfaenger}} (@-Mention) {{von}} {{projekt}} {{anzahl}} {{kommentare}} {{link}}'}
+                {' '}— {'{{kommentare}}'} ist der Block je Kommentar: Stelle, Text, «Kommentar öffnen»-Link.
+              </p>
+            </div>
+          </AdminSection>
+        );
+      })()}
+
+      {/* Projektliste: Excel-Import für die Projektübersicht */}
+      <PortfolioImport state={z.portfolio} />
+
       {/* Reviewbericht-Vorlage (Briefpapier) */}
-      <h2 className={`text-sm font-semibold uppercase tracking-widest mb-4 ${isDark ? 'text-white/50' : 'text-black/50'}`}>
-        Reviewbericht-Vorlage
-      </h2>
-      <div className={`${cardCls} mb-8 px-4 py-3 space-y-3`}>
-        <p className={`text-[10px] leading-relaxed ${textMuted}`}>
-          PDF mit Logo und Grafik als Briefpapier für den Reviewbericht-Export — Seite 1 als Deckblatt, Seite 2 (falls vorhanden)
-          für alle Folgeseiten. Die Vorlage sollte nur Grafik enthalten, keinen Text: Titel, Projektangaben, Kopf- und
-          Fusszeile zeichnet der Export selbst darüber.
-        </p>
+      <AdminSection id="report" icon={<FileText size={13} />} title="Reviewbericht-Vorlage" isDark={isDark} state={z.report}
+        hint="PDF mit Logo und Grafik als Briefpapier für den Reviewbericht-Export."
+        more="Seite 1 als Deckblatt, Seite 2 (falls vorhanden) für alle Folgeseiten. Die Vorlage sollte nur Grafik enthalten, keinen Text: Titel, Projektangaben, Kopf- und Fusszeile zeichnet der Export selbst darüber.">
         <div className={`flex items-center gap-3 flex-wrap rounded-lg border px-3 py-2 ${
           draft.reportTemplate
             ? (isDark ? 'border-emerald-500/30 bg-emerald-500/10' : 'border-emerald-300 bg-emerald-50')
@@ -507,14 +601,12 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
             </div>
           </div>
         )}
-      </div>
+      </AdminSection>
 
       {/* Klassifikation */}
-      <h2 className={`text-sm font-semibold uppercase tracking-widest mb-4 ${isDark ? 'text-white/50' : 'text-black/50'}`}>
-        Klassifikation
-      </h2>
-      <div className={`${cardCls} mb-8`}>
-        <div className="px-4 py-3">
+      <AdminSection id="classification" icon={<Layers size={13} />} title="Klassifikation" isDark={isDark} state={z.classification}
+        hint="Geordnete Stufen der Architekturrelevanz — ab der zweiten Stufe werden M20/M40 geprüft.">
+        <div>
           <div className="flex items-center gap-2 mb-2 flex-wrap">
             <span className={`text-[10px] uppercase tracking-wider ${labelCls}`}>
               Stufen — Reihenfolge aufsteigend; die erste Stufe gilt als «nicht relevant»
@@ -559,7 +651,7 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
           </p>
         </div>
 
-        <div className={`px-4 pb-3 border-t ${border}`}>
+        <div className={`pt-1 border-t ${border}`}>
           <label className={`block text-[10px] uppercase tracking-wider mt-2 mb-1 ${labelCls}`}>
             Erklärung (Markdown) — wird über das Info-Icon bei der Klassifikation im M10 angezeigt
           </label>
@@ -569,26 +661,22 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
             placeholder={'# Klassifikation\n\nBeschreibung der Stufen …'}
             className={`w-full text-[11px] px-2 py-1.5 rounded border outline-none resize-y transition-colors ${inputCls}`} />
         </div>
-      </div>
+      </AdminSection>
 
       {/* Themen */}
-      <div className="flex items-center justify-between mb-4">
-        <h2 className={`text-sm font-semibold uppercase tracking-widest ${isDark ? 'text-white/50' : 'text-black/50'}`}>
-          Themen (A–Z)
-        </h2>
-        <div className="flex items-center gap-2">
+      <AdminSection id="themes" icon={<BookOpen size={13} />} title="Themen (A–Z)" isDark={isDark} state={z.themes}
+        hint="Die Themen der Prüfung — Reihenfolge ergibt den Buchstaben in der Fragennummer, Info erscheint über das Info-Icon."
+        action={<>
           <input value={newTitle} onChange={e => setNewTitle(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') addTheme(); }}
             placeholder="Neues Thema"
-            className={`text-xs px-3 py-1.5 rounded border outline-none transition-colors ${inputCls}`} />
+            className={`text-[11px] px-2 py-1 rounded border outline-none transition-colors ${inputCls}`} />
           <button onClick={addTheme} disabled={!newTitle.trim()}
-            className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded border transition-colors disabled:opacity-40 ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
-            <Plus size={12} /> Anlegen
+            className={`flex items-center gap-1 text-[11px] px-2.5 py-1 rounded border transition-colors disabled:opacity-40 ${c.btn}`}>
+            <Plus size={11} /> Anlegen
           </button>
-        </div>
-      </div>
-
-      <div className="space-y-2 mb-8">
+        </>}>
+      <div className="space-y-2">
         {draft.themes.map((theme, ti) => {
           const infoOpen = openInfo.has(theme.id);
           return (
@@ -627,20 +715,16 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
           );
         })}
       </div>
+      </AdminSection>
 
       {/* Übergabe an die Fachstelle: ein Empfänger + Vorlage für den Übergabetext */}
-      <h2 className={`text-sm font-semibold uppercase tracking-widest mb-4 ${isDark ? 'text-white/50' : 'text-black/50'}`}>
-        Übergabe an die Fachstelle
-      </h2>
-      <div className={`${cardCls} p-4 mb-10 space-y-3`}>
-        <p className={`text-[11px] ${textMuted}`}>
-          Ist im Projekt einer der Abnahme-Kontrollpunkte als «erforderlich» angekreuzt, bietet der
-          Meilenstein einen Übergabetext an die Fachstelle an — mit der Einschätzung Architektur und
-          der Bitte um Rückmeldung. Mehrere erforderliche Prüfungen ergeben ein gemeinsames Mail.
+      <AdminSection id="handover" icon={<Mail size={13} />} title="Übergabe an die Fachstelle" isDark={isDark} state={z.handover}
+        hint="Ist ein Abnahme-Kontrollpunkt «erforderlich», bietet der Meilenstein einen Übergabetext an die Fachstelle an."
+        more={<>Mit der Einschätzung Architektur und der Bitte um Rückmeldung. Mehrere erforderliche Prüfungen ergeben
+          ein gemeinsames Mail.
           {(draft.milestoneChecks ?? []).length > 0 && (
-            <> Ausgelöst durch: {(draft.milestoneChecks ?? []).map(c => `${c.label} (${c.milestone})`).join(', ')}.</>
-          )}
-        </p>
+            <> Ausgelöst durch: {(draft.milestoneChecks ?? []).map(mc => `${mc.label} (${mc.milestone})`).join(', ')}.</>
+          )}</>}>
         <div className="grid grid-cols-2 gap-2">
           <input value={draft.handover?.to ?? ''}
             onChange={e => updateHandover({ to: e.target.value || undefined })}
@@ -687,62 +771,12 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
             </p>
           )}
         </div>
-      </div>
-
-      {/* Teams-Benachrichtigung bei @-Erwähnungen in Kommentaren */}
-      <h2 className={`text-sm font-semibold uppercase tracking-widest mb-4 ${isDark ? 'text-white/50' : 'text-black/50'}`}>
-        Benachrichtigungen (Teams)
-      </h2>
-      <div className={`${cardCls} p-4 mb-10 space-y-3`}>
-        {(() => {
-          const t = draft.notifications?.teams ?? { enabled: false };
-          const update = (patch: Partial<TeamsNotifySettings>) =>
-            setDraft(d => d ? { ...d, notifications: { ...(d.notifications ?? {}), teams: { ...t, ...patch } } } : d);
-          return (
-            <>
-              <p className={`text-[11px] ${textMuted}`}>
-                Wer in einem Kommentar per «@» erwähnt wird oder eine Antwort auf den eigenen Kommentar erhält,
-                bekommt eine persönliche Teams-Chat-Nachricht — von der kommentierenden Person selbst (Microsoft
-                Graph, 1:1-Chat, mit @-Mention und Link auf den Kommentar). Gesendet wird nach der Wartezeit,
-                gesammelt je Empfänger/in, jede Erwähnung nur einmal. Braucht in der App-Registrierung die delegierten
-                Berechtigungen <span className="font-mono">Chat.Create</span>, <span className="font-mono">ChatMessage.Send</span> und
-                {' '}<span className="font-mono">User.ReadBasic.All</span>; jede Person stimmt beim ersten Mal selbst zu.
-              </p>
-              <div className="flex items-center gap-4 flex-wrap">
-                <label className={`flex items-center gap-1.5 text-xs cursor-pointer ${isDark ? 'text-white/70' : 'text-black/70'}`}>
-                  <input type="checkbox" checked={t.enabled === true} onChange={e => update({ enabled: e.target.checked })} className="accent-blue-500 cursor-pointer" />
-                  Teams-Benachrichtigungen {t.enabled ? 'aktiv' : 'aus'}
-                </label>
-                <label className={`flex items-center gap-1.5 text-[11px] ${textMuted}`}>
-                  Wartezeit nach dem letzten Kommentar
-                  <input type="number" min={0} max={120} value={t.delayMinutes ?? DEFAULT_TEAMS_DELAY_MINUTES}
-                    onChange={e => update({ delayMinutes: Math.max(0, Number(e.target.value) || 0) })}
-                    className={`w-16 text-[11px] px-2 py-1 rounded border outline-none transition-colors ${inputCls}`} />
-                  Minuten
-                </label>
-              </div>
-              <div className="space-y-2">
-                <label className={`block text-[10px] uppercase tracking-wider ${labelCls}`}>Vorlage Nachricht</label>
-                <textarea value={t.template ?? ''} rows={3}
-                  onChange={e => update({ template: e.target.value || undefined })}
-                  onFocus={autoGrow} onInput={autoGrow}
-                  placeholder={`Leer = Standard:\n${DEFAULT_TEAMS_TEMPLATE}`}
-                  className={`w-full text-[11px] px-2 py-1.5 rounded border outline-none resize-none overflow-hidden transition-colors font-mono ${inputCls}`} />
-                <p className={`text-[10px] ${textMuted}`}>
-                  Platzhalter: {'{{empfaenger}} (@-Mention) {{von}} {{projekt}} {{anzahl}} {{kommentare}} {{link}}'}
-                  {' '}— {'{{kommentare}}'} ist der Block je Kommentar: Stelle, Text, «Kommentar öffnen»-Link.
-                </p>
-              </div>
-            </>
-          );
-        })()}
-      </div>
+      </AdminSection>
 
       {/* Fragen, gruppiert nach (fixem) Meilenstein */}
-      <h2 className={`text-sm font-semibold uppercase tracking-widest mb-4 ${isDark ? 'text-white/50' : 'text-black/50'}`}>
-        Fragen
-      </h2>
-      <div className="space-y-6">
+      <AdminSection id="questions" icon={<ListChecks size={13} />} title="Fragen" isDark={isDark} state={z.questions}
+        hint="Je Meilenstein: eigene Fragen mit +, weitere aus dem Katalog. Die Nummer vergibt die App (Meilenstein, Thema, Position).">
+      <div className="space-y-4">
         {MILESTONES.map(ms => {
           // Anzeige nach Themen-Reihenfolge (A–Z) sortieren; die automatische
           // Nummer (numberOf) bleibt unabhängig davon, sie zählt weiterhin die
@@ -902,10 +936,11 @@ export default function AdminView({ onBack }: { onBack: () => void }) {
           );
         })}
       </div>
+      </AdminSection>
 
       {/* Speicherleiste */}
-      <div className={`fixed bottom-0 left-0 right-0 border-t ${border} ${isDark ? 'bg-[#0c0d0f]/95' : 'bg-[#eae9e5]/95'} backdrop-blur px-6 py-3`}>
-        <div className="max-w-4xl mx-auto flex items-center justify-between gap-4">
+      <div className={`fixed bottom-0 left-0 right-0 overflow-hidden [scrollbar-gutter:stable] border-t ${border} ${isDark ? 'bg-[#0c0d0f]/95' : 'bg-[#eae9e5]/95'} backdrop-blur py-3`}>
+        <div className="max-w-5xl mx-auto px-6 flex items-center justify-between gap-4">
           <div className={`text-[11px] ${textMuted}`}>
             {saveError
               ? <span className={isDark ? 'text-rose-400' : 'text-rose-600'}>{saveError}</span>

@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
-import { Sun, Moon, FolderOpen, AlertTriangle, Wrench, LogIn, LogOut, ShieldCheck, Cloud, X, Link2, Check } from 'lucide-react';
+import { Sun, Moon, FolderOpen, AlertTriangle, Wrench, LogIn, Cloud, X, Link2, Check, LayoutList } from 'lucide-react';
 import { useStore } from './store';
 import { GUID_RE, knownClientId, LEVEL_LABELS, parseSetupLink, setupLink, PENDING_FOLDER_KEY, resolveTenantId, useAuth, usePermissions } from './auth';
 import ProjectsView from './components/ProjectsView';
 import OnePagerView from './components/OnePagerView';
 import AdminView from './components/AdminView';
+import PortfolioView from './components/PortfolioView';
+import { AccountChip, Breadcrumb, HeaderButton } from './components/Header';
 
-type View = { kind: 'projects' } | { kind: 'project'; slug: string; commentId?: string } | { kind: 'admin' };
+type View = { kind: 'projects' } | { kind: 'project'; slug: string; commentId?: string } | { kind: 'admin' } | { kind: 'portfolio' };
 
 // Deep Link (?project=<slug>&comment=<id>, siehe util.deepLink): beim Start
 // aus der URL nehmen und im Tab merken — so überlebt er den Login-Redirect —
@@ -32,7 +34,7 @@ function takeDeepLink(): { slug: string; commentId?: string } | null {
 }
 
 export default function App() {
-  const { isDark, toggleTheme, storage, pickDirectory, savedHandleName, reconnectDirectory, model, modelError,
+  const { isDark, toggleTheme, storage, projects, pickDirectory, savedHandleName, reconnectDirectory, model, modelError,
     connectSharePoint, savedSharePoint, reconnectSharePoint, forgetSharePoint, queueSharePoint, disconnect } = useStore();
   const [spOpen, setSpOpen] = useState(false);
   const [spLink, setSpLink] = useState('');
@@ -182,82 +184,94 @@ export default function App() {
 
   return (
     <div className={`flex flex-col h-screen ${bg} ${textBase}`}>
-      {/* Top bar */}
-      <div className={`flex items-center gap-3 px-4 py-2 border-b ${border} ${topBg} flex-shrink-0`}>
-        <a href="https://z9nai.ch" target="_blank" rel="noopener noreferrer" className="flex-shrink-0 mr-1 opacity-80 hover:opacity-100 transition-opacity">
-          <img src="favicon.png" alt="Z9nAI" className="w-6 h-6" />
-        </a>
-        <span className={`text-xs font-bold tracking-widest mr-4 ${isDark ? 'text-white/70' : 'text-black/70'}`}>
-          Z9nAI Arch Review
-        </span>
-
-        <div className="ml-auto flex items-center gap-3">
-          {/* Admin-Modus: Themen und Fragen pflegen */}
-          {dirHandle && model && canAdmin && (
-            <button
-              onClick={() => setView(v => v.kind === 'admin' ? { kind: 'projects' } : { kind: 'admin' })}
-              title="Admin — Themen und Fragen bearbeiten"
-              className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 rounded border transition-colors ${
-                view.kind === 'admin'
-                  ? isDark ? 'border-white/40 text-white bg-white/10' : 'border-black/40 text-black bg-black/10'
-                  : isDark ? 'border-white/15 text-white/50 hover:border-white/30' : 'border-black/15 text-black/50 hover:border-black/30'
-              }`}
-            >
-              <Wrench size={12} />
-              Admin
-            </button>
-          )}
-
-          {/* Angemeldete Person */}
-          {auth.status === 'signedIn' && auth.user && (
-            <div className={`flex items-center gap-2 text-[11px] ${textMuted}`} title={auth.user.email}>
-              <span className="flex items-center gap-1" title={`${auth.user.email} · ${LEVEL_LABELS[level]}`}>
-                {auth.user.isAdmin && auth.config?.adminRole && <ShieldCheck size={11} />}
-                {auth.user.name}
-                <span className="opacity-60">· {LEVEL_LABELS[level]}</span>
-              </span>
-              <button onClick={auth.logout} title="Abmelden"
-                className={`p-1 rounded transition-colors ${isDark ? 'text-white/35 hover:text-white/70' : 'text-black/35 hover:text-black/70'}`}>
-                <LogOut size={12} />
-              </button>
-            </div>
-          )}
-
-          {/* Link zu diesem SharePoint-Ordner teilen */}
-          {!gated && !denied && shareLink && (
-            <button onClick={copyShareLink}
-              title={`Link kopieren, der Anmeldung und den Ordner «${dirHandle?.name ?? ''}» in einem Schritt einrichtet — Empfänger öffnen ihn und melden sich an. Zugriff erhält nur, wer in SharePoint berechtigt ist.`}
-              className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 rounded border transition-colors ${
-                shareCopied
-                  ? (isDark ? 'border-emerald-500/40 text-emerald-300' : 'border-emerald-400 text-emerald-700')
-                  : (isDark ? 'border-white/15 text-white/50 hover:border-white/30' : 'border-black/15 text-black/50 hover:border-black/30')}`}>
-              {shareCopied ? <Check size={12} /> : <Link2 size={12} />}
-              {shareCopied ? 'Kopiert' : 'Teilen'}
-            </button>
-          )}
-
-          {/* Geteilter Ordner (lokal oder SharePoint) */}
-          {!gated && !denied && dirHandle && (
-          <button
-            onClick={() => { disconnect(); setView({ kind: 'projects' }); }}
-            className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30' : 'border-black/15 text-black/50 hover:border-black/30'}`}
-            title={dirHandle.kind === 'sharepoint' ? `SharePoint: ${dirHandle.webUrl ?? ''} — Klick: anderen Ordner wählen` : 'Anderen Ordner wählen'}
-          >
-            {dirHandle.kind === 'sharepoint' ? <Cloud size={12} /> : <FolderOpen size={12} />}
-            {dirHandle.name}
+      {/* Kopfzeile (wie orch-spec): links Logo und Firma, dann der Ort;
+          rechts Navigation, Ordner, Konto, Darstellung. Sie teilt sich die
+          Breite mit dem Inhalt darunter (max-w-5xl, px-6), damit beides
+          fluchtet. Die Herkunft steht davon unberührt ganz rechts am
+          Fensterrand; der Platz dafür ist reserviert, wo die Zeile sonst bis
+          dorthin liefe. */}
+      {/* Gleiche Scrollleisten-Spur wie der Inhalt darunter — sonst rückt
+          dieser um eine halbe Scrollleiste, sobald er scrollt */}
+      <div className={`relative border-b ${border} ${topBg} flex-shrink-0 overflow-hidden [scrollbar-gutter:stable]`}>
+        <div className="flex items-center gap-3 py-2 max-w-5xl mx-auto px-6 max-xl:pr-14">
+          {/* Wortmarke: Logo und Firma fett, «Arch Review» klein daneben */}
+          <button onClick={() => setView({ kind: 'projects' })} className="flex items-center gap-2 flex-shrink-0" title="Architekturprüfung — zur Projektliste">
+            {model?.logo && (
+              <img src={model.logo} alt={model.company ?? ''} className="h-6 max-w-[9rem] object-contain flex-shrink-0" />
+            )}
+            <span className={`text-xs font-bold tracking-widest ${isDark ? 'text-white/80' : 'text-black/80'}`}>
+              {model?.company || 'Arch Review'}
+            </span>
+            {model?.company && (
+              <span className={`text-[10px] tracking-widest hidden sm:inline ${textMuted}`}>Arch Review</span>
+            )}
           </button>
+
+          {/* Ort: Projekte › Titel bzw. Administration — die Glieder führen zurück */}
+          {!gated && !denied && dirHandle && model && (
+            <Breadcrumb isDark={isDark} items={[
+              { label: 'Projekte', onClick: view.kind !== 'projects' ? () => setView({ kind: 'projects' }) : undefined },
+              ...(view.kind === 'admin' ? [{ label: 'Administration' }] : []),
+              ...(view.kind === 'portfolio' ? [{ label: 'Übersicht' }] : []),
+              ...(view.kind === 'project' ? [{ label: String(projects.find(p => p.slug === view.slug)?.data.title || view.slug) }] : []),
+            ]} />
           )}
 
-          {/* Theme toggle */}
-          <button onClick={toggleTheme}
-            className={`flex items-center gap-1 p-1.5 rounded transition-colors ${isDark ? 'text-white/35 hover:text-white/70' : 'text-black/35 hover:text-black/70'}`}>
-            {isDark ? <Sun size={13} /> : <Moon size={13} />}
-          </button>
+          <div className="ml-auto flex items-center gap-2">
+            {/* Projektübersicht: alle Projekte, auch ohne Review */}
+            {!gated && !denied && dirHandle && model && (
+              <HeaderButton isDark={isDark} icon={<LayoutList size={12} />} label="Übersicht" active={view.kind === 'portfolio'}
+                title="Übersicht — alle Projekte mit Review-Status, auch ohne Architektur-Review"
+                onClick={() => setView(v => v.kind === 'portfolio' ? { kind: 'projects' } : { kind: 'portfolio' })} />
+            )}
+            {/* Admin-Modus: Auftritt, Anmeldung, Themen und Fragen pflegen */}
+            {dirHandle && model && canAdmin && (
+              <HeaderButton isDark={isDark} icon={<Wrench size={12} />} label="Admin" active={view.kind === 'admin'}
+                title="Admin — Auftritt, Sicherheit, Anmeldung, Benachrichtigungen, Themen und Fragen"
+                onClick={() => setView(v => v.kind === 'admin' ? { kind: 'projects' } : { kind: 'admin' })} />
+            )}
+
+            {/* Kontext: Teilen, Ordner, Konto */}
+            {((!gated && !denied && dirHandle) || (auth.status === 'signedIn' && auth.user)) && (
+              <span className={`w-px h-5 mx-1 ${isDark ? 'bg-white/10' : 'bg-black/10'}`} />
+            )}
+            {!gated && !denied && shareLink && (
+              <HeaderButton isDark={isDark} onClick={copyShareLink}
+                icon={shareCopied ? <Check size={12} /> : <Link2 size={12} />} label={shareCopied ? 'Kopiert' : 'Teilen'}
+                title={`Link kopieren, der Anmeldung und den Ordner «${dirHandle?.name ?? ''}» in einem Schritt einrichtet — Empfänger öffnen ihn und melden sich an. Zugriff erhält nur, wer in SharePoint berechtigt ist.`}
+                tone={shareCopied ? (isDark ? 'border-emerald-500/40 text-emerald-300' : 'border-emerald-400 text-emerald-700') : undefined} />
+            )}
+            {!gated && !denied && dirHandle && (
+              <HeaderButton isDark={isDark} label={dirHandle.name}
+                icon={dirHandle.kind === 'sharepoint' ? <Cloud size={12} /> : <FolderOpen size={12} />}
+                title={dirHandle.kind === 'sharepoint'
+                  ? `SharePoint-Ordner «${dirHandle.name}»\n${dirHandle.webUrl ?? ''}\n\nKlick: anderen Ordner wählen`
+                  : `Lokaler Ordner «${dirHandle.name}»\n\nKlick: anderen Ordner wählen`}
+                onClick={() => { disconnect(); setView({ kind: 'projects' }); }} />
+            )}
+            {auth.status === 'signedIn' && auth.user && (
+              <AccountChip isDark={isDark} user={auth.user} level={level} onLogout={auth.logout} />
+            )}
+
+            {/* Darstellung */}
+            <span className={`w-px h-5 mx-1 ${isDark ? 'bg-white/10' : 'bg-black/10'}`} />
+            <button onClick={toggleTheme} title={isDark ? 'Helle Darstellung' : 'Dunkle Darstellung'}
+              className={`flex items-center gap-1 p-1.5 rounded transition-colors ${isDark ? 'text-white/35 hover:text-white/70' : 'text-black/35 hover:text-black/70'}`}>
+              {isDark ? <Sun size={13} /> : <Moon size={13} />}
+            </button>
+          </div>
         </div>
+
+        <a href="https://z9nai.ch" target="_blank" rel="noopener noreferrer"
+          title="Z9nAI GmbH — zur Webseite"
+          className={`absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-1.5 ${textMuted} opacity-80 hover:opacity-100 transition-opacity`}>
+          <span className="text-[10px] whitespace-nowrap hidden xl:inline">by z9nai GmbH</span>
+          <img src="favicon.png" alt="" className="w-5 h-5" />
+        </a>
       </div>
 
       {/* Main content */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto [scrollbar-gutter:stable]">
         {gated ? (
           // Anmeldung (Microsoft Entra ID) — vor allem anderen
           <div className="h-full flex items-center justify-center p-6">
@@ -384,6 +398,8 @@ export default function App() {
           <div className={`h-full flex items-center justify-center text-xs ${textMuted}`}>Lade model.json …</div>
         ) : view.kind === 'projects' ? (
           <ProjectsView onOpen={slug => setView({ kind: 'project', slug })} />
+        ) : view.kind === 'portfolio' ? (
+          <PortfolioView onOpen={slug => setView({ kind: 'project', slug })} onBack={() => setView({ kind: 'projects' })} />
         ) : view.kind === 'admin' ? (
           canAdmin
             ? <AdminView onBack={() => setView({ kind: 'projects' })} />

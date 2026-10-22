@@ -886,6 +886,5 @@ export const DEFAULT_MODEL: Model = {
       "label": "Lieferanten-Prüfung",
       "hint": "Falls neuer Lieferant: to be defined — Umfang und Ablauf der Lieferanten-Prüfung folgen aus der Abstimmung mit der Fachstelle Security & Compliance."
     }
-  ],
-  "company": "MyCompany"
+  ]
 };

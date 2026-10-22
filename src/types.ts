@@ -120,7 +120,11 @@ export interface ReportTemplate {
 
 export interface Model {
   version: number;
-  company?: string; // Firmenname — wird als Quelle bei eigenen Fragen angezeigt
+  company?: string; // Firmenname — links in der Kopfzeile und als Quelle bei eigenen Fragen
+  // Logo der Firma als Data-URI (bis 200 KB) — links in der Kopfzeile. Liegt in
+  // der model.json, damit es überall mitkommt, ohne zweite Datei und ohne
+  // Adresse, die von aussen erreichbar sein müsste.
+  logo?: string;
   auth?: AuthSettings;
   reportTemplate?: ReportTemplate; // Briefpapier für den Reviewbericht (PDF-Export)
   classifications: Classification[];

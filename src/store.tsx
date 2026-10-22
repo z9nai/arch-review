@@ -7,6 +7,7 @@ import { LocalBackend, StorageBackend } from './backend';
 import { GRAPH_SCOPES, GraphBackend, resolveFolderLink, SharePointFolder } from './graph';
 import { PENDING_FOLDER_KEY, useAuth } from './auth';
 import { assessModelSecurity, LEGACY_MODEL_PATH, MODEL_PATH, SecurityReport } from './security';
+import { emptyPortfolio, parsePortfolio, PortfolioFile, PORTFOLIO_PATH } from './portfolio';
 import { appendAudit, auditPath, AuditAuthor, AuditEntry, AuditOrigin, emptyProject, makeEntry, parseAudit } from './audit';
 
 export interface ProjectListItem {
@@ -127,6 +128,13 @@ interface StoreCtx {
   acquireLock: (slug: string, force?: boolean) => Promise<LockResult>;
   renewLock: (slug: string) => Promise<LockResult>;
   releaseLock: (slug: string, keepalive?: boolean) => Promise<void>;
+  // Projektliste (config/portfolio.json): alle Projekte, auch ohne Review.
+  // null = noch nicht gelesen; portfolioError = Datei unlesbar (wird nicht überschrieben)
+  portfolio: PortfolioFile | null;
+  portfolioError: string | null;
+  refreshPortfolio: () => Promise<void>;
+  /** atomar ändern (Lesen → Funktion anwenden → Schreiben mit Version, bei Konflikt wiederholt) */
+  updatePortfolio: (mutate: (prev: PortfolioFile) => PortfolioFile) => Promise<{ ok: true; portfolio: PortfolioFile } | { ok: false; message: string }>;
 }
 
 const Ctx = createContext<StoreCtx>(null!);
@@ -296,6 +304,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [savedHandleName, setSavedHandleName] = useState<string | null>(null);
   const [savedSharePoint, setSavedSharePoint] = useState<SharePointFolder | null>(() => loadSharePoint());
   const [knownUsers, setKnownUsers] = useState<DirectoryUser[]>([]);
+  const [portfolio, setPortfolio] = useState<PortfolioFile | null>(null);
+  const [portfolioError, setPortfolioError] = useState<string | null>(null);
   const backendRef = useRef<StorageBackend | null>(null);
   const modelRef = useRef<Model | null>(null);
   const savedHandleRef = useRef<FileSystemDirectoryHandle | null>(null);
@@ -427,6 +437,49 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (backendRef.current) await refreshProjectsIn(backendRef.current);
   }, [refreshProjectsIn]);
 
+  // ── Projektliste (config/portfolio.json) ──────────────────────────────────
+  const loadPortfolioIn = useCallback(async (be: StorageBackend) => {
+    try {
+      const read = await be.read(PORTFOLIO_PATH);
+      if (backendRef.current !== be) return;
+      if (!read) { setPortfolio(emptyPortfolio()); setPortfolioError(null); return; }
+      const p = parsePortfolio(read.text);
+      if (p) { setPortfolio(p); setPortfolioError(null); }
+      else { setPortfolio(emptyPortfolio()); setPortfolioError(`${PORTFOLIO_PATH} ist unlesbar (kein gültiges JSON).`); }
+    } catch (e) {
+      console.error('[arch-review] loadPortfolio:', e);
+      if (backendRef.current === be) setPortfolioError(`${PORTFOLIO_PATH} konnte nicht gelesen werden.`);
+    }
+  }, []);
+
+  const refreshPortfolio = useCallback(async () => {
+    if (backendRef.current) await loadPortfolioIn(backendRef.current);
+  }, [loadPortfolioIn]);
+
+  const updatePortfolio = useCallback(async (mutate: (prev: PortfolioFile) => PortfolioFile) => {
+    const be = backendRef.current;
+    if (!be) return { ok: false as const, message: 'Kein Ordner gewählt.' };
+    for (let attempt = 0; attempt < 4; attempt++) {
+      let cur: { text: string; version: string } | null;
+      try { cur = await be.read(PORTFOLIO_PATH); } catch (e) {
+        return { ok: false as const, message: e instanceof Error ? e.message : String(e) };
+      }
+      const prev = cur ? parsePortfolio(cur.text) : emptyPortfolio();
+      // defekte Datei nicht überschreiben — ein Admin muss sie zuerst reparieren
+      if (!prev) return { ok: false as const, message: `${PORTFOLIO_PATH} ist unlesbar (kein gültiges JSON) — es wurde nichts geändert.` };
+      const next = mutate(prev);
+      try { await be.ensureDir('config'); } catch { /* meldet gleich write */ }
+      const w = await be.write(PORTFOLIO_PATH, JSON.stringify(next, null, 2), cur ? { ifMatch: cur.version } : { createOnly: true });
+      if (w.ok) {
+        if (backendRef.current === be) { setPortfolio(next); setPortfolioError(null); }
+        return { ok: true as const, portfolio: next };
+      }
+      if (w.reason === 'conflict' || w.reason === 'exists') continue;
+      return { ok: false as const, message: w.reason === 'forbidden' ? `${PORTFOLIO_PATH}: ${w.message}` : `${PORTFOLIO_PATH} konnte nicht geschrieben werden.` };
+    }
+    return { ok: false as const, message: 'Projektliste konnte nicht gespeichert werden (gleichzeitige Änderungen) — bitte erneut versuchen.' };
+  }, []);
+
   // ── users.json: wer arbeitet in diesem Ordner (für @-Erwähnungen) ──────────
   // null = Datei beschädigt (kein JSON, keine Liste «users») — das ist etwas
   // anderes als «noch niemand» und darf nie wie leer überschrieben werden
@@ -535,7 +588,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     await loadUsersIn(be);
     try { await be.ensureDir('projects'); } catch { /* readonly? Liste bleibt leer */ }
     await refreshProjectsIn(be);
-  }, [loadModel, loadUsersIn, refreshProjectsIn]);
+    await loadPortfolioIn(be);
+  }, [loadModel, loadUsersIn, refreshProjectsIn, loadPortfolioIn]);
 
   // ── lokaler Ordner ────────────────────────────────────────────────────────
   const pickDirectory = useCallback(async () => {
@@ -600,6 +654,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const disconnect = useCallback(() => {
     backendRef.current = null;
     setStorage(null); setModel(null); modelRef.current = null; refreshSeqRef.current++; setProjects([]); setProjectsLoaded(false); setProjectsLoading(false); setKnownUsers([]);
+    setPortfolio(null); setPortfolioError(null);
   }, []);
 
   // Beim Start: gemerkten Ordner wiederherstellen. SharePoint sobald die
@@ -1031,6 +1086,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       loadComments, updateComments,
       knownUsers, searchDirectory, requestDirectoryConsent,
       sessionId: sessionId(), readLock, acquireLock, renewLock, releaseLock,
+      portfolio, portfolioError, refreshPortfolio, updatePortfolio,
     }}>
       {children}
     </Ctx.Provider>

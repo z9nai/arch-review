@@ -3,10 +3,12 @@ import { ExternalLink, RefreshCw, ShieldAlert, ShieldCheck } from 'lucide-react'
 import { SecurityCheckResult, useStore } from '../store';
 import { canWrite, FindingLevel, LEGACY_MODEL_PATH, MODEL_PATH, roleLabel } from '../security';
 import type { ItemPermission } from '../backend';
+import { AdminSection, type AdminState } from './adminUi';
 
 // Admin: Sicherheitscheck der Stammdaten — wer darf die model.json ändern?
-// Läuft beim Öffnen des Admins einmal automatisch (nur SharePoint).
-export default function SecurityPanel() {
+// Läuft beim Öffnen des Admins einmal automatisch (nur SharePoint). Den
+// Zustand meldet sie für die Statusleiste des Admins zurück.
+export default function SecurityPanel({ onState }: { onState?: (s: AdminState) => void }) {
   const { isDark, modelPath, checkModelSecurity, storage } = useStore();
   const [result, setResult] = useState<SecurityCheckResult | null>(null);
   const [busy, setBusy] = useState(false);
@@ -14,7 +16,6 @@ export default function SecurityPanel() {
   const border = isDark ? 'border-white/8' : 'border-black/8';
   const textMuted = isDark ? 'text-white/30' : 'text-black/30';
   const labelCls = isDark ? 'text-white/40' : 'text-black/40';
-  const cardCls = `rounded-xl border ${border} ${isDark ? 'bg-white/2' : 'bg-black/2'}`;
 
   // nur das Ergebnis der jüngsten Prüfung übernehmen
   const seq = useRef(0);
@@ -48,6 +49,15 @@ export default function SecurityPanel() {
     unknown: busy ? 'Prüfe Berechtigungen …' : 'Nicht automatisch prüfbar',
   }[status];
 
+  const state: AdminState = {
+    ok: { tone: 'ok', label: 'geschützt', detail: 'Schreibrechte eingeschränkt' },
+    warn: { tone: 'warn', label: 'Handlungsbedarf', detail: headline },
+    danger: { tone: 'error', label: 'nicht geschützt', detail: 'Stammdaten sind nicht geschützt' },
+    unknown: { tone: 'off', label: busy ? 'prüft …' : 'nicht prüfbar', detail: storage?.kind === 'sharepoint' ? undefined : 'nur in SharePoint prüfbar' },
+  }[status] as AdminState;
+  const stateKey = JSON.stringify(state);
+  useEffect(() => { onState?.(JSON.parse(stateKey)); }, [stateKey, onState]);
+
   const dot = (level: FindingLevel) => ({
     ok: 'bg-emerald-500', info: isDark ? 'bg-white/30' : 'bg-black/30', warn: 'bg-amber-500', danger: 'bg-rose-500',
   }[level]);
@@ -72,23 +82,36 @@ export default function SecurityPanel() {
   );
 
   return (
-    <>
-      <h2 className={`text-sm font-semibold uppercase tracking-widest mb-4 ${isDark ? 'text-white/50' : 'text-black/50'}`}>
-        Sicherheit (Stammdaten)
-      </h2>
-      <div className={`${cardCls} mb-8 px-4 py-3 space-y-3`}>
+    <AdminSection id="security" icon={<ShieldCheck size={13} />} title="Sicherheit (Stammdaten)" isDark={isDark} state={state}
+      hint="Wer darf die Stammdaten ändern? Den Schutz setzt nur SharePoint durch — Ordner config/ mit eigenen Rechten."
+      more={<>
+        <p>
+          Die App prüft Rollen nur im Browser, und die Rollennamen stehen in der model.json selbst. Wer die Datei ändern
+          kann, kann sich also zum Admin machen oder den Übergabe-Empfänger umbiegen. Den Schutz setzt nur SharePoint
+          durch: Ordner <span className="font-mono">config/</span> mit eigenen Berechtigungen — Admins «Bearbeiten»,
+          alle anderen «Lesen».
+        </p>
+        <p>
+          Echte Geheimnisse (Passwörter, API-Keys, Client-Secrets) gehören nie in die model.json: Alles, was die App
+          lädt, kann jede angemeldete Person im Browser einsehen.
+        </p>
+        <a href="https://github.com/z9nai/arch-review/blob/main/docs/SHAREPOINT-SETUP.md#teil-3b--stammdaten-schützen-config" target="_blank" rel="noopener noreferrer"
+          className={`inline-flex items-center gap-1 underline-offset-2 hover:underline ${isDark ? 'text-white/50' : 'text-black/50'}`}>
+          <ExternalLink size={10} /> Anleitung: config/ in SharePoint einrichten
+        </a>
+      </>}
+      action={storage?.kind === 'sharepoint' && (
+        <button onClick={run} disabled={busy}
+          className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors disabled:opacity-40 ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
+          <RefreshCw size={11} className={busy ? 'animate-spin' : ''} /> Erneut prüfen
+        </button>
+      )}>
         <div className={`flex items-center gap-3 flex-wrap rounded-lg border px-3 py-2 ${tone}`}>
           {status === 'ok' ? <ShieldCheck size={14} /> : <ShieldAlert size={14} />}
           <span className="text-[11px] font-bold uppercase tracking-wider">{headline}</span>
           <span className={`text-[11px] ${isDark ? 'text-white/60' : 'text-black/60'}`}>
             Stammdaten: <span className="font-mono">{modelPath}</span>
           </span>
-          {storage?.kind === 'sharepoint' && (
-            <button onClick={run} disabled={busy}
-              className={`ml-auto flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors disabled:opacity-40 ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
-              <RefreshCw size={11} className={busy ? 'animate-spin' : ''} /> Erneut prüfen
-            </button>
-          )}
         </div>
 
         {result && !result.ok && (
@@ -118,23 +141,6 @@ export default function SecurityPanel() {
           </>
         )}
 
-        <div className={`text-[10px] leading-relaxed space-y-1 ${textMuted}`}>
-          <p>
-            Die App prüft Rollen nur im Browser, und die Rollennamen stehen in der model.json selbst. Wer die Datei ändern
-            kann, kann sich also zum Admin machen oder den Übergabe-Empfänger umbiegen. Den Schutz setzt nur SharePoint
-            durch: Ordner <span className="font-mono">config/</span> mit eigenen Berechtigungen — Admins «Bearbeiten»,
-            alle anderen «Lesen».
-          </p>
-          <p>
-            Echte Geheimnisse (Passwörter, API-Keys, Client-Secrets) gehören nie in die model.json: Alles, was die App
-            lädt, kann jede angemeldete Person im Browser einsehen.
-          </p>
-          <a href="https://github.com/z9nai/arch-review/blob/main/docs/SHAREPOINT-SETUP.md#teil-3b--stammdaten-schützen-config" target="_blank" rel="noopener noreferrer"
-            className={`inline-flex items-center gap-1 underline-offset-2 hover:underline ${isDark ? 'text-white/50' : 'text-black/50'}`}>
-            <ExternalLink size={10} /> Anleitung: config/ in SharePoint einrichten
-          </a>
-        </div>
-      </div>
-    </>
+    </AdminSection>
   );
 }

@@ -830,7 +830,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
 
   if (notFound) {
     return (
-      <div className="p-6 max-w-3xl mx-auto">
+      <div className="max-w-5xl mx-auto px-6 py-6">
         <button onClick={onBack} className={`flex items-center gap-1.5 text-xs mb-4 ${textMuted} hover:opacity-70`}>
           <ArrowLeft size={12} /> Zurück zur Projektliste
         </button>
@@ -2533,8 +2533,8 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
       </div>
 
       {/* Speicherleiste */}
-      <div className={`fixed bottom-0 left-0 right-0 border-t ${border} ${isDark ? 'bg-[#0c0d0f]/95' : 'bg-[#eae9e5]/95'} backdrop-blur px-6 py-3`}>
-        <div className="max-w-5xl mx-auto flex items-center justify-between gap-4">
+      <div className={`fixed bottom-0 left-0 right-0 overflow-hidden [scrollbar-gutter:stable] border-t ${border} ${isDark ? 'bg-[#0c0d0f]/95' : 'bg-[#eae9e5]/95'} backdrop-blur py-3`}>
+        <div className="max-w-5xl mx-auto px-6 flex items-center justify-between gap-4">
           <div className={`text-[11px] ${textMuted}`}>
             {lockedByOther ? 'Nur lesen — Projekt ist durch eine andere Person gesperrt' : ro ? 'Nur lesen (Viewer) — Änderungen werden nicht gespeichert' : saveError
               ? <span className={isDark ? 'text-rose-400' : 'text-rose-600'}>{saveError}</span>

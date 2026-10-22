@@ -181,7 +181,7 @@ export default function ProjectsView({ onOpen }: { onOpen: (slug: string) => voi
     id == null ? '–' : (model?.classifications.find(c => c.id === id)?.label ?? id);
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
+    <div className="max-w-5xl mx-auto px-6 py-6">
       <div className="flex items-center justify-between mb-6">
         <h2 className={`text-sm font-semibold uppercase tracking-widest ${isDark ? 'text-white/50' : 'text-black/50'}`}>Projekte</h2>
         <div className="flex items-center gap-2">

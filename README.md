@@ -64,7 +64,8 @@ Entwicklung: `?graph=http://localhost:3999/v1.0` leitet Graph auf einen Mock um.
 ```
 <geteilter Ordner>/
 ├── config/
-│   └── model.json          Stammdaten (Katalog, Rollen) — in SharePoint nur Admins schreibbar
+│   ├── model.json          Stammdaten (Katalog, Rollen) — in SharePoint nur Admins schreibbar
+│   └── portfolio.json      Projektliste für die Projektübersicht (Excel-Import, Status) — nur Admins
 ├── users.json              wer hier gearbeitet hat (Name, E-Mail) — für @-Erwähnungen
 ├── projects/
 │   ├── <slug>.json         eine Datei pro Projekt (Review-Zustand)
@@ -239,7 +240,13 @@ Zum Ausprobieren kann `sample-data/` als geteilter Ordner gewählt werden
 
 ## Admin-Modus
 
-Der Button **Admin** in der Kopfleiste öffnet die Pflege der Stammdaten.
+Der Button **Admin** in der Kopfleiste öffnet die Pflege der Stammdaten —
+aufgebaut wie in orch-spec: oben eine Statusleiste mit einer Kachel je
+Bereich (Zustand auf einen Blick, Klick springt hin), darunter die Bereiche
+als Karten mit Zustand im Kopf und kurzer Erklärung («mehr» klappt den Rest
+auf). Unter **Auftritt** stehen Firma und Logo (PNG/JPEG/SVG/WebP/GIF bis
+200 KB, als Data-URI `logo` in der `model.json`) — beides erscheint links in
+der Kopfzeile, ohne Firma heisst sie «Arch Review».
 **Klassifikationen** sind vollständig editierbar (hinzufügen/löschen, Label,
 Reihenfolge per ↑/↓ — die Reihenfolge definiert die aufsteigenden Stufen
 für «ab …»-Fragen; die erste Stufe gilt als «nicht relevant»); beim Löschen
@@ -608,6 +615,41 @@ Projektklasse, Laufzeit) in die Notizen der Foundation-Prüfung. Der Import ist 
 nicht gefunden wird, bleibt leer; ein erneuter Import derselben Datei erzeugt
 keine Duplikate. PDF-Parsing läuft lokal über ein mitgebundeltes pdf.js
 (eigener Lazy-Chunk, keine Netzwerkzugriffe).
+
+## Projektübersicht (alle Projekte, auch ohne Review)
+
+Topbar → **«Übersicht»**: alle Projekte der Organisation mit Nummer, Name,
+Review-Status und den Meilenstein-Tags der zugehörigen Reviews (freigegeben
+grün, nächster offener gelb; Klick öffnet den Review). Filter nach Nummer und
+Name sowie nach Status (Chips mit Anzahl); sortiert nach Status in der
+Reihenfolge **offen → in Review → kein Review → archiviert**, darin nach
+Nummer absteigend.
+
+- **Status** ist manuell und wird von Admins direkt in der Übersicht gesetzt.
+- **Details**: Info-Icon (oder Klick auf den Namen) öffnet einen Dialog mit
+  Nummer, Name, Status, den beim Import gewählten Excel-Spalten (Datum als
+  TT.MM.JJJJ, Links klickbar) und den verknüpften Reviews. Bei einem neuen
+  Import werden die Details ersetzt, der Status bleibt.
+- **Zuordnung Review ↔ Projekt** über die Projektnummer: Feld `projectNumber`
+  des Reviews (aus dem MS10-Import), sonst die Nummer als eigenes Wort im
+  Review-Namen oder Slug. Reviews ohne passenden Eintrag erscheinen unten
+  separat; Admins können sie mit Status «in Review» aufnehmen.
+- **Admin → Projektliste → «Excel importieren …»**: liest das erste
+  Tabellenblatt einer `.xlsx` (ohne Bibliothek, ZIP/XML im Browser), sucht die
+  Kopfzeile (Spalten Projektnummer, Projektname, optional ein Datum) und
+  lässt die Spalten korrigieren. Weitere Spalten lassen sich für die
+  **Detailansicht** ankreuzen (mit Beispielwert; die Auswahl wird gemerkt und
+  beim nächsten Import vorgewählt). Zellen mit Datumsformat werden als Datum
+  gelesen. Ein **regulärer Ausdruck** filtert die
+  Projektnummern (z. B. `^KP\d{6}$`, wird gemerkt). Der Import wird
+  **gemischt**: neue Projekte kommen mit Status «offen» dazu, bestehende
+  **behalten ihren Status** (Name, Datum und Details werden nachgeführt), Projekte, die
+  in der Datei fehlen, bleiben stehen. Vorschau mit Anzahl neu / umbenannt /
+  unverändert / ausgefiltert / doppelt vor dem Übernehmen.
+
+Die Liste liegt in `config/portfolio.json` (wie `model.json` nur für Admins
+schreibbar); Änderungen laufen atomar mit Versionsprüfung und werden bei
+gleichzeitigen Änderungen auf dem neuesten Stand wiederholt.
 
 ## JSON-Export / -Import (Bearbeitung ausserhalb, z. B. mit KI)
 
