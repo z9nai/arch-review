@@ -1,0 +1,2552 @@
+{
+  "version": 1,
+  "projects": [
+    {
+      "number": "KP496631",
+      "name": "Kunden-Onboarding Konsolidierung",
+      "status": "open",
+      "createdDate": "2026-07-05",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-07-05",
+        "Startdatum [dd.mm.jjjj]": "2026-12-08",
+        "Enddatum [dd.mm.jjjj]": "2028-07-07",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Eva Bühler",
+        "Produktmanager": "Gregor Kälin"
+      }
+    },
+    {
+      "number": "KP603985",
+      "name": "Kartenmanagement Pilot",
+      "status": "open",
+      "createdDate": "2026-04-27",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-04-27",
+        "Startdatum [dd.mm.jjjj]": "2026-12-19",
+        "Enddatum [dd.mm.jjjj]": "2027-12-18",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Eva Bühler",
+        "Produktmanager": "Gregor Kälin"
+      }
+    },
+    {
+      "number": "KP877862",
+      "name": "Schnittstellen-Hub Modernisierung",
+      "status": "open",
+      "createdDate": "2026-03-29",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-03-29",
+        "Startdatum [dd.mm.jjjj]": "2026-11-22",
+        "Enddatum [dd.mm.jjjj]": "2027-11-21",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Eva Bühler",
+        "Produktmanager": "Gregor Kälin"
+      }
+    },
+    {
+      "number": "KP226871",
+      "name": "Arbeitsplatz Migration",
+      "status": "open",
+      "createdDate": "2026-06-16",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-06-16",
+        "Startdatum [dd.mm.jjjj]": "2027-02-10",
+        "Enddatum [dd.mm.jjjj]": "2028-02-09",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Marco Christen",
+        "Produktmanager": "Marco Christen"
+      }
+    },
+    {
+      "number": "KP915146",
+      "name": "Kunden-Onboarding Upgrade",
+      "status": "open",
+      "createdDate": "2026-03-23",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-03-23",
+        "Startdatum [dd.mm.jjjj]": "2026-11-17",
+        "Enddatum [dd.mm.jjjj]": "2027-11-16",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Jasmin Imhof",
+        "Produktmanager": "Marco Christen"
+      }
+    },
+    {
+      "number": "KP171935",
+      "name": "Datenplattform Modernisierung",
+      "status": "open",
+      "createdDate": "2026-04-12",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-04-12",
+        "Startdatum [dd.mm.jjjj]": "2027-02-04",
+        "Enddatum [dd.mm.jjjj]": "2027-12-06",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Nina Graf",
+        "Produktmanager": "Gregor Kälin"
+      }
+    },
+    {
+      "number": "KP905598",
+      "name": "Treasury Release 2027",
+      "status": "open",
+      "createdDate": "2026-05-03",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-05-03",
+        "Startdatum [dd.mm.jjjj]": "2027-02-25",
+        "Enddatum [dd.mm.jjjj]": "2027-12-27",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Ivo Wenger",
+        "Produktmanager": "Gregor Kälin"
+      }
+    },
+    {
+      "number": "KP225645",
+      "name": "Netzwerk Erneuerung",
+      "status": "open",
+      "createdDate": "2026-04-19",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-04-19",
+        "Startdatum [dd.mm.jjjj]": "2027-02-12",
+        "Enddatum [dd.mm.jjjj]": "2027-12-14",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Eva Bühler",
+        "Produktmanager": "Gregor Kälin"
+      }
+    },
+    {
+      "number": "KP145008",
+      "name": "Kartenmanagement Upgrade",
+      "status": "open",
+      "createdDate": "2026-03-28",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-03-28",
+        "Startdatum [dd.mm.jjjj]": "2027-01-21",
+        "Enddatum [dd.mm.jjjj]": "2027-11-22",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "L-Large",
+        "Projektleitung": "Viktor Ott",
+        "Produktmanager": "Gregor Kälin"
+      }
+    },
+    {
+      "number": "KP125107",
+      "name": "E-Banking Upgrade",
+      "status": "open",
+      "createdDate": "2026-05-21",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-05-21",
+        "Startdatum [dd.mm.jjjj]": "2027-03-16",
+        "Enddatum [dd.mm.jjjj]": "2028-01-15",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "L-Large",
+        "Projektleitung": "Ivo Wenger",
+        "Produktmanager": "Gregor Kälin"
+      }
+    },
+    {
+      "number": "KP866524",
+      "name": "Leasing Ausbau",
+      "status": "open",
+      "createdDate": "2026-04-29",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-04-29",
+        "Startdatum [dd.mm.jjjj]": "2026-12-26",
+        "Enddatum [dd.mm.jjjj]": "2028-02-23",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Martina Keller",
+        "Produktmanager": "Selina Schmid"
+      }
+    },
+    {
+      "number": "KP125519",
+      "name": "Zahlungsverkehr Erweiterung Schnittstellen",
+      "status": "open",
+      "createdDate": "2026-04-26",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-04-26",
+        "Startdatum [dd.mm.jjjj]": "2026-12-23",
+        "Enddatum [dd.mm.jjjj]": "2028-01-22",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Flurina Schneider",
+        "Produktmanager": "Selina Schmid"
+      }
+    },
+    {
+      "number": "KP839530",
+      "name": "Meldewesen Automatisierung",
+      "status": "open",
+      "createdDate": "2026-06-01",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-06-01",
+        "Startdatum [dd.mm.jjjj]": "2026-11-11",
+        "Enddatum [dd.mm.jjjj]": "2027-10-27",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Olivia Kaufmann",
+        "Produktmanager": "Selina Schmid"
+      }
+    },
+    {
+      "number": "KP949777",
+      "name": "Mobile App Ablösung",
+      "status": "open",
+      "createdDate": "2026-04-15",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-04-15",
+        "Startdatum [dd.mm.jjjj]": "2027-01-12",
+        "Enddatum [dd.mm.jjjj]": "2027-11-10",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Olivia Kaufmann",
+        "Produktmanager": "Selina Schmid"
+      }
+    },
+    {
+      "number": "KP375907",
+      "name": "Zahlungsverkehr Ablösung",
+      "status": "open",
+      "createdDate": "2026-05-07",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-05-07",
+        "Startdatum [dd.mm.jjjj]": "2027-03-03",
+        "Enddatum [dd.mm.jjjj]": "2028-01-02",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Olivia Kaufmann",
+        "Produktmanager": "Selina Schmid"
+      }
+    },
+    {
+      "number": "KP992182",
+      "name": "Meldewesen Redesign",
+      "status": "open",
+      "createdDate": "2026-04-01",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-04-01",
+        "Startdatum [dd.mm.jjjj]": "2027-04-28",
+        "Enddatum [dd.mm.jjjj]": "2028-05-27",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Olivia Kaufmann",
+        "Produktmanager": "Selina Schmid"
+      }
+    },
+    {
+      "number": "KP953828",
+      "name": "Mobile App Erweiterung Schnittstellen",
+      "status": "open",
+      "createdDate": "2026-06-09",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-06-09",
+        "Startdatum [dd.mm.jjjj]": "2027-02-05",
+        "Enddatum [dd.mm.jjjj]": "2028-05-05",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Nadia Hug",
+        "Produktmanager": "Selina Schmid"
+      }
+    },
+    {
+      "number": "KP861684",
+      "name": "Netzwerk Automatisierung",
+      "status": "open",
+      "createdDate": "2026-06-17",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-06-17",
+        "Startdatum [dd.mm.jjjj]": "2027-02-13",
+        "Enddatum [dd.mm.jjjj]": "2027-11-12",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Martina Keller",
+        "Produktmanager": "Selina Schmid"
+      }
+    },
+    {
+      "number": "KP717319",
+      "name": "Netzwerk Harmonisierung",
+      "status": "open",
+      "createdDate": "2026-04-12",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-04-12",
+        "Startdatum [dd.mm.jjjj]": "2027-02-06",
+        "Enddatum [dd.mm.jjjj]": "2028-03-08",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Nadia Hug",
+        "Produktmanager": "Selina Schmid"
+      }
+    },
+    {
+      "number": "KP249951",
+      "name": "Schnittstellen-Hub Einführung",
+      "status": "inReview",
+      "createdDate": "2026-05-17",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-05-17",
+        "Startdatum [dd.mm.jjjj]": "2027-01-14",
+        "Enddatum [dd.mm.jjjj]": "2028-02-13",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Gregor Kälin",
+        "Produktmanager": "Gregor Kälin"
+      }
+    },
+    {
+      "number": "KP287051",
+      "name": "CRM Harmonisierung",
+      "status": "open",
+      "createdDate": "2026-05-16",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-05-16",
+        "Startdatum [dd.mm.jjjj]": "2027-01-13",
+        "Enddatum [dd.mm.jjjj]": "2028-03-11",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Roman Weber",
+        "Produktmanager": "Marco Christen"
+      }
+    },
+    {
+      "number": "KP434006",
+      "name": "Cloud-Plattform Erneuerung",
+      "status": "open",
+      "createdDate": "2026-05-04",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-05-04",
+        "Startdatum [dd.mm.jjjj]": "2027-03-04",
+        "Enddatum [dd.mm.jjjj]": "2028-04-03",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Regula Moser",
+        "Produktmanager": "Regula Moser"
+      }
+    },
+    {
+      "number": "KP220906",
+      "name": "Vorsorge Modernisierung",
+      "status": "noReview",
+      "createdDate": "2026-04-03",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-04-03",
+        "Startdatum [dd.mm.jjjj]": "2026-12-04",
+        "Enddatum [dd.mm.jjjj]": "2027-12-03",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Franziska Suter",
+        "Produktmanager": "Franziska Suter"
+      }
+    },
+    {
+      "number": "KP696447",
+      "name": "Dokumentenarchiv Ablösung",
+      "status": "open",
+      "createdDate": "2026-04-09",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-04-09",
+        "Startdatum [dd.mm.jjjj]": "2026-12-10",
+        "Enddatum [dd.mm.jjjj]": "2027-12-09",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Franziska Suter",
+        "Produktmanager": "Franziska Suter"
+      }
+    },
+    {
+      "number": "KP261219",
+      "name": "Mobile App Konsolidierung",
+      "status": "open",
+      "createdDate": "2026-03-26",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-03-26",
+        "Startdatum [dd.mm.jjjj]": "2026-11-26",
+        "Enddatum [dd.mm.jjjj]": "2027-11-25",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Franziska Suter",
+        "Produktmanager": "Franziska Suter"
+      }
+    },
+    {
+      "number": "KP327564",
+      "name": "Data Warehouse Upgrade",
+      "status": "open",
+      "createdDate": "2026-06-05",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-06-05",
+        "Startdatum [dd.mm.jjjj]": "2027-02-05",
+        "Enddatum [dd.mm.jjjj]": "2028-05-05",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Franziska Suter",
+        "Produktmanager": "Franziska Suter"
+      }
+    },
+    {
+      "number": "KP514300",
+      "name": "Datenplattform Erneuerung",
+      "status": "open",
+      "createdDate": "2026-03-24",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-03-24",
+        "Startdatum [dd.mm.jjjj]": "2026-11-24",
+        "Enddatum [dd.mm.jjjj]": "2027-11-23",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Franziska Suter",
+        "Produktmanager": "Franziska Suter"
+      }
+    },
+    {
+      "number": "KP421985",
+      "name": "Kreditprozess Modernisierung",
+      "status": "open",
+      "createdDate": "2026-03-21",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-03-21",
+        "Startdatum [dd.mm.jjjj]": "2026-11-21",
+        "Enddatum [dd.mm.jjjj]": "2027-11-20",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Franziska Suter",
+        "Produktmanager": "Franziska Suter"
+      }
+    },
+    {
+      "number": "KP807505",
+      "name": "Netzwerk Ablösung",
+      "status": "open",
+      "createdDate": "2026-04-07",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-04-07",
+        "Startdatum [dd.mm.jjjj]": "2026-12-08",
+        "Enddatum [dd.mm.jjjj]": "2027-12-07",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Franziska Suter",
+        "Produktmanager": "Franziska Suter"
+      }
+    },
+    {
+      "number": "KP276079",
+      "name": "Identity & Access Ablösung",
+      "status": "open",
+      "createdDate": "2026-04-06",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-04-06",
+        "Startdatum [dd.mm.jjjj]": "2027-08-07",
+        "Enddatum [dd.mm.jjjj]": "2028-12-06",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Franziska Suter",
+        "Produktmanager": "Franziska Suter"
+      }
+    },
+    {
+      "number": "KP964294",
+      "name": "Datenplattform Einführung",
+      "status": "open",
+      "createdDate": "2026-03-14",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-03-14",
+        "Startdatum [dd.mm.jjjj]": "2026-12-24",
+        "Enddatum [dd.mm.jjjj]": "2027-12-23",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Laura Gerber",
+        "Produktmanager": "Stefan Flückiger"
+      }
+    },
+    {
+      "number": "KP359710",
+      "name": "Kunden-Onboarding Modernisierung",
+      "status": "open",
+      "createdDate": "2026-03-19",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-03-19",
+        "Startdatum [dd.mm.jjjj]": "2027-05-28",
+        "Enddatum [dd.mm.jjjj]": "2028-11-11",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Laura Gerber",
+        "Produktmanager": "Stefan Flückiger"
+      }
+    },
+    {
+      "number": "KP605103",
+      "name": "Hypotheken Modernisierung",
+      "status": "open",
+      "createdDate": "2026-04-23",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-04-23",
+        "Startdatum [dd.mm.jjjj]": "2027-05-02",
+        "Enddatum [dd.mm.jjjj]": "2028-11-01",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Barbara Roth",
+        "Produktmanager": "Stefan Flückiger"
+      }
+    },
+    {
+      "number": "KP134447",
+      "name": "Wertschriften Redesign",
+      "status": "noReview",
+      "createdDate": "2026-03-19",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-03-19",
+        "Startdatum [dd.mm.jjjj]": "2027-02-26",
+        "Enddatum [dd.mm.jjjj]": "2028-04-27",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Laura Gerber",
+        "Produktmanager": "Stefan Flückiger"
+      }
+    },
+    {
+      "number": "KP323952",
+      "name": "Leasing Erweiterung Schnittstellen",
+      "status": "open",
+      "createdDate": "2026-03-23",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-03-23",
+        "Startdatum [dd.mm.jjjj]": "2026-12-07",
+        "Enddatum [dd.mm.jjjj]": "2028-03-05",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Barbara Roth",
+        "Produktmanager": "Irene Wyss"
+      }
+    },
+    {
+      "number": "KP378514",
+      "name": "Dokumentenarchiv Ausbau",
+      "status": "open",
+      "createdDate": "2026-04-22",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-04-22",
+        "Startdatum [dd.mm.jjjj]": "2027-02-07",
+        "Enddatum [dd.mm.jjjj]": "2028-01-06",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Irene Wyss",
+        "Produktmanager": "Irene Wyss"
+      }
+    },
+    {
+      "number": "KP744448",
+      "name": "Arbeitsplatz Redesign",
+      "status": "open",
+      "createdDate": "2026-05-18",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-05-18",
+        "Startdatum [dd.mm.jjjj]": "2027-02-02",
+        "Enddatum [dd.mm.jjjj]": "2028-02-01",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Ursula Rüegg",
+        "Produktmanager": "Regula Moser"
+      }
+    },
+    {
+      "number": "KP297321",
+      "name": "Mobile App Redesign",
+      "status": "archived",
+      "createdDate": "2026-04-21",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-04-21",
+        "Startdatum [dd.mm.jjjj]": "2027-03-06",
+        "Enddatum [dd.mm.jjjj]": "2028-03-04",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Regula Moser",
+        "Produktmanager": "Regula Moser"
+      }
+    },
+    {
+      "number": "KP683536",
+      "name": "Schnittstellen-Hub Automatisierung",
+      "status": "open",
+      "createdDate": "2026-04-01",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-04-01",
+        "Startdatum [dd.mm.jjjj]": "2026-12-17",
+        "Enddatum [dd.mm.jjjj]": "2027-12-16",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Carla Lehmann",
+        "Produktmanager": "Regula Moser"
+      }
+    },
+    {
+      "number": "KP690777",
+      "name": "Compliance-Monitoring Automatisierung",
+      "status": "open",
+      "createdDate": "2026-03-28",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-03-28",
+        "Startdatum [dd.mm.jjjj]": "2027-01-14",
+        "Enddatum [dd.mm.jjjj]": "2027-12-13",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "L-Large",
+        "Projektleitung": "Regula Moser",
+        "Produktmanager": "Regula Moser"
+      }
+    },
+    {
+      "number": "KP245081",
+      "name": "Leasing Release 2027",
+      "status": "open",
+      "createdDate": "2026-05-06",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-05-06",
+        "Startdatum [dd.mm.jjjj]": "2027-04-22",
+        "Enddatum [dd.mm.jjjj]": "2028-04-21",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Regula Moser",
+        "Produktmanager": "Regula Moser"
+      }
+    },
+    {
+      "number": "KP401716",
+      "name": "Schnittstellen-Hub Erweiterung Schnittstellen",
+      "status": "open",
+      "createdDate": "2026-09-29",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-09-29",
+        "Startdatum [dd.mm.jjjj]": "2026-09-29",
+        "Enddatum [dd.mm.jjjj]": "2026-12-08",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Daniel Bucher",
+        "Produktmanager": "Stefan Flückiger"
+      }
+    },
+    {
+      "number": "KP110245",
+      "name": "Anlageberatung Konsolidierung",
+      "status": "open",
+      "createdDate": "2026-10-01",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-10-01",
+        "Startdatum [dd.mm.jjjj]": "2026-10-13",
+        "Enddatum [dd.mm.jjjj]": "2027-08-11",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Gregor Kälin",
+        "Produktmanager": "Gregor Kälin"
+      }
+    },
+    {
+      "number": "KP862188",
+      "name": "E-Banking Erneuerung",
+      "status": "open",
+      "createdDate": "2026-05-31",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-05-31",
+        "Startdatum [dd.mm.jjjj]": "2026-05-23",
+        "Enddatum [dd.mm.jjjj]": "2027-08-22",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "L-Large",
+        "Projektleitung": "Carla Lehmann",
+        "Produktmanager": "Regula Moser"
+      }
+    },
+    {
+      "number": "KP879035",
+      "name": "Kundenportal Release 2027",
+      "status": "open",
+      "createdDate": "2026-07-17",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-07-17",
+        "Startdatum [dd.mm.jjjj]": "2026-07-10",
+        "Enddatum [dd.mm.jjjj]": "2027-07-09",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Helen Tschanz",
+        "Produktmanager": "Marco Christen"
+      }
+    },
+    {
+      "number": "KP994942",
+      "name": "Meldewesen Release 2027",
+      "status": "open",
+      "createdDate": "2026-06-21",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-06-21",
+        "Startdatum [dd.mm.jjjj]": "2026-06-20",
+        "Enddatum [dd.mm.jjjj]": "2026-10-19",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Katrin Beispiel",
+        "Produktmanager": "Marco Christen"
+      }
+    },
+    {
+      "number": "KP575745",
+      "name": "Anlageberatung Harmonisierung",
+      "status": "open",
+      "createdDate": "2026-05-22",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-05-22",
+        "Startdatum [dd.mm.jjjj]": "2026-06-03",
+        "Enddatum [dd.mm.jjjj]": "2027-12-03",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Ursula Rüegg",
+        "Produktmanager": "Regula Moser"
+      }
+    },
+    {
+      "number": "KP758484",
+      "name": "Schnittstellen-Hub Harmonisierung",
+      "status": "open",
+      "createdDate": "2026-05-12",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-05-12",
+        "Startdatum [dd.mm.jjjj]": "2026-06-11",
+        "Enddatum [dd.mm.jjjj]": "2027-10-11",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Lorenz Muster",
+        "Produktmanager": "Marco Christen"
+      }
+    },
+    {
+      "number": "KP395706",
+      "name": "Treasury Erneuerung",
+      "status": "open",
+      "createdDate": "2026-05-13",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-05-13",
+        "Startdatum [dd.mm.jjjj]": "2026-05-27",
+        "Enddatum [dd.mm.jjjj]": "2027-11-25",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "L-Large",
+        "Projektleitung": "Helen Tschanz",
+        "Produktmanager": "Marco Christen"
+      }
+    },
+    {
+      "number": "KP264012",
+      "name": "Datenplattform Ablösung",
+      "status": "open",
+      "createdDate": "2026-05-05",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-05-05",
+        "Startdatum [dd.mm.jjjj]": "2026-05-30",
+        "Enddatum [dd.mm.jjjj]": "2027-06-28",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Gregor Kälin",
+        "Produktmanager": "Gregor Kälin"
+      }
+    },
+    {
+      "number": "KP161608",
+      "name": "Kartenmanagement Erweiterung Schnittstellen",
+      "status": "open",
+      "createdDate": "2026-05-25",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-05-25",
+        "Startdatum [dd.mm.jjjj]": "2026-08-21",
+        "Enddatum [dd.mm.jjjj]": "2027-08-20",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Martina Keller",
+        "Produktmanager": "Selina Schmid"
+      }
+    },
+    {
+      "number": "KP194417",
+      "name": "Kunden-Onboarding Pilot",
+      "status": "open",
+      "createdDate": "2026-05-17",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-05-17",
+        "Startdatum [dd.mm.jjjj]": "2026-06-25",
+        "Enddatum [dd.mm.jjjj]": "2028-05-24",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Irene Wyss",
+        "Produktmanager": "Irene Wyss"
+      }
+    },
+    {
+      "number": "KP503979",
+      "name": "Compliance-Monitoring Harmonisierung",
+      "status": "open",
+      "createdDate": "2026-05-06",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-05-06",
+        "Startdatum [dd.mm.jjjj]": "2026-04-23",
+        "Enddatum [dd.mm.jjjj]": "2027-07-22",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Irene Wyss",
+        "Produktmanager": "Irene Wyss"
+      }
+    },
+    {
+      "number": "KP310609",
+      "name": "Treasury Einführung",
+      "status": "open",
+      "createdDate": "2026-03-17",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-03-17",
+        "Startdatum [dd.mm.jjjj]": "2026-04-04",
+        "Enddatum [dd.mm.jjjj]": "2027-07-19",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Olivia Kaufmann",
+        "Produktmanager": "Selina Schmid"
+      }
+    },
+    {
+      "number": "KP707989",
+      "name": "Leasing Einführung",
+      "status": "open",
+      "createdDate": "2026-04-17",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-04-17",
+        "Startdatum [dd.mm.jjjj]": "2026-04-23",
+        "Enddatum [dd.mm.jjjj]": "2027-03-22",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Viktor Ott",
+        "Produktmanager": "Gregor Kälin"
+      }
+    },
+    {
+      "number": "KP623966",
+      "name": "Treasury Pilot",
+      "status": "open",
+      "createdDate": "2026-05-01",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-05-01",
+        "Startdatum [dd.mm.jjjj]": "2026-04-29",
+        "Enddatum [dd.mm.jjjj]": "2027-06-06",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Laura Gerber",
+        "Produktmanager": "Stefan Flückiger"
+      }
+    },
+    {
+      "number": "KP864928",
+      "name": "Anlageberatung Erweiterung Schnittstellen",
+      "status": "open",
+      "createdDate": "2026-04-06",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-04-06",
+        "Startdatum [dd.mm.jjjj]": "2026-05-14",
+        "Enddatum [dd.mm.jjjj]": "2027-11-13",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Irene Wyss",
+        "Produktmanager": "Irene Wyss"
+      }
+    },
+    {
+      "number": "KP760392",
+      "name": "Kreditprozess Ausbau",
+      "status": "open",
+      "createdDate": "2026-02-23",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-02-23",
+        "Startdatum [dd.mm.jjjj]": "2026-03-03",
+        "Enddatum [dd.mm.jjjj]": "2027-05-02",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Stefan Flückiger",
+        "Produktmanager": "Marco Christen"
+      }
+    },
+    {
+      "number": "KP604350",
+      "name": "Kreditprozess Erneuerung",
+      "status": "open",
+      "createdDate": "2026-04-13",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-04-13",
+        "Startdatum [dd.mm.jjjj]": "2026-05-06",
+        "Enddatum [dd.mm.jjjj]": "2026-12-05",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Regula Moser",
+        "Produktmanager": "Regula Moser"
+      }
+    },
+    {
+      "number": "KP416834",
+      "name": "Datenplattform Release 2027",
+      "status": "open",
+      "createdDate": "2026-01-15",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-01-15",
+        "Startdatum [dd.mm.jjjj]": "2026-01-15",
+        "Enddatum [dd.mm.jjjj]": "2026-12-03",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Viktor Ott",
+        "Produktmanager": "Gregor Kälin"
+      }
+    },
+    {
+      "number": "KP610989",
+      "name": "Hypotheken Konsolidierung",
+      "status": "open",
+      "createdDate": "2026-01-08",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-01-08",
+        "Startdatum [dd.mm.jjjj]": "2026-01-05",
+        "Enddatum [dd.mm.jjjj]": "2026-12-04",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Franziska Suter",
+        "Produktmanager": "Franziska Suter"
+      }
+    },
+    {
+      "number": "KP942737",
+      "name": "Datenplattform Ausbau",
+      "status": "open",
+      "createdDate": "2025-12-12",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-12-12",
+        "Startdatum [dd.mm.jjjj]": "2026-01-27",
+        "Enddatum [dd.mm.jjjj]": "2026-08-27",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Marco Christen",
+        "Produktmanager": "Marco Christen"
+      }
+    },
+    {
+      "number": "KP894857",
+      "name": "Arbeitsplatz Einführung",
+      "status": "open",
+      "createdDate": "2026-02-23",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-02-23",
+        "Startdatum [dd.mm.jjjj]": "2026-06-15",
+        "Enddatum [dd.mm.jjjj]": "2027-10-15",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Lorenz Muster",
+        "Produktmanager": "Marco Christen"
+      }
+    },
+    {
+      "number": "KP603022",
+      "name": "Schnittstellen-Hub Konsolidierung",
+      "status": "open",
+      "createdDate": "2026-01-01",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2026-01-01",
+        "Startdatum [dd.mm.jjjj]": "2026-01-19",
+        "Enddatum [dd.mm.jjjj]": "2026-12-11",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Olivia Kaufmann",
+        "Produktmanager": "Selina Schmid"
+      }
+    },
+    {
+      "number": "KP870863",
+      "name": "Wertschriften Migration",
+      "status": "open",
+      "createdDate": "2025-08-14",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-08-14",
+        "Startdatum [dd.mm.jjjj]": "2026-01-02",
+        "Enddatum [dd.mm.jjjj]": "2027-07-01",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Ruedi Ammann",
+        "Produktmanager": "Marco Christen"
+      }
+    },
+    {
+      "number": "KP432837",
+      "name": "Hypotheken Upgrade",
+      "status": "open",
+      "createdDate": "2025-05-28",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-05-28",
+        "Startdatum [dd.mm.jjjj]": "2026-01-08",
+        "Enddatum [dd.mm.jjjj]": "2027-01-07",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Severin Jost",
+        "Produktmanager": "Nina Graf"
+      }
+    },
+    {
+      "number": "KP791658",
+      "name": "Data Warehouse Einführung",
+      "status": "open",
+      "createdDate": "2025-05-20",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-05-20",
+        "Startdatum [dd.mm.jjjj]": "2025-12-31",
+        "Enddatum [dd.mm.jjjj]": "2026-12-30",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Gabriela Marti",
+        "Produktmanager": "Gregor Kälin"
+      }
+    },
+    {
+      "number": "KP343306",
+      "name": "Meldewesen Upgrade",
+      "status": "open",
+      "createdDate": "2025-06-20",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-06-20",
+        "Startdatum [dd.mm.jjjj]": "2026-03-08",
+        "Enddatum [dd.mm.jjjj]": "2027-02-04",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Eva Bühler"
+      }
+    },
+    {
+      "number": "KP194138",
+      "name": "Hypotheken Automatisierung",
+      "status": "open",
+      "createdDate": "2025-05-14",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-05-14",
+        "Startdatum [dd.mm.jjjj]": "2026-01-10",
+        "Enddatum [dd.mm.jjjj]": "2026-12-29",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Eva Bühler",
+        "Produktmanager": "Ivo Wenger"
+      }
+    },
+    {
+      "number": "KP690282",
+      "name": "Wertschriften Erneuerung",
+      "status": "open",
+      "createdDate": "2025-04-28",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-04-28",
+        "Startdatum [dd.mm.jjjj]": "2026-05-15",
+        "Enddatum [dd.mm.jjjj]": "2027-05-14",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Helen Tschanz",
+        "Produktmanager": "Jasmin Imhof"
+      }
+    },
+    {
+      "number": "KP336165",
+      "name": "Kreditprozess Konsolidierung",
+      "status": "open",
+      "createdDate": "2025-06-08",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-06-08",
+        "Startdatum [dd.mm.jjjj]": "2026-06-26",
+        "Enddatum [dd.mm.jjjj]": "2027-01-25",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Jasmin Imhof",
+        "Produktmanager": "Jasmin Imhof"
+      }
+    },
+    {
+      "number": "KP299924",
+      "name": "Leasing Konsolidierung",
+      "status": "open",
+      "createdDate": "2025-06-15",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-06-15",
+        "Startdatum [dd.mm.jjjj]": "2026-04-02",
+        "Enddatum [dd.mm.jjjj]": "2027-02-01",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Ruedi Ammann",
+        "Produktmanager": "Marco Christen"
+      }
+    },
+    {
+      "number": "KP506073",
+      "name": "Datenplattform Pilot",
+      "status": "open",
+      "createdDate": "2025-05-22",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-05-22",
+        "Startdatum [dd.mm.jjjj]": "2026-06-10",
+        "Enddatum [dd.mm.jjjj]": "2027-01-09",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Katrin Beispiel",
+        "Produktmanager": "Marco Christen"
+      }
+    },
+    {
+      "number": "KP145131",
+      "name": "Leasing Harmonisierung",
+      "status": "open",
+      "createdDate": "2025-03-29",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-03-29",
+        "Startdatum [dd.mm.jjjj]": "2025-11-17",
+        "Enddatum [dd.mm.jjjj]": "2026-11-16",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Katrin Beispiel",
+        "Produktmanager": "Marco Christen"
+      }
+    },
+    {
+      "number": "KP225546",
+      "name": "Leasing Automatisierung",
+      "status": "open",
+      "createdDate": "2025-04-09",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-04-09",
+        "Startdatum [dd.mm.jjjj]": "2025-11-28",
+        "Enddatum [dd.mm.jjjj]": "2026-11-27",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Kurt Brunner",
+        "Produktmanager": "Marco Christen"
+      }
+    },
+    {
+      "number": "KP519040",
+      "name": "Anlageberatung Erneuerung",
+      "status": "open",
+      "createdDate": "2025-06-26",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-06-26",
+        "Startdatum [dd.mm.jjjj]": "2026-02-14",
+        "Enddatum [dd.mm.jjjj]": "2027-04-13",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Roman Weber",
+        "Produktmanager": "Marco Christen"
+      }
+    },
+    {
+      "number": "KP632636",
+      "name": "Vorsorge Upgrade",
+      "status": "open",
+      "createdDate": "2025-05-09",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-05-09",
+        "Startdatum [dd.mm.jjjj]": "2025-12-28",
+        "Enddatum [dd.mm.jjjj]": "2027-02-24",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Kurt Brunner",
+        "Produktmanager": "Marco Christen"
+      }
+    },
+    {
+      "number": "KP645518",
+      "name": "Identity & Access Modernisierung",
+      "status": "open",
+      "createdDate": "2025-06-12",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-06-12",
+        "Startdatum [dd.mm.jjjj]": "2026-03-04",
+        "Enddatum [dd.mm.jjjj]": "2028-01-31",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Severin Jost",
+        "Produktmanager": "Gregor Kälin"
+      }
+    },
+    {
+      "number": "KP380737",
+      "name": "Dokumentenarchiv Erweiterung Schnittstellen",
+      "status": "open",
+      "createdDate": "2025-04-24",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-04-24",
+        "Startdatum [dd.mm.jjjj]": "2026-01-17",
+        "Enddatum [dd.mm.jjjj]": "2027-09-15",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Judith Vogel",
+        "Produktmanager": "Franziska Suter"
+      }
+    },
+    {
+      "number": "KP706847",
+      "name": "Kartenmanagement Modernisierung",
+      "status": "open",
+      "createdDate": "2025-04-04",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-04-04",
+        "Startdatum [dd.mm.jjjj]": "2025-12-28",
+        "Enddatum [dd.mm.jjjj]": "2026-11-26",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Fabian Zbinden",
+        "Produktmanager": "Franziska Suter"
+      }
+    },
+    {
+      "number": "KP721066",
+      "name": "Kartenmanagement Ablösung",
+      "status": "open",
+      "createdDate": "2025-06-08",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-06-08",
+        "Startdatum [dd.mm.jjjj]": "2026-01-31",
+        "Enddatum [dd.mm.jjjj]": "2027-01-30",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Carla Lehmann",
+        "Produktmanager": "Franziska Suter"
+      }
+    },
+    {
+      "number": "KP217340",
+      "name": "Arbeitsplatz Upgrade",
+      "status": "open",
+      "createdDate": "2025-04-24",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-04-24",
+        "Startdatum [dd.mm.jjjj]": "2026-02-14",
+        "Enddatum [dd.mm.jjjj]": "2026-11-15",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Reto Lüthi",
+        "Produktmanager": "Franziska Suter"
+      }
+    },
+    {
+      "number": "KP422258",
+      "name": "Treasury Migration",
+      "status": "open",
+      "createdDate": "2025-04-12",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-04-12",
+        "Startdatum [dd.mm.jjjj]": "2025-12-05",
+        "Enddatum [dd.mm.jjjj]": "2027-07-04",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Reto Lüthi",
+        "Produktmanager": "Franziska Suter"
+      }
+    },
+    {
+      "number": "KP140948",
+      "name": "Kundenportal Einführung",
+      "status": "open",
+      "createdDate": "2025-06-10",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-06-10",
+        "Startdatum [dd.mm.jjjj]": "2026-02-02",
+        "Enddatum [dd.mm.jjjj]": "2027-02-01",
+        "Projektstatus": "Abgebrochen",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Franziska Suter",
+        "Produktmanager": "Franziska Suter"
+      }
+    },
+    {
+      "number": "KP779384",
+      "name": "Mobile App Einführung",
+      "status": "open",
+      "createdDate": "2025-06-05",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-06-05",
+        "Startdatum [dd.mm.jjjj]": "2027-04-28",
+        "Enddatum [dd.mm.jjjj]": "2028-01-27",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Franziska Suter",
+        "Produktmanager": "Franziska Suter"
+      }
+    },
+    {
+      "number": "KP714525",
+      "name": "Dokumentenarchiv Konsolidierung",
+      "status": "open",
+      "createdDate": "2025-06-18",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-06-18",
+        "Startdatum [dd.mm.jjjj]": "2026-02-10",
+        "Enddatum [dd.mm.jjjj]": "2027-02-09",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Beat Hofer",
+        "Produktmanager": "Franziska Suter"
+      }
+    },
+    {
+      "number": "KP390637",
+      "name": "Zahlungsverkehr Pilot",
+      "status": "open",
+      "createdDate": "2025-05-01",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-05-01",
+        "Startdatum [dd.mm.jjjj]": "2025-12-24",
+        "Enddatum [dd.mm.jjjj]": "2026-12-23",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Walter Kunz",
+        "Produktmanager": "Franziska Suter"
+      }
+    },
+    {
+      "number": "KP357404",
+      "name": "Compliance-Monitoring Erneuerung",
+      "status": "open",
+      "createdDate": "2025-04-15",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-04-15",
+        "Startdatum [dd.mm.jjjj]": "2025-12-08",
+        "Enddatum [dd.mm.jjjj]": "2026-11-06",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Eva Bühler",
+        "Produktmanager": "Gregor Kälin"
+      }
+    },
+    {
+      "number": "KP389820",
+      "name": "Identity & Access Release 2027",
+      "status": "open",
+      "createdDate": "2025-05-15",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-05-15",
+        "Startdatum [dd.mm.jjjj]": "2026-01-07",
+        "Enddatum [dd.mm.jjjj]": "2027-06-06",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "L-Large",
+        "Projektleitung": "Gregor Kälin",
+        "Produktmanager": "Anna Bieri"
+      }
+    },
+    {
+      "number": "KP650286",
+      "name": "Identity & Access Konsolidierung",
+      "status": "open",
+      "createdDate": "2025-05-11",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-05-11",
+        "Startdatum [dd.mm.jjjj]": "2026-01-05",
+        "Enddatum [dd.mm.jjjj]": "2027-01-04",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Sandra Bachmann",
+        "Produktmanager": "Gregor Kälin"
+      }
+    },
+    {
+      "number": "KP267709",
+      "name": "CRM Erweiterung Schnittstellen",
+      "status": "open",
+      "createdDate": "2025-05-23",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-05-23",
+        "Startdatum [dd.mm.jjjj]": "2026-01-18",
+        "Enddatum [dd.mm.jjjj]": "2027-05-17",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Eva Bühler",
+        "Produktmanager": "Gregor Kälin"
+      }
+    },
+    {
+      "number": "KP862920",
+      "name": "Meldewesen Konsolidierung",
+      "status": "open",
+      "createdDate": "2025-03-24",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-03-24",
+        "Startdatum [dd.mm.jjjj]": "2025-11-19",
+        "Enddatum [dd.mm.jjjj]": "2027-11-18",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Mirjam Meier",
+        "Produktmanager": "Gregor Kälin"
+      }
+    },
+    {
+      "number": "KP276517",
+      "name": "Kundenportal Ablösung",
+      "status": "open",
+      "createdDate": "2025-06-05",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-06-05",
+        "Startdatum [dd.mm.jjjj]": "2026-03-03",
+        "Enddatum [dd.mm.jjjj]": "2027-09-30",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Laura Gerber",
+        "Produktmanager": "Stefan Flückiger"
+      }
+    },
+    {
+      "number": "KP929786",
+      "name": "Kreditprozess Einführung",
+      "status": "open",
+      "createdDate": "2025-04-06",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-04-06",
+        "Startdatum [dd.mm.jjjj]": "2025-12-03",
+        "Enddatum [dd.mm.jjjj]": "2027-04-01",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Olivia Kaufmann",
+        "Produktmanager": "Selina Schmid"
+      }
+    },
+    {
+      "number": "KP380148",
+      "name": "Kunden-Onboarding Automatisierung",
+      "status": "open",
+      "createdDate": "2025-06-11",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-06-11",
+        "Startdatum [dd.mm.jjjj]": "2026-02-07",
+        "Enddatum [dd.mm.jjjj]": "2027-04-06",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Martina Keller",
+        "Produktmanager": "Selina Schmid"
+      }
+    },
+    {
+      "number": "KP688007",
+      "name": "Meldewesen Erweiterung Schnittstellen",
+      "status": "open",
+      "createdDate": "2025-06-12",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-06-12",
+        "Startdatum [dd.mm.jjjj]": "2027-04-08",
+        "Enddatum [dd.mm.jjjj]": "2028-05-08",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Olivia Kaufmann",
+        "Produktmanager": "Selina Schmid"
+      }
+    },
+    {
+      "number": "KP338243",
+      "name": "Vorsorge Release 2027",
+      "status": "open",
+      "createdDate": "2025-06-18",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-06-18",
+        "Startdatum [dd.mm.jjjj]": "2026-03-17",
+        "Enddatum [dd.mm.jjjj]": "2027-05-14",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Nadia Hug",
+        "Produktmanager": "Selina Schmid"
+      }
+    },
+    {
+      "number": "KP385481",
+      "name": "Kunden-Onboarding Ausbau",
+      "status": "open",
+      "createdDate": "2025-06-15",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-06-15",
+        "Startdatum [dd.mm.jjjj]": "2026-02-11",
+        "Enddatum [dd.mm.jjjj]": "2027-03-13",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Flurina Schneider",
+        "Produktmanager": "Selina Schmid"
+      }
+    },
+    {
+      "number": "KP471978",
+      "name": "Hypotheken Erweiterung Schnittstellen",
+      "status": "open",
+      "createdDate": "2025-06-06",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-06-06",
+        "Startdatum [dd.mm.jjjj]": "2026-07-03",
+        "Enddatum [dd.mm.jjjj]": "2027-08-01",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Olivia Kaufmann",
+        "Produktmanager": "Selina Schmid"
+      }
+    },
+    {
+      "number": "KP359126",
+      "name": "Schnittstellen-Hub Redesign",
+      "status": "open",
+      "createdDate": "2025-05-11",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-05-11",
+        "Startdatum [dd.mm.jjjj]": "2026-01-07",
+        "Enddatum [dd.mm.jjjj]": "2027-04-06",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Nadia Hug",
+        "Produktmanager": "Selina Schmid"
+      }
+    },
+    {
+      "number": "KP353478",
+      "name": "Wertschriften Automatisierung",
+      "status": "open",
+      "createdDate": "2025-03-27",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-03-27",
+        "Startdatum [dd.mm.jjjj]": "2025-12-24",
+        "Enddatum [dd.mm.jjjj]": "2027-02-20",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Martina Keller",
+        "Produktmanager": "Selina Schmid"
+      }
+    },
+    {
+      "number": "KP614693",
+      "name": "Vorsorge Redesign",
+      "status": "open",
+      "createdDate": "2025-05-12",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-05-12",
+        "Startdatum [dd.mm.jjjj]": "2027-07-08",
+        "Enddatum [dd.mm.jjjj]": "2028-11-07",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Martina Keller",
+        "Produktmanager": "Selina Schmid"
+      }
+    },
+    {
+      "number": "KP110726",
+      "name": "CRM Modernisierung",
+      "status": "open",
+      "createdDate": "2025-04-18",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-04-18",
+        "Startdatum [dd.mm.jjjj]": "2025-12-18",
+        "Enddatum [dd.mm.jjjj]": "2026-08-17",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Fabian Zbinden",
+        "Produktmanager": "Regula Moser"
+      }
+    },
+    {
+      "number": "KP656805",
+      "name": "E-Banking Ausbau",
+      "status": "open",
+      "createdDate": "2025-04-07",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-04-07",
+        "Startdatum [dd.mm.jjjj]": "2026-01-08",
+        "Enddatum [dd.mm.jjjj]": "2027-01-07",
+        "Projektstatus": "Pausiert",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Regula Moser",
+        "Produktmanager": "Regula Moser"
+      }
+    },
+    {
+      "number": "KP708174",
+      "name": "Vorsorge Erweiterung Schnittstellen",
+      "status": "open",
+      "createdDate": "2025-05-30",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-05-30",
+        "Startdatum [dd.mm.jjjj]": "2026-10-30",
+        "Enddatum [dd.mm.jjjj]": "2028-04-29",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Stefan Flückiger",
+        "Produktmanager": "Stefan Flückiger"
+      }
+    },
+    {
+      "number": "KP514057",
+      "name": "Kunden-Onboarding Migration",
+      "status": "open",
+      "createdDate": "2025-04-19",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-04-19",
+        "Startdatum [dd.mm.jjjj]": "2026-07-21",
+        "Enddatum [dd.mm.jjjj]": "2027-11-19",
+        "Projektstatus": "Abgebrochen",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Laura Gerber",
+        "Produktmanager": "Stefan Flückiger"
+      }
+    },
+    {
+      "number": "KP716755",
+      "name": "Meldewesen Migration",
+      "status": "open",
+      "createdDate": "2025-05-10",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-05-10",
+        "Startdatum [dd.mm.jjjj]": "2026-01-11",
+        "Enddatum [dd.mm.jjjj]": "2027-06-10",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Laura Gerber",
+        "Produktmanager": "Stefan Flückiger"
+      }
+    },
+    {
+      "number": "KP902411",
+      "name": "Treasury Modernisierung",
+      "status": "open",
+      "createdDate": "2025-03-29",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-03-29",
+        "Startdatum [dd.mm.jjjj]": "2026-10-30",
+        "Enddatum [dd.mm.jjjj]": "2027-11-13",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Laura Gerber",
+        "Produktmanager": "Stefan Flückiger"
+      }
+    },
+    {
+      "number": "KP334366",
+      "name": "Cloud-Plattform Ablösung",
+      "status": "open",
+      "createdDate": "2025-05-03",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-05-03",
+        "Startdatum [dd.mm.jjjj]": "2026-04-05",
+        "Enddatum [dd.mm.jjjj]": "2028-01-04",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "L-Large",
+        "Projektleitung": "Carla Lehmann",
+        "Produktmanager": "Regula Moser"
+      }
+    },
+    {
+      "number": "KP525726",
+      "name": "Identity & Access Redesign",
+      "status": "open",
+      "createdDate": "2025-05-13",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-05-13",
+        "Startdatum [dd.mm.jjjj]": "2027-06-20",
+        "Enddatum [dd.mm.jjjj]": "2028-06-19",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Regula Moser",
+        "Produktmanager": "Regula Moser"
+      }
+    },
+    {
+      "number": "KP644604",
+      "name": "Cloud-Plattform Pilot",
+      "status": "open",
+      "createdDate": "2025-04-29",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-04-29",
+        "Startdatum [dd.mm.jjjj]": "2026-01-06",
+        "Enddatum [dd.mm.jjjj]": "2027-01-05",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Carla Lehmann",
+        "Produktmanager": "Regula Moser"
+      }
+    },
+    {
+      "number": "KP545488",
+      "name": "Hypotheken Ablösung",
+      "status": "open",
+      "createdDate": "2025-05-08",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-05-08",
+        "Startdatum [dd.mm.jjjj]": "2026-03-15",
+        "Enddatum [dd.mm.jjjj]": "2027-04-14",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Regula Moser",
+        "Produktmanager": "Regula Moser"
+      }
+    },
+    {
+      "number": "KP854381",
+      "name": "E-Banking Harmonisierung",
+      "status": "open",
+      "createdDate": "2025-03-23",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-03-23",
+        "Startdatum [dd.mm.jjjj]": "2025-12-15",
+        "Enddatum [dd.mm.jjjj]": "2027-05-14",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "L-Large",
+        "Projektleitung": "Barbara Roth",
+        "Produktmanager": "Irene Wyss"
+      }
+    },
+    {
+      "number": "KP567217",
+      "name": "Dokumentenarchiv Upgrade",
+      "status": "open",
+      "createdDate": "2025-03-07",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-03-07",
+        "Startdatum [dd.mm.jjjj]": "2026-01-01",
+        "Enddatum [dd.mm.jjjj]": "2027-02-28",
+        "Projektstatus": "Pausiert",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "L-Large",
+        "Projektleitung": "Irene Wyss",
+        "Produktmanager": "Irene Wyss"
+      }
+    },
+    {
+      "number": "KP309684",
+      "name": "Kundenportal Redesign",
+      "status": "open",
+      "createdDate": "2025-02-26",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-02-26",
+        "Startdatum [dd.mm.jjjj]": "2026-01-20",
+        "Enddatum [dd.mm.jjjj]": "2026-11-21",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Jonas Stucki",
+        "Produktmanager": "Irene Wyss"
+      }
+    },
+    {
+      "number": "KP180795",
+      "name": "Kundenportal Erweiterung Schnittstellen",
+      "status": "open",
+      "createdDate": "2025-05-14",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-05-14",
+        "Startdatum [dd.mm.jjjj]": "2026-03-10",
+        "Enddatum [dd.mm.jjjj]": "2027-02-06",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Jonas Stucki",
+        "Produktmanager": "Irene Wyss"
+      }
+    },
+    {
+      "number": "KP174195",
+      "name": "Mobile App Ausbau",
+      "status": "open",
+      "createdDate": "2025-11-19",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-11-19",
+        "Startdatum [dd.mm.jjjj]": "2025-12-03",
+        "Enddatum [dd.mm.jjjj]": "2027-01-02",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Nadia Hug",
+        "Produktmanager": "Franziska Suter"
+      }
+    },
+    {
+      "number": "KP311568",
+      "name": "Compliance-Monitoring Konsolidierung",
+      "status": "open",
+      "createdDate": "2025-10-13",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-10-13",
+        "Startdatum [dd.mm.jjjj]": "2026-06-19",
+        "Enddatum [dd.mm.jjjj]": "2027-04-18",
+        "Projektstatus": "Geplant",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Regula Moser",
+        "Produktmanager": "Regula Moser"
+      }
+    },
+    {
+      "number": "KP368678",
+      "name": "Zahlungsverkehr Konsolidierung",
+      "status": "open",
+      "createdDate": "2025-10-04",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-10-04",
+        "Startdatum [dd.mm.jjjj]": "2025-09-25",
+        "Enddatum [dd.mm.jjjj]": "2027-01-24",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Ursula Rüegg",
+        "Produktmanager": "Regula Moser"
+      }
+    },
+    {
+      "number": "KP140340",
+      "name": "Arbeitsplatz Ausbau",
+      "status": "open",
+      "createdDate": "2025-07-29",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-07-29",
+        "Startdatum [dd.mm.jjjj]": "2025-09-13",
+        "Enddatum [dd.mm.jjjj]": "2028-04-12",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Fabian Zbinden",
+        "Produktmanager": "Marco Christen"
+      }
+    },
+    {
+      "number": "KP380697",
+      "name": "Anlageberatung Ablösung",
+      "status": "open",
+      "createdDate": "2025-07-14",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-07-14",
+        "Startdatum [dd.mm.jjjj]": "2025-07-25",
+        "Enddatum [dd.mm.jjjj]": "2027-04-24",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Ursula Rüegg",
+        "Produktmanager": "Regula Moser"
+      }
+    },
+    {
+      "number": "KP392806",
+      "name": "Data Warehouse Migration",
+      "status": "open",
+      "createdDate": "2025-06-09",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-06-09",
+        "Startdatum [dd.mm.jjjj]": "2025-08-06",
+        "Enddatum [dd.mm.jjjj]": "2027-03-30",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "L-Large",
+        "Projektleitung": "Helen Tschanz",
+        "Produktmanager": "Jasmin Imhof"
+      }
+    },
+    {
+      "number": "KP993488",
+      "name": "Wertschriften Ablösung",
+      "status": "open",
+      "createdDate": "2025-01-13",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2025-01-13",
+        "Startdatum [dd.mm.jjjj]": "2025-04-01",
+        "Enddatum [dd.mm.jjjj]": "2026-12-01",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Ursula Rüegg",
+        "Produktmanager": "Regula Moser"
+      }
+    },
+    {
+      "number": "KP665533",
+      "name": "Treasury Harmonisierung",
+      "status": "open",
+      "createdDate": "2024-05-23",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2024-05-23",
+        "Startdatum [dd.mm.jjjj]": "2024-09-03",
+        "Enddatum [dd.mm.jjjj]": "2026-12-02",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Severin Jost",
+        "Produktmanager": "Anna Bieri"
+      }
+    },
+    {
+      "number": "KP320112",
+      "name": "Kartenmanagement Erneuerung",
+      "status": "open",
+      "createdDate": "2024-06-01",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2024-06-01",
+        "Startdatum [dd.mm.jjjj]": "2027-01-23",
+        "Enddatum [dd.mm.jjjj]": "2028-01-22",
+        "Projektstatus": "Pausiert",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Beat Hofer",
+        "Produktmanager": "Franziska Suter"
+      }
+    },
+    {
+      "number": "KP368707",
+      "name": "Schnittstellen-Hub Erneuerung",
+      "status": "open",
+      "createdDate": "2024-06-16",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2024-06-16",
+        "Startdatum [dd.mm.jjjj]": "2025-11-14",
+        "Enddatum [dd.mm.jjjj]": "2027-06-13",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Stefan Flückiger",
+        "Produktmanager": "Stefan Flückiger"
+      }
+    },
+    {
+      "number": "KP917894",
+      "name": "Mobile App Automatisierung",
+      "status": "open",
+      "createdDate": "2024-05-09",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2024-05-09",
+        "Startdatum [dd.mm.jjjj]": "2025-04-15",
+        "Enddatum [dd.mm.jjjj]": "2026-11-14",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Jonas Stucki",
+        "Produktmanager": "Irene Wyss"
+      }
+    },
+    {
+      "number": "KP997033",
+      "name": "Cloud-Plattform Release 2027",
+      "status": "open",
+      "createdDate": "2024-05-21",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2024-05-21",
+        "Startdatum [dd.mm.jjjj]": "2025-06-28",
+        "Enddatum [dd.mm.jjjj]": "2027-01-11",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Laura Gerber",
+        "Produktmanager": "Stefan Flückiger"
+      }
+    },
+    {
+      "number": "KP978166",
+      "name": "Meldewesen Harmonisierung",
+      "status": "open",
+      "createdDate": "2024-06-03",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2024-06-03",
+        "Startdatum [dd.mm.jjjj]": "2025-05-12",
+        "Enddatum [dd.mm.jjjj]": "2027-01-30",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Daniel Bucher",
+        "Produktmanager": "Stefan Flückiger"
+      }
+    },
+    {
+      "number": "KP615653",
+      "name": "Leasing Redesign",
+      "status": "open",
+      "createdDate": "2024-05-15",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2024-05-15",
+        "Startdatum [dd.mm.jjjj]": "2025-02-10",
+        "Enddatum [dd.mm.jjjj]": "2028-02-09",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Ursula Rüegg",
+        "Produktmanager": "Regula Moser"
+      }
+    },
+    {
+      "number": "KP817909",
+      "name": "Kunden-Onboarding Erweiterung Schnittstellen",
+      "status": "open",
+      "createdDate": "2024-03-07",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2024-03-07",
+        "Startdatum [dd.mm.jjjj]": "2024-07-04",
+        "Enddatum [dd.mm.jjjj]": "2026-12-03",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Regula Moser",
+        "Produktmanager": "Regula Moser"
+      }
+    },
+    {
+      "number": "KP527690",
+      "name": "E-Banking Automatisierung",
+      "status": "open",
+      "createdDate": "2024-03-05",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2024-03-05",
+        "Startdatum [dd.mm.jjjj]": "2024-05-04",
+        "Enddatum [dd.mm.jjjj]": "2027-03-03",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Ursula Rüegg",
+        "Produktmanager": "Regula Moser"
+      }
+    },
+    {
+      "number": "KP402126",
+      "name": "Data Warehouse Ausbau",
+      "status": "open",
+      "createdDate": "2024-11-19",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2024-11-19",
+        "Startdatum [dd.mm.jjjj]": "2024-12-10",
+        "Enddatum [dd.mm.jjjj]": "2027-04-08",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Judith Vogel",
+        "Produktmanager": "Franziska Suter"
+      }
+    },
+    {
+      "number": "KP327600",
+      "name": "Wertschriften Harmonisierung",
+      "status": "open",
+      "createdDate": "2024-12-22",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2024-12-22",
+        "Startdatum [dd.mm.jjjj]": "2025-02-07",
+        "Enddatum [dd.mm.jjjj]": "2027-01-26",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Ursula Rüegg",
+        "Produktmanager": "Regula Moser"
+      }
+    },
+    {
+      "number": "KP703298",
+      "name": "Kreditprozess Redesign",
+      "status": "open",
+      "createdDate": "2024-10-12",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2024-10-12",
+        "Startdatum [dd.mm.jjjj]": "2024-10-11",
+        "Enddatum [dd.mm.jjjj]": "2026-12-07",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Carla Lehmann",
+        "Produktmanager": "Regula Moser"
+      }
+    },
+    {
+      "number": "KP281199",
+      "name": "Arbeitsplatz Automatisierung",
+      "status": "open",
+      "createdDate": "2024-08-01",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2024-08-01",
+        "Startdatum [dd.mm.jjjj]": "2024-08-08",
+        "Enddatum [dd.mm.jjjj]": "2027-06-07",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Walter Kunz",
+        "Produktmanager": "Franziska Suter"
+      }
+    },
+    {
+      "number": "KP930041",
+      "name": "Leasing Modernisierung",
+      "status": "open",
+      "createdDate": "2024-06-04",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2024-06-04",
+        "Startdatum [dd.mm.jjjj]": "2025-05-13",
+        "Enddatum [dd.mm.jjjj]": "2027-02-11",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Carla Lehmann",
+        "Produktmanager": "Stefan Flückiger"
+      }
+    },
+    {
+      "number": "KP427625",
+      "name": "Netzwerk Upgrade",
+      "status": "open",
+      "createdDate": "2024-05-24",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2024-05-24",
+        "Startdatum [dd.mm.jjjj]": "2025-04-02",
+        "Enddatum [dd.mm.jjjj]": "2027-09-01",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Stefan Flückiger",
+        "Produktmanager": "Stefan Flückiger"
+      }
+    },
+    {
+      "number": "KP247960",
+      "name": "Compliance-Monitoring Erweiterung Schnittstellen",
+      "status": "open",
+      "createdDate": "2023-10-19",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2023-10-19",
+        "Startdatum [dd.mm.jjjj]": "2024-06-07",
+        "Enddatum [dd.mm.jjjj]": "2027-02-06",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "L-Large",
+        "Projektleitung": "Eva Bühler",
+        "Produktmanager": "Anna Bieri"
+      }
+    },
+    {
+      "number": "KP906280",
+      "name": "E-Banking Ablösung",
+      "status": "open",
+      "createdDate": "2023-04-13",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2023-04-13",
+        "Startdatum [dd.mm.jjjj]": "2024-07-30",
+        "Enddatum [dd.mm.jjjj]": "2027-11-28",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Fabian Zbinden",
+        "Produktmanager": "Franziska Suter"
+      }
+    },
+    {
+      "number": "KP695356",
+      "name": "Hypotheken Redesign",
+      "status": "open",
+      "createdDate": "2023-04-28",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2023-04-28",
+        "Startdatum [dd.mm.jjjj]": "2023-12-22",
+        "Enddatum [dd.mm.jjjj]": "2027-12-21",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Reto Lüthi",
+        "Produktmanager": "Franziska Suter"
+      }
+    },
+    {
+      "number": "KP987376",
+      "name": "Netzwerk Modernisierung",
+      "status": "open",
+      "createdDate": "2023-05-02",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2023-05-02",
+        "Startdatum [dd.mm.jjjj]": "2024-09-16",
+        "Enddatum [dd.mm.jjjj]": "2027-07-15",
+        "Projektstatus": "Abgebrochen",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Laura Gerber",
+        "Produktmanager": "Stefan Flückiger"
+      }
+    },
+    {
+      "number": "KP227499",
+      "name": "Kreditprozess Migration",
+      "status": "open",
+      "createdDate": "2023-09-30",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2023-09-30",
+        "Startdatum [dd.mm.jjjj]": "2023-09-03",
+        "Enddatum [dd.mm.jjjj]": "2026-08-02",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "L-Large",
+        "Projektleitung": "Barbara Roth",
+        "Produktmanager": "Gregor Kälin"
+      }
+    },
+    {
+      "number": "KP744685",
+      "name": "Dokumentenarchiv Redesign",
+      "status": "open",
+      "createdDate": "2023-06-01",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2023-06-01",
+        "Startdatum [dd.mm.jjjj]": "2023-05-01",
+        "Enddatum [dd.mm.jjjj]": "2026-10-30",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "S-Small",
+        "Projektleitung": "Franziska Suter",
+        "Produktmanager": "Franziska Suter"
+      }
+    },
+    {
+      "number": "KP269224",
+      "name": "Kartenmanagement Harmonisierung",
+      "status": "open",
+      "createdDate": "2023-04-13",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2023-04-13",
+        "Startdatum [dd.mm.jjjj]": "2023-12-27",
+        "Enddatum [dd.mm.jjjj]": "2027-08-12",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "L-Large",
+        "Projektleitung": "Fabian Zbinden",
+        "Produktmanager": "Franziska Suter"
+      }
+    },
+    {
+      "number": "KP210981",
+      "name": "Datenplattform Erweiterung Schnittstellen",
+      "status": "open",
+      "createdDate": "2023-04-09",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2023-04-09",
+        "Startdatum [dd.mm.jjjj]": "2023-04-09",
+        "Enddatum [dd.mm.jjjj]": "2026-10-04",
+        "Projektstatus": "Abgeschlossen",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Regula Moser",
+        "Produktmanager": "Regula Moser"
+      }
+    },
+    {
+      "number": "KP954278-01",
+      "name": "Data Warehouse Release 2027",
+      "status": "open",
+      "createdDate": "2023-05-11",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2023-05-11",
+        "Startdatum [dd.mm.jjjj]": "2023-01-27",
+        "Enddatum [dd.mm.jjjj]": "2027-04-28",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "L-Large",
+        "Projektleitung": "Barbara Roth",
+        "Produktmanager": "Irene Wyss"
+      }
+    },
+    {
+      "number": "KP954278",
+      "name": "E-Banking Erweiterung Schnittstellen",
+      "status": "open",
+      "createdDate": "2022-05-20",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2022-05-20",
+        "Startdatum [dd.mm.jjjj]": "2023-03-19",
+        "Enddatum [dd.mm.jjjj]": "2027-06-18",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "L-Large",
+        "Projektleitung": "Barbara Roth",
+        "Produktmanager": "Irene Wyss"
+      }
+    },
+    {
+      "number": "KP253961",
+      "name": "CRM Ablösung",
+      "status": "open",
+      "createdDate": "2022-06-02",
+      "importedAt": "2026-10-22T07:55:15+02:00",
+      "details": {
+        "Erstellungsdatum [dd.mm.jjjj]": "2022-06-02",
+        "Startdatum [dd.mm.jjjj]": "2022-08-14",
+        "Enddatum [dd.mm.jjjj]": "2028-06-03",
+        "Projektstatus": "Aktiv",
+        "Projekttyp": "Kundenprojekte",
+        "Projektklasse": "M-Medium",
+        "Projektleitung": "Nadia Hug",
+        "Produktmanager": "Selina Schmid"
+      }
+    }
+  ],
+  "numberFilter": "^KP.+",
+  "lastImport": {
+    "at": "2026-10-22T08:13:30+02:00",
+    "fileName": "Projektliste.xlsx"
+  },
+  "detailColumns": [
+    "Erstellungsdatum [dd.mm.jjjj]",
+    "Startdatum [dd.mm.jjjj]",
+    "Enddatum [dd.mm.jjjj]",
+    "Projektstatus",
+    "Projekttyp",
+    "Projektklasse",
+    "Projektleitung",
+    "Produktmanager"
+  ]
+}

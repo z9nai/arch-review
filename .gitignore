@@ -3,5 +3,3 @@ dist/
 .DS_Store
 /.claude/*
 /.idea/*
-# echte Projektlisten (Excel-Import) — Kundendaten, nie ins öffentliche Repo
-sample-data/config/portfolio.json
