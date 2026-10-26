@@ -104,6 +104,33 @@ export const tableAt = (lines: string[], i: number) => {
   return { header, align, rows, end };
 };
 
+/** Abschnitt einer Bemerkung: Fliesstext oder Tabelle (Zeilen auf die Spaltenzahl des Kopfs gebracht) */
+export type RemarkSegment =
+  | { kind: 'text'; text: string }
+  | { kind: 'table'; header: string[]; align: TableAlign[]; rows: string[][] };
+
+// Bemerkung in Text- und Tabellenabschnitte zerlegen (z. B. für Tabellen mit Feldern je Zelle im PDF)
+export function splitRemarks(text: string): RemarkSegment[] {
+  const lines = text.replace(/\r\n?/g, '\n').split('\n');
+  const segs: RemarkSegment[] = [];
+  let buf: string[] = [];
+  const flush = () => { const t = buf.join('\n').trim(); if (t) segs.push({ kind: 'text', text: t }); buf = []; };
+  for (let i = 0; i < lines.length; i++) {
+    const t = tableAt(lines, i);
+    if (!t) { buf.push(lines[i]); continue; }
+    flush();
+    const n = t.header.length;
+    segs.push({ kind: 'table', header: t.header, align: t.align, rows: t.rows.map(r => Array.from({ length: n }, (_, c) => r[c] ?? '')) });
+    i = t.end - 1;
+  }
+  flush();
+  return segs;
+}
+
+/** Kopf- und Trennzeile einer Tabelle als Markdown («| a | b |» / «| --- | :---: |») */
+export const tableHead = (header: string[], align: TableAlign[]) =>
+  `| ${header.map(h => h.replace(/\|/g, '\\|')).join(' | ')} |\n| ${align.map(a => (a === 'center' ? ':---:' : a === 'right' ? '---:' : '---')).join(' | ')} |`;
+
 // Tabellen im Quelltext ausrichten (Spalten mit Leerzeichen auffüllen), damit sie
 // in der Bearbeitung (Monospace) lesbar sind; Darstellung und Inhalt bleiben gleich.
 const cellLen = (s: string) => [...s].length;

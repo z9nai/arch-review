@@ -5,8 +5,9 @@
 // Fliesstext (Beschrieb, Bemerkungen, Hinweise …) läuft über pdfRich:
 // Markdown (Absätze, Aufzählungen, **fett**, `Code`) und Symbole (⚠ → ↔ …).
 import { ReportTemplate } from './types';
-import { formatTables } from './richText';
+import { formatTables, splitRemarks, splitRow, tableHead, type TableAlign } from './richText';
 import {
+  AnnotationFlags,
   PDFDocument,
   PDFPage,
   PDFEmbeddedPage,
@@ -43,6 +44,9 @@ const GRAY = rgb(0.42, 0.42, 0.42);
 const LIGHT = rgb(0.75, 0.75, 0.75);
 const FIELD_BG = rgb(0.965, 0.965, 0.985);
 const FIELD_BORDER = rgb(0.65, 0.65, 0.7);
+const TABLE_RULE = rgb(0.72, 0.72, 0.76);
+const HEAD_BG = rgb(0.92, 0.92, 0.95);
+const RESERVE_BG = rgb(0.985, 0.985, 0.995);
 
 // Formularfelder (Dropdown-Optionen) rendert der Viewer mit Helvetica — dort
 // nur WinAnsi (Latin-1 + CP1252-Zusatzzeichen) zulassen.
@@ -115,6 +119,115 @@ export async function buildOpenQuestionsPdf(opts: {
   const f = new Flow(doc.addPage(A4), A4[1] - MARGIN, F, MARGIN, CONTENT_W, MARGIN,
     () => ({ page: doc.addPage(A4), y: A4[1] - MARGIN }));
 
+  const fieldOpts = { borderColor: FIELD_BORDER, borderWidth: 0.8, backgroundColor: FIELD_BG };
+  const fieldLineH = FIELD_SIZE * 1.25;
+
+  // Höhe eines mehrzeiligen Textfelds nach dem vorausgefüllten Text (grob), plus Reserve zum Ergänzen
+  const textFieldHeight = (text: string, minH: number, spare = 2) => {
+    const perLine = Math.floor((CONTENT_W - 8) / (FIELD_SIZE * 0.5));
+    const lines = text ? text.split('\n').reduce((n, l) => n + Math.max(1, Math.ceil(l.length / perLine)), 0) : 0;
+    return Math.min(560, Math.max(minH, (lines + spare) * fieldLineH + 6));
+  };
+  const addTextField = (name: string, text: string, page: PDFPage, y: number, h: number, x = MARGIN, w = CONTENT_W,
+    o: Partial<typeof fieldOpts> = fieldOpts) => {
+    const tf = form.createTextField(name);
+    tf.enableMultiline();
+    if (text) tf.setText(text);
+    tf.addToPage(page, { x, y, width: w, height: h, ...o });
+    tf.setFontSize(FIELD_SIZE);
+    return tf;
+  };
+
+  // Zeilen beim Umbruch in eine Spalte (Wortumbruch, überlange Wörter zeichenweise)
+  const wrapCount = (text: string, width: number) => {
+    let lines = 1;
+    let x = 0;
+    const space = helv.widthOfTextAtSize(' ', FIELD_SIZE);
+    for (const word of text.split(/\s+/).filter(Boolean)) {
+      const w = helv.widthOfTextAtSize(word, FIELD_SIZE);
+      if (x > 0 && x + space + w > width) { lines++; x = 0; }
+      if (w > width) { lines += Math.ceil(w / width) - 1; x = w % width; }
+      else x += (x > 0 ? space : 0) + w;
+    }
+    return lines;
+  };
+
+  // Tabelle mit festem, fettem Kopf und einem Feld je Datenzelle, dazu leere
+  // Reservezeilen für neue Einträge. Kopf und Ausrichtung reisen als
+  // verstecktes Feld `…::head` mit, damit der Rückimport die Tabelle wieder aufbaut.
+  const RESERVE_ROWS = 2;
+  const drawTableFields = (base: string, t: { header: string[]; align: TableAlign[]; rows: string[][] }) => {
+    const n = t.header.length;
+    const padX = 3;
+    const padY = 3;
+    // Viewer setzen Text im Feld mit Innenabstand und grösserem Zeilenabstand
+    // (macOS Vorschau ~2 pt je Seite, ~1.45 × Schriftgrösse) — sonst wird abgeschnitten
+    const inset = 8;
+    const cellLineH = FIELD_SIZE * 1.45;
+    const cells = t.rows.map(r => r.map(c => toFieldText(c)));
+    const nat: number[] = Array(n).fill(0);
+    const min: number[] = Array(n).fill(0);
+    t.header.forEach((h, c) => {
+      nat[c] = Math.max(nat[c], richWidth(h, F, FIELD_SIZE, true));
+      for (const w of h.split(/\s+/).filter(Boolean)) min[c] = Math.max(min[c], richWidth(w, F, FIELD_SIZE, true));
+    });
+    for (const r of cells) {
+      r.forEach((v, c) => {
+        nat[c] = Math.max(nat[c], helv.widthOfTextAtSize(v, FIELD_SIZE) + inset);
+        for (const w of v.split(/\s+/).filter(Boolean)) min[c] = Math.max(min[c], helv.widthOfTextAtSize(w, FIELD_SIZE) + inset);
+      });
+    }
+    const sum = (a: number[]) => a.reduce((x, y) => x + y, 0);
+    const avail = CONTENT_W - n * 2 * padX;
+    let inner: number[];
+    // volle Breite: Platz zum Ändern; zu breit → Minimum (längstes Wort) plus Rest nach Bedarf
+    if (sum(nat) <= avail) inner = nat.map(w => w + (avail - sum(nat)) * ((w || 1) / (sum(nat) || n)));
+    else if (sum(min) <= avail) {
+      const extra = avail - sum(min);
+      const want = sum(nat) - sum(min) || 1;
+      inner = min.map((m, c) => m + extra * (nat[c] - m) / want);
+    } else inner = min.map(m => avail * m / sum(min));
+    const xs = [MARGIN];
+    for (const w of inner) xs.push(xs[xs.length - 1] + w + 2 * padX);
+
+    const headLines = t.header.map((h, c) => layoutRich(h, F, { size: FIELD_SIZE, width: inner[c], bold: true }));
+    const headH = Math.max(...headLines.map(l => l.length)) * fieldLineH + 2 * padY;
+    const drawHead = () => {
+      f.page.drawRectangle({ x: MARGIN, y: f.y - headH, width: xs[n] - MARGIN, height: headH, color: HEAD_BG });
+      headLines.forEach((lines, c) => {
+        lines.forEach((ln, k) => drawRichLine(f.page, ln, xs[c] + padX, f.y - padY - FIELD_SIZE * 0.85 - k * fieldLineH, FIELD_SIZE, BLACK));
+        f.page.drawRectangle({ x: xs[c], y: f.y - headH, width: xs[c + 1] - xs[c], height: headH, borderColor: TABLE_RULE, borderWidth: 0.5 });
+      });
+      f.y -= headH;
+    };
+    f.ensure(headH + cellLineH + 2 * padY);
+    // Kopf/Ausrichtung als verstecktes, schreibgeschütztes Feld
+    const hf = form.createTextField(`${base}::head`);
+    hf.enableMultiline();
+    hf.setText(toFieldText(tableHead(t.header, t.align)));
+    hf.addToPage(f.page, { x: MARGIN, y: f.y - 1, width: 1, height: 1, borderWidth: 0 });
+    hf.enableReadOnly();
+    for (const w of hf.acroField.getWidgets()) w.setFlagTo(AnnotationFlags.Hidden, true);
+    drawHead();
+
+    const rows = [...cells, ...Array.from({ length: RESERVE_ROWS }, () => Array(n).fill(''))];
+    rows.forEach((r, ri) => {
+      const lines = Math.max(...r.map((v, c) => (v ? wrapCount(v, inner[c] - inset) : 1)));
+      const h = lines * cellLineH + 2 * padY;
+      const page = f.page;
+      f.ensure(h);
+      if (f.page !== page) drawHead(); // Kopf auf der neuen Seite wiederholen
+      r.forEach((v, c) => {
+        const x = xs[c];
+        const w = xs[c + 1] - x;
+        f.page.drawRectangle({ x, y: f.y - h, width: w, height: h, borderColor: TABLE_RULE, borderWidth: 0.5 });
+        addTextField(`${base}::r${ri}::c${c}`, v, f.page, f.y - h + 1, h - 2, x + 1, w - 2,
+          { borderWidth: 0, backgroundColor: ri < cells.length ? FIELD_BG : RESERVE_BG });
+      });
+      f.y -= h;
+    });
+  };
+
   // Kopf
   f.text(`Offene Fragen ${opts.milestoneTitle}`, 14, 18, { bold: true, plain: true });
   f.y -= 4;
@@ -151,8 +264,6 @@ export async function buildOpenQuestionsPdf(opts: {
       if (q.hint) f.text(q.hint, 8, 11, { color: GRAY });
       f.y -= 6;
 
-      const fieldOpts = { borderColor: FIELD_BORDER, borderWidth: 0.8, backgroundColor: FIELD_BG };
-
       if (q.kind === 'yesNo') {
         f.ensure(14);
         f.y -= 12;
@@ -174,22 +285,49 @@ export async function buildOpenQuestionsPdf(opts: {
         f.y -= 6;
       }
 
-      // Tabellen kompakt (Helvetica: Füll-Leerzeichen richten nichts aus, sie reissen nur Lücken)
-      const prefill = q.remarks?.trim() ? toFieldText(formatTables(q.remarks.trim(), false)) : '';
-      const remarksLabel = `${q.kind === 'text' ? 'Antwort / Bemerkung' : 'Bemerkung'}${prefill ? ' (bitte bestätigen oder ergänzen)' : ''}:`;
-      // Feldhöhe nach dem vorausgefüllten Text (grob: Zeichen je Zeile), plus Platz zum Ergänzen
-      const perLine = Math.floor((CONTENT_W - 8) / (FIELD_SIZE * 0.5));
-      const textLines = prefill ? prefill.split('\n').reduce((n, l) => n + Math.max(1, Math.ceil(l.length / perLine)), 0) : 0;
-      const remarksH = Math.min(560, Math.max(q.kind === 'text' ? 56 : 40, (textLines + 2) * FIELD_SIZE * 1.25 + 6));
-      f.ensure(12 + remarksH);
+      const label = (prefilled: boolean) =>
+        `${q.kind === 'text' ? 'Antwort / Bemerkung' : 'Bemerkung'}${prefilled ? ' (bitte bestätigen oder ergänzen)' : ''}:`;
+      const segs = q.remarks?.trim() ? splitRemarks(q.remarks.trim()) : [];
+
+      if (!segs.some(sg => sg.kind === 'table')) {
+        // ohne Tabelle: ein Textfeld wie bisher (Feldname `…::remarks`)
+        const prefill = q.remarks?.trim() ? toFieldText(q.remarks.trim()) : '';
+        const h = textFieldHeight(prefill, q.kind === 'text' ? 56 : 40);
+        f.ensure(12 + h);
+        f.y -= 12;
+        f.page.drawText(label(!!prefill), { x: MARGIN, y: f.y, size: 8.5, font: helv, color: GRAY });
+        f.y -= h + 4;
+        addTextField(`${q.fieldKey}::remarks`, prefill, f.page, f.y, h);
+        continue;
+      }
+
+      // mit Tabelle(n): Abschnitte je eigene Felder — Text als Textfeld, Tabelle
+      // gezeichnet mit einem Feld je Zelle (`…::remarks::<abschnitt>::text` bzw. `::r<z>::c<s>`)
+      f.ensure(40);
       f.y -= 12;
-      f.page.drawText(remarksLabel, { x: MARGIN, y: f.y, size: 8.5, font: helv, color: GRAY });
-      f.y -= remarksH + 4;
-      const tf = form.createTextField(`${q.fieldKey}::remarks`);
-      tf.enableMultiline();
-      if (prefill) tf.setText(prefill);
-      tf.addToPage(f.page, { x: MARGIN, y: f.y, width: CONTENT_W, height: remarksH, ...fieldOpts });
-      tf.setFontSize(FIELD_SIZE);
+      f.page.drawText(label(true), { x: MARGIN, y: f.y, size: 8.5, font: helv, color: GRAY });
+      f.y -= 4;
+      segs.forEach((sg, si) => {
+        if (sg.kind === 'text') {
+          const text = toFieldText(sg.text);
+          const h = textFieldHeight(text, 24, 1);
+          f.ensure(h + 4);
+          f.y -= h;
+          addTextField(`${q.fieldKey}::remarks::${si}::text`, text, f.page, f.y, h);
+          f.y -= 4;
+        } else {
+          drawTableFields(`${q.fieldKey}::remarks::${si}`, sg);
+          f.y -= 4;
+        }
+      });
+      // nach einer Tabelle am Schluss: freies Feld für Ergänzungen
+      if (segs[segs.length - 1].kind === 'table') {
+        f.ensure(40);
+        f.y -= 10;
+        f.page.drawText('Ergänzung:', { x: MARGIN, y: f.y, size: 8.5, font: helv, color: GRAY });
+        f.y -= 30;
+        addTextField(`${q.fieldKey}::remarks::${segs.length}::text`, '', f.page, f.y, 26);
+      }
     }
   }
 
@@ -219,15 +357,42 @@ export type PdfAnswerRaw = {
   remarks?: string;
 };
 
-// Ausgefülltes Formular-PDF wieder einlesen (Gegenstück zu buildOpenQuestionsPdf)
+// Ausgefülltes Formular-PDF wieder einlesen (Gegenstück zu buildOpenQuestionsPdf).
+// Bemerkungen mit Tabellen kommen in Abschnitten zurück (`…::remarks::<i>::text`,
+// `::head`, `::r<z>::c<s>`) und werden wieder zu Text + Markdown-Tabelle zusammengesetzt.
 export async function readAnswersPdf(bytes: ArrayBuffer): Promise<PdfAnswerRaw[]> {
   const doc = await PDFDocument.load(bytes, { ignoreEncryption: true, updateMetadata: false });
   const map = new Map<string, PdfAnswerRaw>();
+  type Seg = { text?: string; head?: string; cells: Map<number, Map<number, string>> };
+  const segsOf = new Map<string, Map<number, Seg>>();
+  const entry = (themeId: string, questionId: string) => {
+    const key = `${themeId}::${questionId}`;
+    const a = map.get(key) ?? { themeId, questionId };
+    map.set(key, a);
+    return { key, a };
+  };
   for (const field of doc.getForm().getFields()) {
-    const m = field.getName().match(/^(.+?)::(.+?)::(ja|nein|choice|remarks)$/);
+    const name = field.getName();
+    const seg = name.match(/^(.+?)::(.+?)::remarks::(\d+)::(text|head|r(\d+)::c(\d+))$/);
+    if (seg && field instanceof PDFTextField) {
+      const { key } = entry(seg[1], seg[2]);
+      const segs = segsOf.get(key) ?? new Map<number, Seg>();
+      segsOf.set(key, segs);
+      const sg: Seg = segs.get(+seg[3]) ?? { cells: new Map() };
+      segs.set(+seg[3], sg);
+      const v = field.getText() ?? '';
+      if (seg[4] === 'text') sg.text = v;
+      else if (seg[4] === 'head') sg.head = v;
+      else {
+        const row = sg.cells.get(+seg[5]!) ?? new Map<number, string>();
+        row.set(+seg[6]!, v);
+        sg.cells.set(+seg[5]!, row);
+      }
+      continue;
+    }
+    const m = name.match(/^(.+?)::(.+?)::(ja|nein|choice|remarks)$/);
     if (!m) continue;
-    const key = `${m[1]}::${m[2]}`;
-    const a = map.get(key) ?? { themeId: m[1], questionId: m[2] };
+    const { a } = entry(m[1], m[2]);
     if (field instanceof PDFCheckBox && field.isChecked()) {
       if (m[3] === 'ja') a.ja = true;
       else a.nein = true;
@@ -238,7 +403,23 @@ export async function readAnswersPdf(bytes: ArrayBuffer): Promise<PdfAnswerRaw[]
       const t = (field.getText() ?? '').trim();
       if (t) a.remarks = t;
     }
-    map.set(key, a);
+  }
+  for (const [key, segs] of segsOf) {
+    const parts: string[] = [];
+    for (const i of [...segs.keys()].sort((x, y) => x - y)) {
+      const sg = segs.get(i)!;
+      if (sg.text?.trim()) parts.push(sg.text.trim());
+      if (!sg.head) continue;
+      const n = splitRow(sg.head.split('\n')[0]).length;
+      const rows = [...sg.cells.keys()].sort((x, y) => x - y).map(r => {
+        const row = sg.cells.get(r)!;
+        // Zelle einzeilig; «|» im Zellinhalt maskieren
+        return Array.from({ length: n }, (_, c) => (row.get(c) ?? '').replace(/\s*\n\s*/g, ' ').trim().replace(/\|/g, '\\|'));
+      }).filter(r => r.some(Boolean)); // leere (Reserve-)Zeilen weglassen
+      parts.push(formatTables([sg.head.trim(), ...rows.map(r => `| ${r.join(' | ')} |`)].join('\n')));
+    }
+    const remarks = parts.join('\n\n').trim();
+    if (remarks) map.get(key)!.remarks = remarks;
   }
   return [...map.values()];
 }

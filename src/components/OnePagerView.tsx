@@ -2612,7 +2612,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
               <div className={`mt-3 text-[11px] ${textMuted}`}>
                 {answersPdfItems
                   ? (items.length === 0
-                    ? 'Keine ausgefüllten Felder im PDF gefunden — stimmt der Meilenstein?'
+                    ? 'Keine Änderungen im PDF — alles unverändert bestätigt, oder stimmt der Meilenstein nicht?'
                     : `${items.length} ${items.length === 1 ? 'Antwort' : 'Antworten'} aus dem PDF erkannt:`)
                   : answersText.trim() === ''
                     ? 'Noch kein Text eingefügt.'
