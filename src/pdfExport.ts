@@ -53,8 +53,9 @@ const clean = (s: string): string =>
 // Text für ein Formularfeld: Das Feld rendert der Viewer mit Helvetica — Symbole
 // ausserhalb WinAnsi lesbar ersetzen statt «?». Gleiche Umwandlung beim Einlesen,
 // damit eine unverändert zurückgeschickte Bemerkung als unverändert erkannt wird.
-// Schrift in den Formularfeldern: kleiner als der Fragetext (9.5), etwas grösser als die Hilfe (8)
-const FIELD_SIZE = 8.5;
+// Schrift in den Formularfeldern: kleiner als der Fragetext (9.5), etwas grösser als die Hilfe (8);
+// ganzzahlig, weil macOS Vorschau (PDFKit) Bruchteile rundet
+const FIELD_SIZE = 9;
 
 const FIELD_SUBST: Record<string, string> = {
   '→': '->', '←': '<-', '↔': '<->', '⇒': '=>', '⇐': '<=', '≥': '>=', '≤': '<=', '≠': '!=',
@@ -196,9 +197,16 @@ export async function buildOpenQuestionsPdf(opts: {
   // Schrift der Felder im Formular hinterlegen (AcroForm /DR, /DA): Viewer, die
   // Felder selbst neu zeichnen (z. B. beim Bearbeiten), finden sonst die Schrift
   // nicht und nehmen ihre eigene Standardgrösse
+  const fieldDA = PDFString.of(`/${helv.name} ${FIELD_SIZE} Tf 0 g`);
   const acro = form.acroForm.dict;
   acro.set(PDFName.of('DR'), doc.context.obj({ Font: { [helv.name]: helv.ref } }));
-  acro.set(PDFName.of('DA'), PDFString.of(`/${helv.name} ${FIELD_SIZE} Tf 0 g`));
+  acro.set(PDFName.of('DA'), fieldDA);
+  // auch am sichtbaren Feld (Widget): macOS Vorschau liest die Schrift nur dort,
+  // sonst nimmt sie 12 pt
+  for (const field of form.getFields()) {
+    if (!(field instanceof PDFTextField) && !(field instanceof PDFDropdown)) continue;
+    for (const w of field.acroField.getWidgets()) w.dict.set(PDFName.of('DA'), fieldDA);
+  }
   return doc.save();
 }
 
