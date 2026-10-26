@@ -13,7 +13,7 @@ import { applyMs10, extractPdfText, hasMs10Data, Ms10Data, MS10_FIELD_LABELS, pa
 import { DEFAULT_MODEL } from '../defaultModel';
 import { buildProjectExport, describeImportChanges, downloadJson, parseProjectImport, questionNumbers } from '../projectJson';
 import { AuditEntry, AuditOrigin, makeEntry, targetLabel } from '../audit';
-import { stripRich } from '../richText';
+import { formatTables, stripRich } from '../richText';
 import AuditPanel from './AuditPanel';
 import { fitTextarea, fmtTimestamp, formatBytes, normalizeUrl, nowIsoWithTimezone, sanitizeFilename } from '../util';
 
@@ -1260,6 +1260,15 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
     }
   };
 
+  // bereits erfasste Bemerkung einer Frage (für den Versand zum Bestätigen/Ergänzen)
+  const remarksOf = (themeId: string, q: Question) => String(getThemeReview(proj, themeId).answers?.[q.id]?.remarks ?? '').trim();
+  // Vergleich beim Rückimport: Tabellen-Ausrichtung, Leerzeichen (Mail-Umbruch) und Leerzeilen zählen nicht
+  const sameRemarks = (a: string, b: string) => {
+    const norm = (s: string) => formatTables(s.replace(/\r\n?/g, '\n').split('\n').map(l => l.trim()).join('\n'))
+      .split('\n').map(l => l.trim().replace(/\s+/g, ' ')).filter(Boolean).join('\n');
+    return norm(a) === norm(b);
+  };
+
   // who: nur die Fragen dieser Person (personKey) — mit persönlicher Anrede
   const buildExport = (ms: string, who = ''): { text: string; count: number } => {
     const title = `${ms} · ${MILESTONE_TITLES[ms] ?? 'Prüfung'}`;
@@ -1275,7 +1284,11 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
       ? `Für die Architekturprüfung sind im Meilenstein ${title} die folgenden Fragen dir zugewiesen und noch offen.`
       : `Für die Architekturprüfung sind im Meilenstein ${title} die folgenden Fragen noch offen.`);
     lines.push('Bitte direkt unter der jeweiligen Frage antworten ([X] ankreuzen bzw. Antwort ergänzen).');
-    openQuestionsByTheme(ms, who).forEach(({ theme, ti, qs }) => {
+    const groups = openQuestionsByTheme(ms, who);
+    if (groups.some(({ theme, qs }) => qs.some(({ q }) => remarksOf(theme.id, q)))) {
+      lines.push('Wo schon eine Bemerkung steht: bitte bestätigen, korrigieren oder ergänzen.');
+    }
+    groups.forEach(({ theme, ti, qs }) => {
       lines.push('');
       lines.push(`${themeLetter(ti)} · ${theme.title}`);
       lines.push('-'.repeat(46));
@@ -1283,15 +1296,19 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
         lines.push('');
         lines.push(`${number} ${q.text}`);
         if (q.hint) lines.push(`(${q.hint})`);
+        // bereits erfasste Bemerkung zum Bestätigen/Ergänzen unter dem Label
+        const rem = remarksOf(theme.id, q);
+        const label = (l: string) => `${l}${rem ? ' (bitte bestätigen oder ergänzen)' : ''}:`;
         if ((q.kind ?? 'yesNo') === 'yesNo') {
           lines.push('[ ] Ja    [ ] Nein');
-          lines.push('Bemerkung:');
+          lines.push(label('Bemerkung'));
         } else if (q.kind === 'choice') {
           lines.push(`Antwort (${(q.options ?? []).filter(Boolean).join(' / ')}):`);
-          lines.push('Bemerkung:');
+          lines.push(label('Bemerkung'));
         } else {
-          lines.push('Antwort / Bemerkung:');
+          lines.push(label('Antwort / Bemerkung'));
         }
+        if (rem) lines.push(...formatTables(rem).split('\n'));
         count++;
       }
     });
@@ -1384,7 +1401,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
   // Gleiche offenen Fragen als ausfüllbares PDF-Formular (pdf-lib, lazy)
   const downloadPdf = async (ms: string, who = '') => {
     const title = `${ms} · ${MILESTONE_TITLES[ms] ?? 'Prüfung'}`;
-    const sections: { heading: string; questions: { fieldKey: string; number: string; text: string; hint?: string; kind: 'yesNo' | 'text' | 'choice'; options?: string[] }[] }[] = [];
+    const sections: { heading: string; questions: { fieldKey: string; number: string; text: string; hint?: string; kind: 'yesNo' | 'text' | 'choice'; options?: string[]; remarks?: string }[] }[] = [];
     openQuestionsByTheme(ms, who).forEach(({ theme, ti, qs }) => {
       sections.push({
         heading: `${themeLetter(ti)} · ${theme.title}`,
@@ -1395,6 +1412,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
           hint: q.hint,
           kind: (q.kind ?? 'yesNo') as 'yesNo' | 'text' | 'choice',
           options: q.options,
+          ...(remarksOf(theme.id, q) ? { remarks: remarksOf(theme.id, q) } : {}),
         })),
       });
     });
@@ -1407,6 +1425,8 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
         intro: [
           `Für die Architekturprüfung sind im Meilenstein ${title} die folgenden Fragen noch offen.`,
           'Bitte die Felder direkt im PDF ausfüllen und die Datei zurücksenden.',
+          ...(sections.some(s => s.questions.some(q => q.remarks))
+            ? ['Wo schon eine Bemerkung steht: bitte bestätigen, korrigieren oder ergänzen.'] : []),
         ],
         sections,
       });
@@ -1577,7 +1597,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
   // Ausgefülltes Formular-PDF einlesen → ImportItems (gleicher Weg wie Text)
   const importPdfAnswers = async (ms: string, file: File) => {
     try {
-      const { readAnswersPdf } = await import('../pdfExport');
+      const { readAnswersPdf, toFieldText } = await import('../pdfExport');
       const raw = await readAnswersPdf(await file.arrayBuffer());
       const items: ImportItem[] = [];
       for (const r of raw) {
@@ -1587,7 +1607,8 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
         const patch: Partial<QuestionAnswer> = {};
         if ((r.ja ?? false) !== (r.nein ?? false)) patch.value = r.ja === true;
         if (r.choice) patch.choice = r.choice;
-        if (r.remarks) patch.remarks = r.remarks;
+        // vorausgefüllte Bemerkung unverändert zurück → keine Änderung
+        if (r.remarks && !sameRemarks(r.remarks, toFieldText(remarksOf(q.themeId, q)))) patch.remarks = r.remarks;
         if (!Object.keys(patch).length) continue;
         const parts: string[] = [];
         if (patch.value !== undefined) parts.push(patch.value ? 'Ja' : 'Nein');
@@ -1634,13 +1655,14 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
         const patch: Partial<QuestionAnswer> = {};
         if (curValue !== undefined) patch.value = curValue;
         if (curChoice) patch.choice = curChoice;
-        const rem = curRemarks.join('\n').trim();
-        if (rem) patch.remarks = rem;
+        const rem = curRemarks.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+        // vorausgefüllte Bemerkung unverändert zurück → keine Änderung
+        if (rem && !sameRemarks(rem, remarksOf(cur.themeId, cur.q))) patch.remarks = rem;
         if (Object.keys(patch).length) {
           const parts: string[] = [];
           if (curValue !== undefined) parts.push(curValue ? 'Ja' : 'Nein');
           if (curChoice) parts.push(curChoice);
-          if (rem) parts.push(`«${rem.length > 40 ? rem.slice(0, 40) + '…' : rem}»`);
+          if (patch.remarks) parts.push(`«${rem.length > 40 ? rem.slice(0, 40) + '…' : rem}»`);
           items.push({ ...cur, patch, summary: parts.join(' · ') });
         }
       }
@@ -1683,7 +1705,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
         seenMarker = true;
         continue;
       }
-      const bm = line.match(/^(?:Antwort \/ )?Bemerkung(?:en)?:\s*(.*)$/i);
+      const bm = line.match(/^(?:Antwort \/ )?Bemerkung(?:en)?(?:\s*\([^)]*\))?:\s*(.*)$/i);
       if (bm) {
         seenMarker = true;
         if (bm[1].trim()) curRemarks.push(bm[1].trim());
@@ -1702,8 +1724,9 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
       }
       // Hinweiszeile in Klammern nur vor dem ersten Marker überspringen
       if (!seenMarker && /^\(.*\)$/.test(line)) continue;
-      // Alles Übrige nach einem Marker gehört zur Bemerkung — bis zur nächsten Frage
-      if (seenMarker && line) curRemarks.push(line);
+      // Alles Übrige nach einem Marker gehört zur Bemerkung — bis zur nächsten Frage;
+      // Leerzeilen (Absätze, Ende einer Tabelle) und Einrückung bleiben erhalten
+      if (seenMarker) curRemarks.push(raw.replace(/^\s*(?:>\s?)+/, '').trimEnd());
     }
     flush();
     return items;

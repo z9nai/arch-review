@@ -24,6 +24,8 @@ export type PdfQuestion = {
   hint?: string;
   kind: 'yesNo' | 'text' | 'choice';
   options?: string[];
+  /** bereits erfasste Bemerkung — vorausgefüllt zum Bestätigen oder Ergänzen */
+  remarks?: string;
 };
 
 export type PdfSection = { heading: string; questions: PdfQuestion[] };
@@ -44,6 +46,17 @@ const FIELD_BORDER = rgb(0.65, 0.65, 0.7);
 const clean = (s: string): string =>
   s.replace(/[︎️‍]/g, '')
     .replace(/[^\x20-\xFFŒœŠšŸŽžƒ–—‘’‚“”„†‡•…‰‹›€™]/g, '?');
+
+// Text für ein Formularfeld: Das Feld rendert der Viewer mit Helvetica — Symbole
+// ausserhalb WinAnsi lesbar ersetzen statt «?». Gleiche Umwandlung beim Einlesen,
+// damit eine unverändert zurückgeschickte Bemerkung als unverändert erkannt wird.
+const FIELD_SUBST: Record<string, string> = {
+  '→': '->', '←': '<-', '↔': '<->', '⇒': '=>', '⇐': '<=', '≥': '>=', '≤': '<=', '≠': '!=',
+  '✓': 'OK', '✔': 'OK', '✗': 'x', '✘': 'x', '⚠': '(!)', '☐': '[ ]', '☑': '[x]', '☒': '[x]',
+};
+export const toFieldText = (s: string): string =>
+  s.replace(/\r\n?/g, '\n').replace(/\t/g, '    ').replace(/[︎️‍]/g, '').replace(/./gu, c => FIELD_SUBST[c] ?? c)
+    .replace(/[^\n\x20-\xFFŒœŠšŸŽžƒ–—‘’‚“”„†‡•…‰‹›€™]/g, '?');
 
 type RichOpts = { color?: RGB; x?: number; width?: number; bold?: boolean; plain?: boolean };
 
@@ -154,14 +167,19 @@ export async function buildOpenQuestionsPdf(opts: {
         f.y -= 6;
       }
 
-      const remarksLabel = q.kind === 'text' ? 'Antwort / Bemerkung:' : 'Bemerkung:';
-      const remarksH = q.kind === 'text' ? 56 : 40;
+      const prefill = q.remarks?.trim() ? toFieldText(q.remarks.trim()) : '';
+      const remarksLabel = `${q.kind === 'text' ? 'Antwort / Bemerkung' : 'Bemerkung'}${prefill ? ' (bitte bestätigen oder ergänzen)' : ''}:`;
+      // Feldhöhe nach dem vorausgefüllten Text (grob: Zeichen je Zeile bei 9 pt), plus Platz zum Ergänzen
+      const perLine = Math.floor((CONTENT_W - 8) / (9 * 0.5));
+      const textLines = prefill ? prefill.split('\n').reduce((n, l) => n + Math.max(1, Math.ceil(l.length / perLine)), 0) : 0;
+      const remarksH = Math.min(560, Math.max(q.kind === 'text' ? 56 : 40, (textLines + 2) * 11 + 6));
       f.ensure(12 + remarksH);
       f.y -= 12;
       f.page.drawText(remarksLabel, { x: MARGIN, y: f.y, size: 8.5, font: helv, color: GRAY });
       f.y -= remarksH + 4;
       const tf = form.createTextField(`${q.fieldKey}::remarks`);
       tf.enableMultiline();
+      if (prefill) tf.setText(prefill);
       tf.addToPage(f.page, { x: MARGIN, y: f.y, width: CONTENT_W, height: remarksH, ...fieldOpts });
       tf.setFontSize(9);
     }
