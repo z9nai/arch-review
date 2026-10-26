@@ -490,7 +490,8 @@ export async function buildReviewReportPdf(r: ReviewReport, tpl?: ReportTemplate
           f.y -= 11.5 + ln.gap;
           drawRichLine(f.page, ln, L + numW, f.y, 8.5, BLACK, 11.5, f.page !== page);
         }
-        if (q.remarks) f.text(q.remarks, 8, 10.5, { color: GRAY, x: L + numW + 8, width: W - numW - 8 });
+        // Bemerkungen (inkl. Tabellen) in der Grösse des Fragetexts
+        if (q.remarks) f.text(q.remarks, 8.5, 11.5, { color: GRAY, x: L + numW + 8, width: W - numW - 8 });
         if (q.assignee) {
           f.text(`Zuständig: ${q.assignee}`, 8, 10.5, { color: GRAY, x: L + numW + 8, width: W - numW - 8, plain: true });
         }
