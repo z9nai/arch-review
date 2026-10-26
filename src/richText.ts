@@ -116,7 +116,8 @@ const padCell = (s: string, w: number, align: TableAlign) => {
 const delimCell = (w: number, align: TableAlign) =>
   align === 'center' ? `:${'-'.repeat(w - 2)}:` : align === 'right' ? `${'-'.repeat(w - 1)}:` : '-'.repeat(w);
 
-export function formatTables(text: string): string {
+// pad = false: kompakt ohne Füll-Leerzeichen (für Proportionalschrift, z. B. PDF-Formularfelder)
+export function formatTables(text: string, pad = true): string {
   if (!text.includes('|')) return text;
   const lines = text.split('\n');
   const out: string[] = [];
@@ -126,9 +127,9 @@ export function formatTables(text: string): string {
     const n = t.header.length;
     const esc = (c: string) => c.replace(/\|/g, '\\|');
     const rows = [t.header, ...t.rows].map(r => r.map(esc));
-    const w = Array.from({ length: n }, (_, c) => Math.max(3, ...rows.map(r => cellLen(r[c] ?? ''))));
+    const w = Array.from({ length: n }, (_, c) => (pad ? Math.max(3, ...rows.map(r => cellLen(r[c] ?? ''))) : 3));
     const line = (r: string[]) => {
-      const cells = w.map((cw, c) => padCell(r[c] ?? '', cw, t.align[c]));
+      const cells = w.map((cw, c) => (pad ? padCell(r[c] ?? '', cw, t.align[c]) : (r[c] ?? '')));
       // überzählige Zellen (zeigt GFM nicht an) unverändert behalten statt löschen
       return `| ${[...cells, ...r.slice(n)].join(' | ')} |`;
     };

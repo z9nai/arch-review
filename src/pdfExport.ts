@@ -5,6 +5,7 @@
 // Fliesstext (Beschrieb, Bemerkungen, Hinweise …) läuft über pdfRich:
 // Markdown (Absätze, Aufzählungen, **fett**, `Code`) und Symbole (⚠ → ↔ …).
 import { ReportTemplate } from './types';
+import { formatTables } from './richText';
 import {
   PDFDocument,
   PDFPage,
@@ -12,6 +13,8 @@ import {
   PDFCheckBox,
   PDFDropdown,
   PDFTextField,
+  PDFName,
+  PDFString,
   RGB,
   rgb,
 } from 'pdf-lib';
@@ -50,8 +53,8 @@ const clean = (s: string): string =>
 // Text für ein Formularfeld: Das Feld rendert der Viewer mit Helvetica — Symbole
 // ausserhalb WinAnsi lesbar ersetzen statt «?». Gleiche Umwandlung beim Einlesen,
 // damit eine unverändert zurückgeschickte Bemerkung als unverändert erkannt wird.
-// Schrift in den Formularfeldern = Grösse des Fragetexts
-const FIELD_SIZE = 9.5;
+// Schrift in den Formularfeldern: kleiner als der Fragetext (9.5), etwas grösser als die Hilfe (8)
+const FIELD_SIZE = 8.5;
 
 const FIELD_SUBST: Record<string, string> = {
   '→': '->', '←': '<-', '↔': '<->', '⇒': '=>', '⇐': '<=', '≥': '>=', '≤': '<=', '≠': '!=',
@@ -170,7 +173,8 @@ export async function buildOpenQuestionsPdf(opts: {
         f.y -= 6;
       }
 
-      const prefill = q.remarks?.trim() ? toFieldText(q.remarks.trim()) : '';
+      // Tabellen kompakt (Helvetica: Füll-Leerzeichen richten nichts aus, sie reissen nur Lücken)
+      const prefill = q.remarks?.trim() ? toFieldText(formatTables(q.remarks.trim(), false)) : '';
       const remarksLabel = `${q.kind === 'text' ? 'Antwort / Bemerkung' : 'Bemerkung'}${prefill ? ' (bitte bestätigen oder ergänzen)' : ''}:`;
       // Feldhöhe nach dem vorausgefüllten Text (grob: Zeichen je Zeile), plus Platz zum Ergänzen
       const perLine = Math.floor((CONTENT_W - 8) / (FIELD_SIZE * 0.5));
@@ -189,6 +193,12 @@ export async function buildOpenQuestionsPdf(opts: {
   }
 
   form.updateFieldAppearances(helv);
+  // Schrift der Felder im Formular hinterlegen (AcroForm /DR, /DA): Viewer, die
+  // Felder selbst neu zeichnen (z. B. beim Bearbeiten), finden sonst die Schrift
+  // nicht und nehmen ihre eigene Standardgrösse
+  const acro = form.acroForm.dict;
+  acro.set(PDFName.of('DR'), doc.context.obj({ Font: { [helv.name]: helv.ref } }));
+  acro.set(PDFName.of('DA'), PDFString.of(`/${helv.name} ${FIELD_SIZE} Tf 0 g`));
   return doc.save();
 }
 
