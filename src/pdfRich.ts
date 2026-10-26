@@ -6,7 +6,7 @@
 import fontkit from '@pdf-lib/fontkit';
 import dejavuUrl from 'dejavu-fonts-ttf/ttf/DejaVuSans.ttf?url';
 import { PDFDocument, PDFFont, PDFPage, RGB, StandardFonts, rgb } from 'pdf-lib';
-import { TEXT_COLORS } from './richText';
+import { TEXT_COLORS, tableAt, type TableAlign } from './richText';
 
 export type RichFonts = {
   regular: PDFFont;
@@ -173,44 +173,9 @@ const flow = (words: Word[], f: RichFonts, size: number, width: number, firstWid
 
 // ── Tabellen (GFM: Kopfzeile, Trennzeile «|---|:--:|», Datenzeilen) ─────────
 
-type Align = 'left' | 'center' | 'right';
-
-// Zeile in Zellen zerlegen: äussere «|» weg, «\|» bleibt als Zeichen in der Zelle
-const splitRow = (line: string): string[] => {
-  let s = line.trim();
-  if (s.startsWith('|')) s = s.slice(1);
-  if (s.endsWith('|') && !s.endsWith('\\|')) s = s.slice(0, -1);
-  const cells: string[] = [];
-  let cur = '';
-  for (let i = 0; i < s.length; i++) {
-    if (s[i] === '\\' && s[i + 1] === '|') { cur += '|'; i++; }
-    else if (s[i] === '|') { cells.push(cur.trim()); cur = ''; }
-    else cur += s[i];
-  }
-  cells.push(cur.trim());
-  return cells;
-};
-
-// beginnt bei Zeile i eine Tabelle? Dann Kopf, Ausrichtung, Datenzeilen und Index nach der Tabelle
-const BLOCK_START = /^\s*(#{1,6}\s|>|[-*•]\s|\d+[.)]\s|```)/;
-const tableAt = (lines: string[], i: number) => {
-  const head = lines[i];
-  const delim = lines[i + 1];
-  if (!delim || !head.includes('|') || !delim.includes('-')) return null;
-  const d = splitRow(delim);
-  if (!d.every(c => /^:?-+:?$/.test(c))) return null;
-  const header = splitRow(head);
-  if (header.length !== d.length) return null;
-  const align: Align[] = d.map(c => (c.startsWith(':') && c.endsWith(':') ? 'center' : c.endsWith(':') ? 'right' : 'left'));
-  const rows: string[][] = [];
-  let end = i + 2;
-  while (end < lines.length && lines[end].trim() && !BLOCK_START.test(lines[end])) rows.push(splitRow(lines[end++]));
-  return { header, align, rows, end };
-};
-
 // Spaltenbreiten: natürliche Breite, wenn alles passt; sonst längstes Wort als Minimum
 // und den Rest nach Bedarf verteilen. Jede Textzeile einer Tabellenzeile wird eine RichLine.
-const layoutTable = (header: string[], body: string[][], align: Align[], f: RichFonts, size: number,
+const layoutTable = (header: string[], body: string[][], align: TableAlign[], f: RichFonts, size: number,
   width: number, base: Style): RichLine[] => {
   const n = header.length;
   const cp = size * 0.45; // Innenabstand links/rechts

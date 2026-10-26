@@ -9,7 +9,7 @@ import { AtSign, Bold, Check, ChevronLeft, ChevronRight, Clock, CornerDownRight,
 import type { Comment, CommentAuthor, DirectoryUser } from '../types';
 import type { DirectorySearchResult } from '../store';
 import { fitTextarea, fmtTimestamp } from '../util';
-import { clearFormat, renderRich, setColor, TEXT_COLORS, toggleList, toggleWrap, type Edit } from '../richText';
+import { clearFormat, formatTables, renderRich, setColor, TEXT_COLORS, toggleList, toggleWrap, type Edit } from '../richText';
 
 // Eine kommentierbare Stelle: key = Anker (siehe Comment.target), label wie im
 // Panel und in der Übersicht angezeigt (z. B. «M10A1 Frage …»).
@@ -431,12 +431,21 @@ export function MentionTextarea(p: {
     setTimeout(() => { const t = ref.current; if (t) { t.focus({ preventScroll: true }); t.setSelectionRange(caret, caret); } }, 0);
   };
 
+  // Markdown-Tabellen im Quelltext spaltenweise ausrichten — beim Wechsel in die
+  // Bearbeitung und beim Verlassen; nur wenn sich dabei etwas ändert
+  const alignTables = () => {
+    if (!p.rich || p.disabled) return;
+    const f = formatTables(p.value);
+    if (f !== p.value) p.onChange(f);
+  };
+
   // Bearbeiten beginnen (Klick auf die formatierte Anzeige): Fokus und Cursor
   // ans Ende setzt der Layout-Effekt unten, sobald das Textfeld steht
   const focusPending = useRef(false);
   const startEdit = () => {
     if (p.disabled || editing) return;
     focusPending.current = true;
+    alignTables();
     setEditing(true);
   };
 
@@ -472,7 +481,7 @@ export function MentionTextarea(p: {
           onKeyDown={onKeyDown} onKeyUp={e => { if (!['ArrowDown', 'ArrowUp', 'Enter', 'Tab', 'Escape'].includes(e.key)) detect(); }}
           onClick={detect} onSelect={updateBar} onMouseUp={updateBar} onScroll={() => setBar(null)}
           onFocus={() => setEditing(true)}
-          onBlur={() => { setTimeout(() => setMenu(null), 150); setBar(null); setEditing(false); p.onBlur?.(); }}
+          onBlur={() => { setTimeout(() => setMenu(null), 150); setBar(null); alignTables(); setEditing(false); p.onBlur?.(); }}
           disabled={p.disabled} data-autogrow={p.autogrow ? '' : undefined}
           className={`${p.className} pr-7`} />
       )}

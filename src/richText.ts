@@ -66,6 +66,78 @@ export const stripRich = (s: string) => s
   .replace(/(?<![\w*])\*([^*]+)\*(?![\w*])/g, '$1')
   .replace(/(?<![\w_])_([^_]+)_(?![\w_])/g, '$1');
 
+// ── Tabellen (GFM) ─────────────────────────────────────────────────────────
+
+export type TableAlign = 'left' | 'center' | 'right';
+
+// Zeile in Zellen zerlegen: äussere «|» weg, «\|» bleibt als Zeichen in der Zelle
+export const splitRow = (line: string): string[] => {
+  let s = line.trim();
+  if (s.startsWith('|')) s = s.slice(1);
+  if (s.endsWith('|') && !s.endsWith('\\|')) s = s.slice(0, -1);
+  const cells: string[] = [];
+  let cur = '';
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] === '\\' && s[i + 1] === '|') { cur += '|'; i++; }
+    else if (s[i] === '|') { cells.push(cur.trim()); cur = ''; }
+    else cur += s[i];
+  }
+  cells.push(cur.trim());
+  return cells;
+};
+
+// beginnt bei Zeile i eine Tabelle? Dann Kopf, Ausrichtung, Datenzeilen und Index nach der Tabelle
+// (wie marked/GFM: Datenzeilen bis zur Leerzeile oder zum nächsten Block)
+const BLOCK_START = /^\s*(#{1,6}\s|>|[-*•]\s|\d+[.)]\s|```)/;
+export const tableAt = (lines: string[], i: number) => {
+  const head = lines[i];
+  const delim = lines[i + 1];
+  if (!delim || !head.includes('|') || !delim.includes('-')) return null;
+  const d = splitRow(delim);
+  if (!d.every(c => /^:?-+:?$/.test(c))) return null;
+  const header = splitRow(head);
+  if (header.length !== d.length) return null;
+  const align: TableAlign[] = d.map(c => (c.startsWith(':') && c.endsWith(':') ? 'center' : c.endsWith(':') ? 'right' : 'left'));
+  const rows: string[][] = [];
+  let end = i + 2;
+  while (end < lines.length && lines[end].trim() && !BLOCK_START.test(lines[end])) rows.push(splitRow(lines[end++]));
+  return { header, align, rows, end };
+};
+
+// Tabellen im Quelltext ausrichten (Spalten mit Leerzeichen auffüllen), damit sie
+// in der Bearbeitung (Monospace) lesbar sind; Darstellung und Inhalt bleiben gleich.
+const cellLen = (s: string) => [...s].length;
+const padCell = (s: string, w: number, align: TableAlign) => {
+  const gap = Math.max(0, w - cellLen(s));
+  if (align === 'right') return ' '.repeat(gap) + s;
+  if (align === 'center') return ' '.repeat(Math.floor(gap / 2)) + s + ' '.repeat(Math.ceil(gap / 2));
+  return s + ' '.repeat(gap);
+};
+const delimCell = (w: number, align: TableAlign) =>
+  align === 'center' ? `:${'-'.repeat(w - 2)}:` : align === 'right' ? `${'-'.repeat(w - 1)}:` : '-'.repeat(w);
+
+export function formatTables(text: string): string {
+  if (!text.includes('|')) return text;
+  const lines = text.split('\n');
+  const out: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const t = tableAt(lines, i);
+    if (!t) { out.push(lines[i]); continue; }
+    const n = t.header.length;
+    const esc = (c: string) => c.replace(/\|/g, '\\|');
+    const rows = [t.header, ...t.rows].map(r => r.map(esc));
+    const w = Array.from({ length: n }, (_, c) => Math.max(3, ...rows.map(r => cellLen(r[c] ?? ''))));
+    const line = (r: string[]) => {
+      const cells = w.map((cw, c) => padCell(r[c] ?? '', cw, t.align[c]));
+      // überzählige Zellen (zeigt GFM nicht an) unverändert behalten statt löschen
+      return `| ${[...cells, ...r.slice(n)].join(' | ')} |`;
+    };
+    out.push(line(rows[0]), `| ${w.map((cw, c) => delimCell(cw, t.align[c])).join(' | ')} |`, ...rows.slice(1).map(line));
+    i = t.end - 1;
+  }
+  return out.join('\n');
+}
+
 // ── Formatieren einer Markierung (Textarea) ──────────────────────────────────
 
 export type Edit = { value: string; start: number; end: number };
