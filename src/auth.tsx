@@ -82,6 +82,24 @@ const GRAPH_LOGIN_SCOPES = ['openid', 'profile', 'email', 'Files.ReadWrite.All']
 // Redirect-URI = Ursprung + Basis-Pfad der App (lokal wie auf GitHub Pages)
 const redirectUri = () => `${window.location.origin}${import.meta.env.BASE_URL}`;
 
+// Liegengebliebene Login-Rückkehr verwerfen: Antwort aus der Adresse entfernen
+// (#code=…&state=…) und MSALs Zwischenstand zur laufenden Anmeldung löschen.
+// Sonst scheitert jeder Neustart an derselben Antwort (state_mismatch) — z. B.
+// nach einem abgebrochenen Login oder einer Rückkehr in einem anderen Tab.
+// Angemeldete Konten und Tokens bleiben erhalten.
+export function resetPendingLogin() {
+  try {
+    const u = new URL(window.location.href);
+    if (/(^#|&)(code|state|error)=/.test(u.hash)) u.hash = '';
+    for (const k of ['code', 'state', 'session_state', 'client_info', 'error', 'error_description', 'error_uri']) u.searchParams.delete(k);
+    window.history.replaceState(window.history.state, '', u.toString());
+  } catch { /* ignore */ }
+  const pending = (k: string) => k.startsWith('msal.') && /(interaction|request|state|nonce|code_verifier|origin_uri)/i.test(k);
+  for (const store of [window.sessionStorage, window.localStorage]) {
+    try { for (const k of Object.keys(store)) if (pending(k)) store.removeItem(k); } catch { /* ignore */ }
+  }
+}
+
 const CACHE_KEY = 'arch-review.auth';
 const MODE_KEY = 'arch-review.mode';
 
@@ -339,6 +357,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return pca;
     } catch (e) {
       console.error('[arch-review] auth:', e);
+      // fehlgeschlagene Login-Rückkehr nicht beim nächsten Start erneut verarbeiten
+      if (/state_mismatch|state_not_found|no_token_request_cache|interaction_in_progress|hash_does_not_contain|no_cached_authority/i.test(String((e as { errorCode?: string })?.errorCode ?? e))) {
+        resetPendingLogin();
+      }
       if (runningKeyRef.current === key) {
         setError(e instanceof Error ? e.message : String(e));
         setStatus('error');

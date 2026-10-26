@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Sun, Moon, FolderOpen, AlertTriangle, Wrench, LogIn, Cloud, X, Link2, Check, LayoutList, ClipboardList } from 'lucide-react';
 import { useStore } from './store';
-import { GUID_RE, knownClientId, LEVEL_LABELS, parseSetupLink, setupLink, PENDING_FOLDER_KEY, resolveTenantId, useAuth, usePermissions } from './auth';
+import { GUID_RE, knownClientId, LEVEL_LABELS, parseSetupLink, setupLink, PENDING_FOLDER_KEY, resetPendingLogin, resolveTenantId, useAuth, usePermissions } from './auth';
 import ProjectsView from './components/ProjectsView';
 import OnePagerView from './components/OnePagerView';
 import AdminView from './components/AdminView';
@@ -343,7 +343,7 @@ export default function App() {
                   <p className={`text-xs leading-relaxed mb-4 ${isDark ? 'text-rose-300' : 'text-rose-700'}`}>
                     Anmeldung nicht möglich: {auth.error}
                   </p>
-                  <button onClick={() => window.location.reload()}
+                  <button onClick={() => { resetPendingLogin(); window.location.reload(); }}
                     className={`text-xs px-4 py-2 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
                     Erneut versuchen
                   </button>
