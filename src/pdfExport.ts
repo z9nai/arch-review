@@ -53,9 +53,9 @@ const clean = (s: string): string =>
 // Text für ein Formularfeld: Das Feld rendert der Viewer mit Helvetica — Symbole
 // ausserhalb WinAnsi lesbar ersetzen statt «?». Gleiche Umwandlung beim Einlesen,
 // damit eine unverändert zurückgeschickte Bemerkung als unverändert erkannt wird.
-// Schrift in den Formularfeldern: kleiner als der Fragetext (9.5), etwas grösser als die Hilfe (8);
+// Schrift in den Formularfeldern: kleiner als der Fragetext (9.5), wie die Hilfe (8);
 // ganzzahlig, weil macOS Vorschau (PDFKit) Bruchteile rundet
-const FIELD_SIZE = 9;
+const FIELD_SIZE = 8;
 
 const FIELD_SUBST: Record<string, string> = {
   '→': '->', '←': '<-', '↔': '<->', '⇒': '=>', '⇐': '<=', '≥': '>=', '≤': '<=', '≠': '!=',
