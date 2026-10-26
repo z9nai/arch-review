@@ -1,5 +1,5 @@
 // Einfaches Markdown (Absätze, Aufzählungen, **fett**, *kursiv*, `Code`,
-// Überschriften, Links) für den PDF-Export — plus Symbole/Pfeile (⚠ → ↔ ≥ ☐ …),
+// Überschriften, Links, Tabellen) für den PDF-Export — plus Symbole/Pfeile (⚠ → ↔ ≥ ☐ …),
 // die die PDF-Standardschriften (nur WinAnsi/Latin-1) nicht kodieren können:
 // Solche Zeichen kommen aus einer eingebetteten Unicode-Schrift (DejaVu Sans,
 // nur die benutzten Glyphen), der übrige Text bleibt in Helvetica.
@@ -19,7 +19,14 @@ export type RichFonts = {
 
 type Style = 'regular' | 'bold' | 'italic' | 'mono';
 type Run = { text: string; font: PDFFont; dx: number; color?: RGB };
-export type RichLine = { runs: Run[]; gap: number; width: number };
+/**
+ * Tabellenzeile: Spaltengrenzen (xs, relativ zur Zeile); rowStart = erste Textzeile einer
+ * Tabellenzeile (mit Abstand pad oben), first = Tabellenbeginn (Linie oben),
+ * rowEnd = letzte Textzeile einer Tabellenzeile (Linie unten — so bleibt die Tabelle
+ * auch bei einem Seitenumbruch zwischen zwei Zeilen geschlossen).
+ */
+export type TableDeco = { xs: number[]; rowStart: boolean; first: boolean; rowEnd: boolean; pad: number; header: boolean };
+export type RichLine = { runs: Run[]; gap: number; width: number; table?: TableDeco };
 
 const WARN = rgb(0.85, 0.5, 0.05);
 
@@ -164,6 +171,95 @@ const flow = (words: Word[], f: RichFonts, size: number, width: number, firstWid
   return lines;
 };
 
+// ── Tabellen (GFM: Kopfzeile, Trennzeile «|---|:--:|», Datenzeilen) ─────────
+
+type Align = 'left' | 'center' | 'right';
+
+// Zeile in Zellen zerlegen: äussere «|» weg, «\|» bleibt als Zeichen in der Zelle
+const splitRow = (line: string): string[] => {
+  let s = line.trim();
+  if (s.startsWith('|')) s = s.slice(1);
+  if (s.endsWith('|') && !s.endsWith('\\|')) s = s.slice(0, -1);
+  const cells: string[] = [];
+  let cur = '';
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] === '\\' && s[i + 1] === '|') { cur += '|'; i++; }
+    else if (s[i] === '|') { cells.push(cur.trim()); cur = ''; }
+    else cur += s[i];
+  }
+  cells.push(cur.trim());
+  return cells;
+};
+
+// beginnt bei Zeile i eine Tabelle? Dann Kopf, Ausrichtung, Datenzeilen und Index nach der Tabelle
+const BLOCK_START = /^\s*(#{1,6}\s|>|[-*•]\s|\d+[.)]\s|```)/;
+const tableAt = (lines: string[], i: number) => {
+  const head = lines[i];
+  const delim = lines[i + 1];
+  if (!delim || !head.includes('|') || !delim.includes('-')) return null;
+  const d = splitRow(delim);
+  if (!d.every(c => /^:?-+:?$/.test(c))) return null;
+  const header = splitRow(head);
+  if (header.length !== d.length) return null;
+  const align: Align[] = d.map(c => (c.startsWith(':') && c.endsWith(':') ? 'center' : c.endsWith(':') ? 'right' : 'left'));
+  const rows: string[][] = [];
+  let end = i + 2;
+  while (end < lines.length && lines[end].trim() && !BLOCK_START.test(lines[end])) rows.push(splitRow(lines[end++]));
+  return { header, align, rows, end };
+};
+
+// Spaltenbreiten: natürliche Breite, wenn alles passt; sonst längstes Wort als Minimum
+// und den Rest nach Bedarf verteilen. Jede Textzeile einer Tabellenzeile wird eine RichLine.
+const layoutTable = (header: string[], body: string[][], align: Align[], f: RichFonts, size: number,
+  width: number, base: Style): RichLine[] => {
+  const n = header.length;
+  const cp = size * 0.45; // Innenabstand links/rechts
+  const pad = size * 0.15; // zusätzlicher Abstand oberhalb jeder Tabellenzeile
+  const rows = [header, ...body.map(r => Array.from({ length: n }, (_, c) => r[c] ?? ''))];
+  const words = rows.map((r, ri) => r.map(c => toWords(inline(c, ri === 0 ? 'bold' : base), f)));
+  const spaceW = f.regular.widthOfTextAtSize(' ', size);
+  const nat: number[] = Array(n).fill(0);
+  const min: number[] = Array(n).fill(0);
+  for (const r of words) {
+    r.forEach((ws, c) => {
+      nat[c] = Math.max(nat[c], ws.reduce((s, w, k) => s + wordW(w, size) + (k && w.space ? spaceW : 0), 0));
+      for (const w of ws) min[c] = Math.max(min[c], wordW(w, size));
+    });
+  }
+  const sum = (a: number[]) => a.reduce((s, v) => s + v, 0);
+  const avail = Math.max(width - n * 2 * cp, n * size);
+  let inner: number[];
+  if (sum(nat) <= avail) inner = nat;
+  else if (sum(min) <= avail) {
+    const extra = avail - sum(min);
+    const want = sum(nat) - sum(min);
+    inner = min.map((m, c) => m + extra * (nat[c] - m) / want);
+  } else inner = min.map(m => avail * m / sum(min));
+  inner = inner.map(w => Math.max(w, size * 0.6) + 0.01);
+  const xs = [0];
+  for (const w of inner) xs.push(xs[xs.length - 1] + w + 2 * cp);
+
+  const out: RichLine[] = [];
+  rows.forEach((_, ri) => {
+    const cells = words[ri].map((ws, c) => flow(ws, f, size, inner[c], inner[c]));
+    const h = Math.max(1, ...cells.map(ls => ls.length));
+    for (let k = 0; k < h; k++) {
+      const runs: Run[] = [];
+      cells.forEach((ls, c) => {
+        const ln = ls[k];
+        if (!ln) return;
+        const shift = align[c] === 'right' ? inner[c] - ln.width : align[c] === 'center' ? (inner[c] - ln.width) / 2 : 0;
+        for (const r of ln.runs) runs.push({ ...r, dx: r.dx + xs[c] + cp + shift });
+      });
+      out.push({
+        runs, gap: k === 0 ? pad : 0, width: xs[n],
+        table: { xs, rowStart: k === 0, first: ri === 0 && k === 0, rowEnd: k === h - 1, pad, header: ri === 0 },
+      });
+    }
+  });
+  return out;
+};
+
 export function layoutRich(text: string, f: RichFonts, opts: {
   size: number; width: number; firstWidth?: number; bold?: boolean; plain?: boolean;
 }): RichLine[] {
@@ -178,8 +274,20 @@ export function layoutRich(text: string, f: RichFonts, opts: {
   let gap = 0;
   let firstWidth = opts.firstWidth ?? width;
   const bulletIndent = size * 1.1;
-  for (const raw of src.split(/\r?\n/)) {
+  const rawLines = src.split(/\r?\n/);
+  for (let i = 0; i < rawLines.length; i++) {
+    const raw = rawLines[i];
     if (!raw.trim()) { if (out.length) gap = size * 0.5; continue; }
+    const table = tableAt(rawLines, i);
+    if (table) {
+      const lines = layoutTable(table.header, table.rows, table.align, f, size, width, base);
+      lines[0].gap += out.length ? Math.max(gap, size * 0.3) : 0;
+      out.push(...lines);
+      i = table.end - 1;
+      gap = size * 0.5;
+      firstWidth = width;
+      continue;
+    }
     let lines: RichLine[];
     const bullet = raw.match(/^(\s*)[-*•]\s+(.*)$/);
     const numbered = raw.match(/^(\s*)(\d+[.)])\s+(.*)$/);
@@ -208,7 +316,30 @@ export function layoutRich(text: string, f: RichFonts, opts: {
   return out.length ? out : [{ runs: [], gap: 0, width: 0 }];
 }
 
-export function drawRichLine(page: PDFPage, line: RichLine, x: number, y: number, size: number, color: RGB) {
+const TABLE_RULE = rgb(0.72, 0.72, 0.76);
+const TABLE_HEAD_BG = rgb(0.94, 0.94, 0.96);
+
+/**
+ * Eine Zeile zeichnen (Grundlinie y). lineH = Zeilenabstand des Aufrufers — für
+ * Tabellenzeilen nötig, damit Rahmen und Zeilen lückenlos aneinanderstossen;
+ * continued = Tabellenzeile oben auf einer neuen Seite (bekommt eine Linie oben).
+ */
+export function drawRichLine(page: PDFPage, line: RichLine, x: number, y: number, size: number, color: RGB,
+  lineH = size * 1.35, continued = false) {
+  const t = line.table;
+  if (t) {
+    // Kasten der Zeile: unten etwas unter der Grundlinie, oben bis zur Unterkante der Zeile davor
+    const d = (lineH - size) / 2 + size * 0.22;
+    const bottom = y - d;
+    const top = bottom + lineH + (t.rowStart ? t.pad : 0);
+    const w = t.xs[t.xs.length - 1];
+    const rule = (y0: number, y1: number, x0: number, x1: number) =>
+      page.drawLine({ start: { x: x0, y: y0 }, end: { x: x1, y: y1 }, thickness: 0.5, color: TABLE_RULE });
+    if (t.header) page.drawRectangle({ x, y: bottom, width: w, height: top - bottom, color: TABLE_HEAD_BG });
+    if (t.first || continued) rule(top, top, x, x + w);
+    if (t.rowEnd) rule(bottom, bottom, x, x + w);
+    for (const cx of t.xs) rule(bottom, top, x + cx, x + cx);
+  }
   for (const r of line.runs) {
     if (r.text) page.drawText(r.text, { x: x + r.dx, y, size, font: r.font, color: r.color ?? color });
   }

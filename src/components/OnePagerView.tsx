@@ -942,7 +942,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
             </button>
           )}
         </p>
-        <div className={`text-[11px] mt-1 flex items-start gap-5 flex-wrap ${textMuted}`}>
+        <div className={`text-[11px] mt-1 flex items-start gap-x-5 gap-y-1.5 flex-wrap ${textMuted}`}>
           {(question.kind ?? 'yesNo') === 'yesNo' && (
             <>
               <label className={`flex items-center gap-1.5 ${disabled ? '' : 'cursor-pointer'}`}>
@@ -997,7 +997,8 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
               {question.kind === 'text' ? 'Antwort / Bemerkungen …' : 'Bemerkungen …'}
             </button>
           ) : (
-            <div className="flex-1 min-w-[220px]">
+            // eigene Zeile über die ganze Breite (Platz für Tabellen und längere Antworten)
+            <div className="basis-full">
               {/* «@» erwähnt eine Person (users.json, Entra) — sie erscheint zugleich als Quelle der Antwort */}
               <MentionTextarea value={answer.remarks} rows={2} autoFocus={!answer.remarks && !question.remarksAlwaysOpen} disabled={disabled}
                 onChange={v => updateAnswer(themeId, question.id, a => ({ remarks: v, mentions: keepMentioned(a.mentions, v) }))}

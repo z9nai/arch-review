@@ -64,11 +64,15 @@ class Flow {
 
   text(text: string, size: number, lineH: number, o: RichOpts = {}) {
     const lines = layoutRich(text, this.F, { size, width: o.width ?? this.w0, bold: o.bold, plain: o.plain });
-    for (const ln of lines) {
-      this.ensure(lineH + ln.gap);
+    lines.forEach((ln, i) => {
+      const page = this.page;
+      // Tabellenzeile (alle ihre Textzeilen) nicht über einen Seitenumbruch verteilen
+      let need = lineH + ln.gap;
+      if (ln.table?.rowStart) for (let j = i; !lines[j].table?.rowEnd && j + 1 < lines.length; j++) need += lineH + lines[j + 1].gap;
+      this.ensure(need);
       this.y -= lineH + ln.gap;
-      drawRichLine(this.page, ln, o.x ?? this.x0, this.y, size, o.color ?? BLACK);
-    }
+      drawRichLine(this.page, ln, o.x ?? this.x0, this.y, size, o.color ?? BLACK, lineH, this.page !== page);
+    });
   }
 
   line(text: string, x: number, size: number, o: { bold?: boolean; color?: RGB } = {}) {
@@ -117,11 +121,12 @@ export async function buildOpenQuestionsPdf(opts: {
       f.ensure(13);
       f.y -= 13;
       f.line(q.number, MARGIN, 9.5, { bold: true });
-      drawRichLine(f.page, qLines[0], MARGIN + numW, f.y, 9.5, BLACK);
+      drawRichLine(f.page, qLines[0], MARGIN + numW, f.y, 9.5, BLACK, 13);
       for (const ln of qLines.slice(1)) {
+        const page = f.page;
         f.ensure(13 + ln.gap);
         f.y -= 13 + ln.gap;
-        drawRichLine(f.page, ln, MARGIN, f.y, 9.5, BLACK);
+        drawRichLine(f.page, ln, MARGIN, f.y, 9.5, BLACK, 13, f.page !== page);
       }
       if (q.hint) f.text(q.hint, 8, 11, { color: GRAY });
       f.y -= 6;
@@ -458,13 +463,14 @@ export async function buildReviewReportPdf(r: ReviewReport, tpl?: ReportTemplate
         f.ensure(13 + (qLines.length - 1) * 11.5);
         f.y -= 13;
         f.line(q.number, L, 8.5, { bold: true, color: GRAY });
-        drawRichLine(f.page, qLines[0], L + numW, f.y, 8.5, BLACK);
+        drawRichLine(f.page, qLines[0], L + numW, f.y, 8.5, BLACK, 11.5);
         // Antwort rechtsbündig auf der ersten Zeile; offen = orange
         f.line(q.answer, L + W - aW, 9, { bold: true, color: q.open ? ORANGE : rgb(0.1, 0.1, 0.1) });
         for (const ln of qLines.slice(1)) {
+          const page = f.page;
           f.ensure(11.5 + ln.gap);
           f.y -= 11.5 + ln.gap;
-          drawRichLine(f.page, ln, L + numW, f.y, 8.5, BLACK);
+          drawRichLine(f.page, ln, L + numW, f.y, 8.5, BLACK, 11.5, f.page !== page);
         }
         if (q.remarks) f.text(q.remarks, 8, 10.5, { color: GRAY, x: L + numW + 8, width: W - numW - 8 });
         if (q.assignee) {
