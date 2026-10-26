@@ -50,6 +50,9 @@ const clean = (s: string): string =>
 // Text für ein Formularfeld: Das Feld rendert der Viewer mit Helvetica — Symbole
 // ausserhalb WinAnsi lesbar ersetzen statt «?». Gleiche Umwandlung beim Einlesen,
 // damit eine unverändert zurückgeschickte Bemerkung als unverändert erkannt wird.
+// Schrift in den Formularfeldern = Grösse des Fragetexts
+const FIELD_SIZE = 9.5;
+
 const FIELD_SUBST: Record<string, string> = {
   '→': '->', '←': '<-', '↔': '<->', '⇒': '=>', '⇐': '<=', '≥': '>=', '≤': '<=', '≠': '!=',
   '✓': 'OK', '✔': 'OK', '✗': 'x', '✘': 'x', '⚠': '(!)', '☐': '[ ]', '☑': '[x]', '☒': '[x]',
@@ -163,16 +166,16 @@ export async function buildOpenQuestionsPdf(opts: {
         const dd = form.createDropdown(`${q.fieldKey}::choice`);
         dd.addOptions((q.options ?? []).filter(Boolean).map(clean));
         dd.addToPage(f.page, { x: MARGIN + 48, y: f.y, width: 240, height: 16, ...fieldOpts });
-        dd.setFontSize(9);
+        dd.setFontSize(FIELD_SIZE);
         f.y -= 6;
       }
 
       const prefill = q.remarks?.trim() ? toFieldText(q.remarks.trim()) : '';
       const remarksLabel = `${q.kind === 'text' ? 'Antwort / Bemerkung' : 'Bemerkung'}${prefill ? ' (bitte bestätigen oder ergänzen)' : ''}:`;
-      // Feldhöhe nach dem vorausgefüllten Text (grob: Zeichen je Zeile bei 9 pt), plus Platz zum Ergänzen
-      const perLine = Math.floor((CONTENT_W - 8) / (9 * 0.5));
+      // Feldhöhe nach dem vorausgefüllten Text (grob: Zeichen je Zeile), plus Platz zum Ergänzen
+      const perLine = Math.floor((CONTENT_W - 8) / (FIELD_SIZE * 0.5));
       const textLines = prefill ? prefill.split('\n').reduce((n, l) => n + Math.max(1, Math.ceil(l.length / perLine)), 0) : 0;
-      const remarksH = Math.min(560, Math.max(q.kind === 'text' ? 56 : 40, (textLines + 2) * 11 + 6));
+      const remarksH = Math.min(560, Math.max(q.kind === 'text' ? 56 : 40, (textLines + 2) * FIELD_SIZE * 1.25 + 6));
       f.ensure(12 + remarksH);
       f.y -= 12;
       f.page.drawText(remarksLabel, { x: MARGIN, y: f.y, size: 8.5, font: helv, color: GRAY });
@@ -181,7 +184,7 @@ export async function buildOpenQuestionsPdf(opts: {
       tf.enableMultiline();
       if (prefill) tf.setText(prefill);
       tf.addToPage(f.page, { x: MARGIN, y: f.y, width: CONTENT_W, height: remarksH, ...fieldOpts });
-      tf.setFontSize(9);
+      tf.setFontSize(FIELD_SIZE);
     }
   }
 
