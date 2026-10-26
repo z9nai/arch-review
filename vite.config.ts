@@ -10,6 +10,9 @@ export default defineConfig({
     alias: { '@': path.resolve(__dirname, '.') },
   },
   server: {
+    // fest auf IPv4: sonst lauscht Vite auf macOS nur auf [::1], und Aufrufe
+    // über 127.0.0.1 (bzw. Browser, die localhost so auflösen) laufen ins Leere
+    host: '127.0.0.1',
     // sample-data kann als geteilter Ordner gewählt werden — Schreibzugriffe
     // der App dürfen keinen Dev-Server-Reload auslösen
     watch: { ignored: ['**/sample-data/**'] },
