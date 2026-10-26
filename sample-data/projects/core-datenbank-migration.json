@@ -8,7 +8,7 @@
   "classification": "relevant",
   "architectureRelevant": null,
   "createdAt": "2026-08-15",
-  "updatedAt": "2026-09-03T16:00:22+02:00",
+  "updatedAt": "2026-10-26T07:50:43+01:00",
   "reviews": {
     "data-classification": {
       "relevant": null,
@@ -29,6 +29,10 @@
           "value": null,
           "remarks": "Vertrauliche Kundendaten, kein erhöhter Schutzbedarf.",
           "choice": "K2"
+        },
+        "cat-dc1": {
+          "value": null,
+          "remarks": "Dateninventar Demo Alpha (Entwurf, Klassifizierung durch Data Owner ausstehend):\n\n| ID | Kategorie | CID | Klasse | Data Owner |\n|---|---|---|---|---|\n| D01 | Stammdaten | ja | K? | ? |\n| D02 | Beziehungen/Mandate | ja | K? | ? |\n| D03 | KYC-Informationen | ja | K? | ? |\n| D04 | Verträge, Vollmachten, Sperren, Verbindlichkeiten | ja | K? | ? |\n| D05 | Konto-/Produkteröffnung, Zahlungsverkehr | ja | K? | ? |\n| D06 | Portfolio-/Investmentaktivitäten | ja | K? | ? |\n| D07 | Dokumentation im Kundenkontext | ja | K? | ? |\n| T01–T03 | Technische Daten Frontend (Benutzer, Prozess, Logs) | prüfen | → Plattform | – |\n\nTechnische Datenklassen: Klassifizierung im Plattform-Review."
         }
       }
     },
