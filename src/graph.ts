@@ -191,6 +191,15 @@ export class GraphBackend implements StorageBackend {
     const parts = dir.split('/').filter(Boolean);
     let parent = `/drives/${enc(this.folder.driveId)}/items/${enc(this.folder.itemId)}`;
     for (const p of parts) {
+      // zuerst nachsehen: sonst endet jeder Start mit einem 409 (Ordner existiert),
+      // den der Browser als Fehler in der Konsole zeigt
+      const found = await this.f(`${parent}:/${enc(p)}?$select=id`);
+      if (found.ok) {
+        const it = await found.json();
+        parent = `/drives/${enc(this.folder.driveId)}/items/${enc(it.id)}`;
+        continue;
+      }
+      if (found.status !== 404) throw new Error(`Ordner konnte nicht gelesen werden (HTTP ${found.status}).`);
       const res = await this.f(`${parent}/children`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
