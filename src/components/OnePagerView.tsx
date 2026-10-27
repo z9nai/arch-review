@@ -1308,7 +1308,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
     lines.push(person
       ? `Für die Architekturprüfung sind im Meilenstein ${title} die folgenden Fragen dir zugewiesen und noch offen.`
       : `Für die Architekturprüfung sind im Meilenstein ${title} die folgenden Fragen noch offen.`);
-    lines.push('Bitte direkt unter der jeweiligen Frage antworten ([X] ankreuzen bzw. Antwort ergänzen).');
+    lines.push('Bitte unter der jeweiligen Frage den eigenen Beitrag ergänzen — die Beurteilung (Ja/Nein) erfolgt durch die Architektur.');
     if (conditionQuestionsByTheme(ms, who).length) lines.push(`Am Schluss folgen Auflagen, für die noch ein Nachweis aussteht («${CONDITIONS_HEADING}»).`);
     const groups = openQuestionsByTheme(ms, who);
     if (groups.some(({ theme, qs }) => qs.some(({ q }) => remarksOf(theme.id, q)))) {
@@ -1328,15 +1328,9 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
         // bereits erfasste Bemerkung zum Bestätigen/Ergänzen unter dem Label
         const rem = remarksOf(theme.id, q);
         const label = (l: string) => `${l}${rem ? ' (bitte bestätigen oder ergänzen)' : ''}:`;
-        if ((q.kind ?? 'yesNo') === 'yesNo') {
-          lines.push('[ ] Ja    [ ] Nein');
-          lines.push(label('Bemerkung'));
-        } else if (q.kind === 'choice') {
-          lines.push(`Antwort (${(q.options ?? []).filter(Boolean).join(' / ')}):`);
-          lines.push(label('Bemerkung'));
-        } else {
-          lines.push(label('Antwort / Bemerkung'));
-        }
+        // keine Ja/Nein- oder Auswahlfelder: die Beurteilung setzt die Architektur
+        // nach allen Rückmeldungen selbst; verschickt wird nur das Bemerkungsfeld
+        lines.push(label(q.kind === 'text' ? 'Antwort / Bemerkung' : 'Bemerkung'));
         if (rem) lines.push(...formatTables(rem).split('\n'));
         count++;
       }
@@ -1478,7 +1472,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
         milestoneTitle: title,
         intro: [
           `Für die Architekturprüfung sind im Meilenstein ${title} die folgenden Fragen noch offen.`,
-          'Bitte die Felder direkt im PDF ausfüllen und die Datei zurücksenden.',
+          'Bitte unter der jeweiligen Frage den eigenen Beitrag direkt im PDF ergänzen und die Datei zurücksenden — die Beurteilung (Ja/Nein) erfolgt durch die Architektur.',
           ...([...sections, ...conditionSections].some(s => s.questions.some(q => q.remarks))
             ? ['Wo schon eine Bemerkung steht: bitte bestätigen, korrigieren oder ergänzen.'] : []),
           ...(conditionSections.length ? [`Am Schluss folgen Auflagen, für die noch ein Nachweis aussteht («${CONDITIONS_HEADING}»).`] : []),

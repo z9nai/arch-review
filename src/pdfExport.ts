@@ -1,4 +1,4 @@
-// Offene Fragen als ausfüllbares PDF-Formular (AcroForm) — rein clientseitig
+// Offene Fragen als ausfüllbares PDF-Formular (AcroForm, Bemerkungsfelder) — rein clientseitig
 // über pdf-lib (mitgebundelt, eigener Lazy-Chunk, keine Netzwerkzugriffe).
 // Die Feldnamen sind stabil aufgebaut (`themeId::frageId::teil`), damit ein
 // ausgefülltes PDF wieder importiert werden kann (readAnswersPdf).
@@ -52,12 +52,6 @@ const TABLE_RULE = rgb(0.72, 0.72, 0.76);
 const HEAD_BG = rgb(0.92, 0.92, 0.95);
 const RESERVE_BG = rgb(0.985, 0.985, 0.995);
 const CONDITION = rgb(0.72, 0.42, 0.04);
-
-// Formularfelder (Dropdown-Optionen) rendert der Viewer mit Helvetica — dort
-// nur WinAnsi (Latin-1 + CP1252-Zusatzzeichen) zulassen.
-const clean = (s: string): string =>
-  s.replace(/[︎️‍]/g, '')
-    .replace(/[^\x20-\xFFŒœŠšŸŽžƒ–—‘’‚“”„†‡•…‰‹›€™]/g, '?');
 
 // Text für ein Formularfeld: Das Feld rendert der Viewer mit Helvetica — Symbole
 // ausserhalb WinAnsi lesbar ersetzen statt «?». Gleiche Umwandlung beim Einlesen,
@@ -297,26 +291,10 @@ export async function buildOpenQuestionsPdf(opts: {
         f.page.drawText('Antwort:', { x: MARGIN, y: f.y, size: 8.5, font: helv, color: GRAY });
         f.line(q.answer, MARGIN + 48, 9.5, { bold: true });
         f.y -= 4;
-      } else if (q.kind === 'yesNo') {
-        f.ensure(14);
-        f.y -= 12;
-        const ja = form.createCheckBox(`${q.fieldKey}::ja`);
-        ja.addToPage(f.page, { x: MARGIN, y: f.y - 1, width: 11, height: 11, ...fieldOpts });
-        f.page.drawText('Ja', { x: MARGIN + 16, y: f.y, size: 9.5, font: helv });
-        const nein = form.createCheckBox(`${q.fieldKey}::nein`);
-        nein.addToPage(f.page, { x: MARGIN + 60, y: f.y - 1, width: 11, height: 11, ...fieldOpts });
-        f.page.drawText('Nein', { x: MARGIN + 76, y: f.y, size: 9.5, font: helv });
-        f.y -= 6;
-      } else if (q.kind === 'choice') {
-        f.ensure(20);
-        f.y -= 18;
-        f.page.drawText('Antwort:', { x: MARGIN, y: f.y + 3, size: 8.5, font: helv, color: GRAY });
-        const dd = form.createDropdown(`${q.fieldKey}::choice`);
-        dd.addOptions((q.options ?? []).filter(Boolean).map(clean));
-        dd.addToPage(f.page, { x: MARGIN + 48, y: f.y, width: 240, height: 16, ...fieldOpts });
-        dd.setFontSize(FIELD_SIZE);
-        f.y -= 6;
       }
+      // offene Fragen: keine Ja/Nein- oder Auswahlfelder — die Beurteilung setzt
+      // die Architektur nach allen Rückmeldungen; ältere PDFs mit Kästchen liest
+      // readAnswersPdf weiterhin
 
       const label = (prefilled: boolean) =>
         `${q.answer ? 'Stand / Nachweis' : q.kind === 'text' ? 'Antwort / Bemerkung' : 'Bemerkung'}${prefilled ? ' (bitte bestätigen oder ergänzen)' : ''}:`;
