@@ -86,6 +86,9 @@ function Highlight({ text, terms, cls }: { text: string; terms: string[]; cls: s
 
 // focusCommentId: aus einem Deep Link (?project=…&comment=…) — öffnet das
 // Kommentar-Panel an der Stelle dieses Kommentars, sobald die Kommentare da sind
+// Abschnitt im Versand der offenen Fragen: beantwortete Fragen mit Auflage
+const CONDITIONS_HEADING = 'Auflagen — Nachweis erforderlich';
+
 export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: string; onBack: () => void; focusCommentId?: string }) {
   const { isDark, model, loadProject, saveProject, loadAudit, auditAuthor, acquireLock, renewLock, releaseLock, readLock, sessionId,
     uploadSourceFile, downloadSourceFile, deleteSourceFile, loadComments, updateComments,
@@ -1199,7 +1202,15 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
   // auf Wunsch nur die einer Person
   const openQuestionsByTheme = (ms: string, who: string) => themes.flatMap((theme, ti) => {
     if (ms !== FOUNDATION_MS && derivedRelevant(proj, theme.id) === false) return [];
-    const qs = questionsAt(theme.id, ms).filter(({ q }) => isQuestionOpen(theme.id, q)
+    const qs = questionsAt(theme.id, ms).filter(({ q }) => isQuestionOpen(theme.id, q) && !isInternal(theme.id, q)
+      && (!who || (() => { const a = assigneeOf(theme.id, q); return !!a && personKey(a) === who; })()));
+    return qs.length ? [{ theme, ti, qs }] : [];
+  });
+  // Beantwortete Fragen mit Auflage — im Versand als eigener Abschnitt «Auflagen — Nachweis erforderlich»
+  const conditionQuestionsByTheme = (ms: string, who: string) => themes.flatMap((theme, ti) => {
+    if (ms !== FOUNDATION_MS && derivedRelevant(proj, theme.id) === false) return [];
+    const qs = questionsAt(theme.id, ms).filter(({ q }) => !isQuestionOpen(theme.id, q)
+      && getThemeReview(proj, theme.id).answers?.[q.id]?.condition === true && !isInternal(theme.id, q)
       && (!who || (() => { const a = assigneeOf(theme.id, q); return !!a && personKey(a) === who; })()));
     return qs.length ? [{ theme, ti, qs }] : [];
   });
@@ -1262,6 +1273,20 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
 
   // bereits erfasste Bemerkung einer Frage (für den Versand zum Bestätigen/Ergänzen)
   const remarksOf = (themeId: string, q: Question) => String(getThemeReview(proj, themeId).answers?.[q.id]?.remarks ?? '').trim();
+  // «Beitrag: intern …» am Anfang der Bemerkung: intern zu erledigen, wird nicht verschickt
+  const isInternal = (themeId: string, q: Question) => /^Beitrag:\s*intern\b/i.test(remarksOf(themeId, q));
+  // geltende Auflage einer Frage ('' = keine)
+  const conditionOf = (themeId: string, q: Question) => {
+    const a = getThemeReview(proj, themeId).answers?.[q.id];
+    return a?.condition === true ? (String(a.conditionText ?? '').trim() || '(noch nicht beschrieben)') : '';
+  };
+  // bisherige Antwort als Text (für beantwortete Fragen mit Auflage)
+  const answerLabelOf = (themeId: string, q: Question) => {
+    const a = getThemeReview(proj, themeId).answers?.[q.id];
+    const kind = q.kind ?? 'yesNo';
+    return kind === 'yesNo' ? (a?.value === true ? 'Ja' : a?.value === false ? 'Nein' : 'offen')
+      : kind === 'choice' ? (a?.choice ?? 'offen') : 'beantwortet';
+  };
   // Vergleich beim Rückimport: Tabellen-Ausrichtung, Leerzeichen (Mail-Umbruch) und Leerzeilen zählen nicht
   const sameRemarks = (a: string, b: string) => {
     const norm = (s: string) => formatTables(s.replace(/\r\n?/g, '\n').split('\n').map(l => l.trim()).join('\n'))
@@ -1284,6 +1309,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
       ? `Für die Architekturprüfung sind im Meilenstein ${title} die folgenden Fragen dir zugewiesen und noch offen.`
       : `Für die Architekturprüfung sind im Meilenstein ${title} die folgenden Fragen noch offen.`);
     lines.push('Bitte direkt unter der jeweiligen Frage antworten ([X] ankreuzen bzw. Antwort ergänzen).');
+    if (conditionQuestionsByTheme(ms, who).length) lines.push(`Am Schluss folgen Auflagen, für die noch ein Nachweis aussteht («${CONDITIONS_HEADING}»).`);
     const groups = openQuestionsByTheme(ms, who);
     if (groups.some(({ theme, qs }) => qs.some(({ q }) => remarksOf(theme.id, q)))) {
       lines.push('Wo schon eine Bemerkung steht: bitte bestätigen, korrigieren oder ergänzen.');
@@ -1296,6 +1322,9 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
         lines.push('');
         lines.push(`${number} ${q.text}`);
         if (q.hint) lines.push(`(${q.hint})`);
+        // Auflage als Hinweis vor der Antwortzeile (der Rückimport liest erst ab dort)
+        const cond = conditionOf(theme.id, q);
+        if (cond) lines.push(`Auflage: ${cond}`);
         // bereits erfasste Bemerkung zum Bestätigen/Ergänzen unter dem Label
         const rem = remarksOf(theme.id, q);
         const label = (l: string) => `${l}${rem ? ' (bitte bestätigen oder ergänzen)' : ''}:`;
@@ -1312,6 +1341,29 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
         count++;
       }
     });
+    const condGroups = conditionQuestionsByTheme(ms, who);
+    if (condGroups.length) {
+      lines.push('');
+      lines.push('');
+      lines.push(CONDITIONS_HEADING);
+      lines.push('='.repeat(46));
+      lines.push('Diese Fragen sind beantwortet, es gilt aber eine Auflage. Bitte den Stand bzw. Nachweis ergänzen.');
+      condGroups.forEach(({ theme, ti, qs }) => {
+        lines.push('');
+        lines.push(`${themeLetter(ti)} · ${theme.title}`);
+        lines.push('-'.repeat(46));
+        for (const { q, number } of qs) {
+          const rem = remarksOf(theme.id, q);
+          lines.push('');
+          lines.push(`${number} ${q.text}`);
+          lines.push(`Antwort: ${answerLabelOf(theme.id, q)}`);
+          lines.push(`Auflage: ${conditionOf(theme.id, q)}`);
+          lines.push(`Stand / Nachweis${rem ? ' (bitte bestätigen oder ergänzen)' : ''}:`);
+          if (rem) lines.push(...formatTables(rem).split('\n'));
+          count++;
+        }
+      });
+    }
     lines.push('');
     lines.push('Vielen Dank!');
     return { text: lines.join('\n'), count };
@@ -1401,21 +1453,23 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
   // Gleiche offenen Fragen als ausfüllbares PDF-Formular (pdf-lib, lazy)
   const downloadPdf = async (ms: string, who = '') => {
     const title = `${ms} · ${MILESTONE_TITLES[ms] ?? 'Prüfung'}`;
-    const sections: { heading: string; questions: { fieldKey: string; number: string; text: string; hint?: string; kind: 'yesNo' | 'text' | 'choice'; options?: string[]; remarks?: string }[] }[] = [];
-    openQuestionsByTheme(ms, who).forEach(({ theme, ti, qs }) => {
-      sections.push({
-        heading: `${themeLetter(ti)} · ${theme.title}`,
-        questions: qs.map(({ q, number }) => ({
-          fieldKey: `${theme.id}::${q.id}`,
-          number,
-          text: q.text,
-          hint: q.hint,
-          kind: (q.kind ?? 'yesNo') as 'yesNo' | 'text' | 'choice',
-          options: q.options,
-          ...(remarksOf(theme.id, q) ? { remarks: remarksOf(theme.id, q) } : {}),
-        })),
-      });
-    });
+    type PdfQ = { fieldKey: string; number: string; text: string; hint?: string; kind: 'yesNo' | 'text' | 'choice'; options?: string[]; remarks?: string; condition?: string; answer?: string };
+    const toSections = (groups: ReturnType<typeof openQuestionsByTheme>, answered: boolean) => groups.map(({ theme, ti, qs }) => ({
+      heading: `${themeLetter(ti)} · ${theme.title}`,
+      questions: qs.map(({ q, number }): PdfQ => ({
+        fieldKey: `${theme.id}::${q.id}`,
+        number,
+        text: q.text,
+        hint: q.hint,
+        kind: (q.kind ?? 'yesNo') as 'yesNo' | 'text' | 'choice',
+        options: q.options,
+        ...(remarksOf(theme.id, q) ? { remarks: remarksOf(theme.id, q) } : {}),
+        ...(conditionOf(theme.id, q) ? { condition: conditionOf(theme.id, q) } : {}),
+        ...(answered ? { answer: answerLabelOf(theme.id, q) } : {}),
+      })),
+    }));
+    const sections = toSections(openQuestionsByTheme(ms, who), false);
+    const conditionSections = toSections(conditionQuestionsByTheme(ms, who), true);
     setPdfBusy(true);
     try {
       const { buildOpenQuestionsPdf } = await import('../pdfExport');
@@ -1425,10 +1479,12 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
         intro: [
           `Für die Architekturprüfung sind im Meilenstein ${title} die folgenden Fragen noch offen.`,
           'Bitte die Felder direkt im PDF ausfüllen und die Datei zurücksenden.',
-          ...(sections.some(s => s.questions.some(q => q.remarks))
+          ...([...sections, ...conditionSections].some(s => s.questions.some(q => q.remarks))
             ? ['Wo schon eine Bemerkung steht: bitte bestätigen, korrigieren oder ergänzen.'] : []),
+          ...(conditionSections.length ? [`Am Schluss folgen Auflagen, für die noch ein Nachweis aussteht («${CONDITIONS_HEADING}»).`] : []),
         ],
         sections,
+        conditionSections,
       });
       const blob = new Blob([bytes as BlobPart], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
@@ -1678,7 +1734,8 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
       const line = raw.replace(/^[ \t>]+/, '').trim();
       const themeId = themeByTitle.get(line.replace(/^[A-Z]\s*·\s*/, '').trim().toLowerCase());
       if (themeId) { flush(); currentTheme = themeId; continue; }
-      if (/^-{5,}$/.test(line) || /^(Guten Tag|Vielen Dank|Freundliche Grüsse)/i.test(line)) continue;
+      if (line === CONDITIONS_HEADING) { flush(); currentTheme = null; continue; }
+      if (/^[-=]{5,}$/.test(line) || /^(Guten Tag|Vielen Dank|Freundliche Grüsse)/i.test(line)) continue;
       const qm = line.match(/^(M\d+[A-Z]\d+)\b\s*(.*)/);
       if (qm) {
         flush();
@@ -1705,7 +1762,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
         seenMarker = true;
         continue;
       }
-      const bm = line.match(/^(?:Antwort \/ )?Bemerkung(?:en)?(?:\s*\([^)]*\))?:\s*(.*)$/i);
+      const bm = line.match(/^(?:(?:Antwort \/ )?Bemerkung(?:en)?|Stand \/ Nachweis)(?:\s*\([^)]*\))?:\s*(.*)$/i);
       if (bm) {
         seenMarker = true;
         if (bm[1].trim()) curRemarks.push(bm[1].trim());
@@ -2617,7 +2674,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
                   : answersText.trim() === ''
                     ? 'Noch kein Text eingefügt.'
                     : items.length === 0
-                      ? 'Keine Antworten erkannt — stimmt der Meilenstein? Themen-Titel und Fragenummern müssen erhalten bleiben.'
+                      ? 'Keine Änderungen erkannt — alles unverändert bestätigt? Sonst prüfen: Meilenstein richtig, Themen-Titel und Fragenummern erhalten.'
                       : `${items.length} ${items.length === 1 ? 'Antwort' : 'Antworten'} erkannt:`}
               </div>
               {items.length > 0 && (

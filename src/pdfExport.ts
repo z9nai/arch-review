@@ -30,6 +30,10 @@ export type PdfQuestion = {
   options?: string[];
   /** bereits erfasste Bemerkung — vorausgefüllt zum Bestätigen oder Ergänzen */
   remarks?: string;
+  /** geltende Auflage (M20) — nur als Hinweis, nicht ausfüllbar */
+  condition?: string;
+  /** schon beantwortet (Ja/Nein/Option): keine Antwort-Felder, nur «Stand / Nachweis» zur Auflage */
+  answer?: string;
 };
 
 export type PdfSection = { heading: string; questions: PdfQuestion[] };
@@ -47,6 +51,7 @@ const FIELD_BORDER = rgb(0.65, 0.65, 0.7);
 const TABLE_RULE = rgb(0.72, 0.72, 0.76);
 const HEAD_BG = rgb(0.92, 0.92, 0.95);
 const RESERVE_BG = rgb(0.985, 0.985, 0.995);
+const CONDITION = rgb(0.72, 0.42, 0.04);
 
 // Formularfelder (Dropdown-Optionen) rendert der Viewer mit Helvetica — dort
 // nur WinAnsi (Latin-1 + CP1252-Zusatzzeichen) zulassen.
@@ -109,6 +114,8 @@ export async function buildOpenQuestionsPdf(opts: {
   milestoneTitle: string;
   intro: string[];
   sections: PdfSection[];
+  /** beantwortete Fragen mit Auflage — eigener Abschnitt am Schluss */
+  conditionSections?: PdfSection[];
 }): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   doc.setTitle(`Offene Fragen ${opts.milestoneTitle} — ${opts.projectName}`);
@@ -235,9 +242,24 @@ export async function buildOpenQuestionsPdf(opts: {
   f.y -= 6;
   for (const line of opts.intro) f.text(line, 9.5, 13, { color: GRAY });
 
-  for (const section of opts.sections) {
-    // Abschnitts-Titel nicht als Waise ans Seitenende setzen
-    f.ensure(70);
+  const allSections = [
+    ...opts.sections.map(s => ({ ...s, cond: false })),
+    ...(opts.conditionSections ?? []).map(s => ({ ...s, cond: true })),
+  ];
+  let condHeadDone = false;
+  // Platz für Frage + Antwortbereich (grosse Bemerkungsfelder dürfen umbrechen)
+  const questionNeed = (q: PdfQuestion) => Math.min(320, 80 + (q.remarks ? textFieldHeight(toFieldText(q.remarks), 40) : 40));
+  for (const section of allSections) {
+    if (section.cond && !condHeadDone) {
+      condHeadDone = true;
+      f.ensure(110);
+      f.y -= 30;
+      f.line('Auflagen — Nachweis erforderlich', MARGIN, 13, { bold: true });
+      f.y -= 4;
+      f.text('Diese Fragen sind beantwortet, es gilt aber eine Auflage. Bitte den Stand bzw. Nachweis ergänzen.', 9.5, 13, { color: GRAY });
+    }
+    // Abschnitts-Titel nicht als Waise ans Seitenende setzen: mit der ersten Frage zusammen
+    f.ensure(40 + (section.questions[0] ? questionNeed(section.questions[0]) : 30));
     f.y -= 24;
     f.line(section.heading, MARGIN, 11, { bold: true });
     f.y -= 6;
@@ -245,7 +267,7 @@ export async function buildOpenQuestionsPdf(opts: {
 
     for (const q of section.questions) {
       // Frage + Antwortbereich möglichst zusammenhalten
-      f.ensure(96);
+      f.ensure(questionNeed(q));
       f.y -= 16;
 
       // Nummer fett, Fragetext daneben (Folgezeilen volle Breite)
@@ -261,10 +283,21 @@ export async function buildOpenQuestionsPdf(opts: {
         f.y -= 13 + ln.gap;
         drawRichLine(f.page, ln, MARGIN, f.y, 9.5, BLACK, 13, f.page !== page);
       }
-      if (q.hint) f.text(q.hint, 8, 11, { color: GRAY });
+      if (q.hint && !q.answer) f.text(q.hint, 8, 11, { color: GRAY });
+      if (q.condition) {
+        f.y -= 2;
+        f.text(`Auflage: ${q.condition}`, 8.5, 11.5, { color: CONDITION });
+      }
       f.y -= 6;
 
-      if (q.kind === 'yesNo') {
+      if (q.answer) {
+        // schon beantwortet: Antwort nur anzeigen, keine Ja/Nein-Felder
+        f.ensure(14);
+        f.y -= 12;
+        f.page.drawText('Antwort:', { x: MARGIN, y: f.y, size: 8.5, font: helv, color: GRAY });
+        f.line(q.answer, MARGIN + 48, 9.5, { bold: true });
+        f.y -= 4;
+      } else if (q.kind === 'yesNo') {
         f.ensure(14);
         f.y -= 12;
         const ja = form.createCheckBox(`${q.fieldKey}::ja`);
@@ -286,7 +319,7 @@ export async function buildOpenQuestionsPdf(opts: {
       }
 
       const label = (prefilled: boolean) =>
-        `${q.kind === 'text' ? 'Antwort / Bemerkung' : 'Bemerkung'}${prefilled ? ' (bitte bestätigen oder ergänzen)' : ''}:`;
+        `${q.answer ? 'Stand / Nachweis' : q.kind === 'text' ? 'Antwort / Bemerkung' : 'Bemerkung'}${prefilled ? ' (bitte bestätigen oder ergänzen)' : ''}:`;
       const segs = q.remarks?.trim() ? splitRemarks(q.remarks.trim()) : [];
 
       if (!segs.some(sg => sg.kind === 'table')) {
