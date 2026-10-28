@@ -22,6 +22,13 @@ type View = { kind: 'projects' } | { kind: 'project'; slug: string; commentId?: 
 const DEEP_LINK_KEY = 'arch-review.deepLink';
 const VIEW_PARAMS = ['project', 'comment', 'view', 'section'];
 
+// Footer: wann diese Version gebaut (= publiziert) wurde, in Ortszeit
+const BUILD_LABEL = (() => {
+  const d = new Date(__BUILD_TIME__);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}${__BUILD_COMMIT__ ? ` · ${__BUILD_COMMIT__}` : ''}`;
+})();
+
 function viewFromUrl(href: string): View | null {
   const q = new URL(href).searchParams;
   const slug = (q.get('project') ?? '').trim();
@@ -467,7 +474,11 @@ export default function App() {
 
       {/* Footer: Herkunft, ganz rechts am Fensterrand */}
       <footer className={`border-t ${border} ${topBg} flex-shrink-0 [scrollbar-gutter:stable] overflow-hidden`}>
-        <div className="px-4 py-1.5 flex justify-end">
+        <div className="px-4 py-1.5 flex items-center justify-between gap-4">
+          <span className={`text-[10px] whitespace-nowrap ${textMuted} opacity-80`}
+            title={`Build ${__BUILD_TIME__}${__BUILD_COMMIT__ ? ` · Commit ${__BUILD_COMMIT__}` : ''}`}>
+            {import.meta.env.DEV ? 'Entwicklung (lokal)' : `Stand ${BUILD_LABEL}`}
+          </span>
           <a href="https://z9nai.ch" target="_blank" rel="noopener noreferrer"
             title="Z9nAI GmbH — zur Webseite"
             className={`flex items-center gap-1.5 ${textMuted} opacity-80 hover:opacity-100 transition-opacity`}>
