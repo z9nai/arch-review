@@ -1666,9 +1666,15 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
         if (r.remarks && !sameRemarks(r.remarks, toFieldText(remarksOf(q.themeId, q)))) {
           // Das PDF kennt nur WinAnsi (→ wird ->, ⚠️ wird ?): Zeilen, die nur so
           // verändert zurückkommen, behalten den Originaltext
+          const oldText = formatTables(remarksOf(q.themeId, q), false);
           const orig = new Map<string, string>();
-          for (const l of formatTables(remarksOf(q.themeId, q), false).split('\n')) orig.set(toFieldText(l), l);
-          patch.remarks = formatTables(formatTables(r.remarks, false).split('\n').map(l => orig.get(l) ?? l).join('\n'));
+          for (const l of oldText.split('\n')) orig.set(toFieldText(l), l);
+          // in geänderten Zeilen wenigstens die Wörter zurück, die nur so verändert sind («<->» → «↔»)
+          const words = new Map<string, string>();
+          for (const w of oldText.split(/\s+/)) if (w && toFieldText(w) !== w) words.set(toFieldText(w), w);
+          patch.remarks = formatTables(formatTables(r.remarks, false).split('\n')
+            .map(l => orig.get(l) ?? l.split(/(\s+)/).map(w => words.get(w) ?? w).join(''))
+            .join('\n'));
         }
         if (!Object.keys(patch).length) continue;
         const parts: string[] = [];
