@@ -14,6 +14,7 @@ import { DEFAULT_MODEL } from '../defaultModel';
 import { buildProjectExport, describeImportChanges, downloadJson, parseProjectImport, questionNumbers } from '../projectJson';
 import { AuditEntry, AuditOrigin, makeEntry, targetLabel } from '../audit';
 import { formatTables, stripRich } from '../richText';
+import { collapse, diffLines, DiffPart } from '../lineDiff';
 import AuditPanel from './AuditPanel';
 import { fitTextarea, fmtTimestamp, formatBytes, normalizeUrl, nowIsoWithTimezone, sanitizeFilename } from '../util';
 
@@ -124,6 +125,10 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
   const [answersMs, setAnswersMs] = useState<string | null>(null);
   const [answersText, setAnswersText] = useState('');
   const [answersPdfItems, setAnswersPdfItems] = useState<ImportItem[] | null>(null);
+  // Vorschau: abgewählte bzw. zugeklappte Fragen (Schlüssel themeId:frageId)
+  const [answersSkip, setAnswersSkip] = useState<Set<string>>(new Set());
+  const [answersClosed, setAnswersClosed] = useState<Set<string>>(new Set());
+  const resetAnswersSel = () => { setAnswersSkip(new Set()); setAnswersClosed(new Set()); };
   const [pdfBusy, setPdfBusy] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set()); // "M10:themeId"
   // Panels einklappbar (Meilensteine, Projektangaben, Quellen): ohne eigene
@@ -1658,7 +1663,13 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
         if ((r.ja ?? false) !== (r.nein ?? false)) patch.value = r.ja === true;
         if (r.choice) patch.choice = r.choice;
         // vorausgefüllte Bemerkung unverändert zurück → keine Änderung
-        if (r.remarks && !sameRemarks(r.remarks, toFieldText(remarksOf(q.themeId, q)))) patch.remarks = r.remarks;
+        if (r.remarks && !sameRemarks(r.remarks, toFieldText(remarksOf(q.themeId, q)))) {
+          // Das PDF kennt nur WinAnsi (→ wird ->, ⚠️ wird ?): Zeilen, die nur so
+          // verändert zurückkommen, behalten den Originaltext
+          const orig = new Map<string, string>();
+          for (const l of formatTables(remarksOf(q.themeId, q), false).split('\n')) orig.set(toFieldText(l), l);
+          patch.remarks = formatTables(formatTables(r.remarks, false).split('\n').map(l => orig.get(l) ?? l).join('\n'));
+        }
         if (!Object.keys(patch).length) continue;
         const parts: string[] = [];
         if (patch.value !== undefined) parts.push(patch.value ? 'Ja' : 'Nein');
@@ -1667,6 +1678,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
         items.push({ themeId: q.themeId, q, number: `${ms}${themeLetterOf(q.themeId)}${idx + 1}`, patch, summary: parts.join(' · ') });
       }
       setAnswersPdfItems(items);
+      resetAnswersSel();
     } catch {
       showToast('PDF konnte nicht gelesen werden — ist es das exportierte Formular?');
     }
@@ -2143,7 +2155,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
               className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
               <Mail size={11} /> Offene Fragen
             </button>
-            <button onClick={() => { setAnswersMs(ms); setAnswersText(''); setAnswersPdfItems(null); }} disabled={ro}
+            <button onClick={() => { setAnswersMs(ms); setAnswersText(''); setAnswersPdfItems(null); resetAnswersSel(); }} disabled={ro}
               title="Ausgefüllten E-Mail-Text einlesen und Antworten übernehmen"
               className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors disabled:opacity-40 ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
               <ClipboardPaste size={11} /> Antworten importieren
@@ -2632,7 +2644,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
         const items = answersPdfItems ?? parseAnswersImport(answersMs, answersText);
         return (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-6" onClick={() => setAnswersMs(null)}>
-            <div className={`max-w-2xl w-full max-h-[85vh] flex flex-col rounded-xl border p-6 ${isDark ? 'border-white/15 bg-[#16171a]' : 'border-black/15 bg-white'}`}
+            <div className={`max-w-3xl w-full max-h-[85vh] flex flex-col rounded-xl border p-6 ${isDark ? 'border-white/15 bg-[#16171a]' : 'border-black/15 bg-white'}`}
               onClick={e => e.stopPropagation()}>
               <div className="flex items-start justify-between gap-4 mb-3">
                 <h3 className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-black'}`}>
@@ -2656,8 +2668,8 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
                     if (f && answersMs) importPdfAnswers(answersMs, f);
                   }} />
               </label>
-              <textarea disabled={ro} value={answersText} autoFocus rows={10}
-                onChange={e => { setAnswersText(e.target.value); setAnswersPdfItems(null); }}
+              <textarea disabled={ro} value={answersText} autoFocus rows={items.length ? 4 : 10}
+                onChange={e => { setAnswersText(e.target.value); setAnswersPdfItems(null); resetAnswersSel(); }}
                 placeholder={'M20F2 Bleiben die Daten dort liegen (nicht nur Anzeige)?\n[X] Ja    [ ] Nein\nBemerkung: bleibt in der neuen Core-DB'}
                 className={`w-full text-[11px] leading-relaxed px-3 py-2 rounded border outline-none resize-y font-mono ${inputCls}`} />
               <div className={`mt-3 text-[11px] ${textMuted}`}>
@@ -2672,12 +2684,87 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
                       : `${items.length} ${items.length === 1 ? 'Antwort' : 'Antworten'} erkannt:`}
               </div>
               {items.length > 0 && (
-                <div className={`mt-2 max-h-40 overflow-y-auto rounded border px-3 py-2 space-y-1 ${isDark ? 'border-white/10' : 'border-black/10'}`}>
-                  {items.map(it => (
-                    <div key={`${it.themeId}:${it.q.id}`} className={`text-[11px] ${isDark ? 'text-white/75' : 'text-black/75'}`}>
-                      <span className={textMuted}>{it.number}</span> {it.summary}
-                    </div>
-                  ))}
+                <div className="mt-2 flex items-center gap-3 text-[11px]">
+                  <span className={textMuted}>Übernommen werden die angehakten Fragen.</span>
+                  <span className="flex-1" />
+                  <button onClick={() => setAnswersSkip(new Set())}
+                    className={`underline-offset-2 hover:underline ${isDark ? 'text-white/50' : 'text-black/50'}`}>alle</button>
+                  <button onClick={() => setAnswersSkip(new Set(items.map(it => `${it.themeId}:${it.q.id}`)))}
+                    className={`underline-offset-2 hover:underline ${isDark ? 'text-white/50' : 'text-black/50'}`}>keine</button>
+                  <button onClick={() => setAnswersClosed(answersClosed.size ? new Set() : new Set(items.map(it => `${it.themeId}:${it.q.id}`)))}
+                    className={`underline-offset-2 hover:underline ${isDark ? 'text-white/50' : 'text-black/50'}`}>{answersClosed.size ? 'alle aufklappen' : 'alle zuklappen'}</button>
+                </div>
+              )}
+              {items.length > 0 && (
+                <div className="mt-2 flex-1 min-h-0 overflow-y-auto space-y-2 pr-1">
+                  {items.map(it => {
+                    const key = `${it.themeId}:${it.q.id}`;
+                    const on = !answersSkip.has(key);
+                    const open = !answersClosed.has(key);
+                    const old = getThemeReview(proj, it.themeId).answers?.[it.q.id];
+                    // Tabellen kompakt vergleichen: sonst ändert eine breitere Zelle die Polsterung aller Zeilen
+                    const lines = it.patch.remarks !== undefined
+                      ? diffLines(formatTables(remarksOf(it.themeId, it.q), false), formatTables(it.patch.remarks.trim(), false))
+                      : [];
+                    const added = lines.filter(l => l.op === '+').length;
+                    const removed = lines.filter(l => l.op === '-').length;
+                    const valueLabel = (v: boolean | null | undefined) => v === true ? 'Ja' : v === false ? 'Nein' : 'offen';
+                    const parts = (ps: DiffPart[] | undefined, text: string, strong: string) =>
+                      ps ? ps.map((p, i) => <span key={i} className={p.changed ? `${strong} rounded-sm` : ''}>{p.text}</span>) : (text || '\u00a0');
+                    return (
+                      <div key={key} className={`rounded border ${isDark ? 'border-white/10' : 'border-black/10'} ${on ? '' : 'opacity-50'}`}>
+                        <div className="flex items-center gap-2 px-2 py-1.5">
+                          <input type="checkbox" checked={on} aria-label={`${it.number} übernehmen`}
+                            onChange={() => setAnswersSkip(prev => { const n = new Set(prev); if (n.has(key)) n.delete(key); else n.add(key); return n; })}
+                            className="flex-shrink-0 cursor-pointer" />
+                          <button onClick={() => setAnswersClosed(prev => { const n = new Set(prev); if (n.has(key)) n.delete(key); else n.add(key); return n; })}
+                            className={`flex-1 min-w-0 flex items-center gap-1.5 text-left text-[11px] ${isDark ? 'text-white/80' : 'text-black/80'}`}>
+                            {open ? <ChevronDown size={12} className="flex-shrink-0" /> : <ChevronRight size={12} className="flex-shrink-0" />}
+                            <span className="font-semibold flex-shrink-0">{it.number}</span>
+                            <span className="truncate">{stripRich(it.q.text)}</span>
+                          </button>
+                          {lines.length > 0 && (
+                            <span className="flex-shrink-0 text-[10px] font-mono">
+                              {added > 0 && <span className={isDark ? 'text-emerald-300' : 'text-emerald-700'}>+{added}</span>}
+                              {added > 0 && removed > 0 && ' '}
+                              {removed > 0 && <span className={isDark ? 'text-rose-300' : 'text-rose-700'} title="Zeilen, die der Import entfernt oder ersetzt">−{removed}</span>}
+                            </span>
+                          )}
+                        </div>
+                        {open && (
+                          <div className={`border-t px-2 py-1.5 text-[10.5px] leading-snug ${isDark ? 'border-white/10' : 'border-black/10'}`}>
+                            {(it.patch.value !== undefined || it.patch.choice) && (
+                              <div className={`mb-1 ${isDark ? 'text-white/70' : 'text-black/70'}`}>
+                                Antwort: <span className={isDark ? 'text-rose-300 line-through' : 'text-rose-700 line-through'}>{it.patch.choice ? (old?.choice || 'offen') : valueLabel(old?.value)}</span>
+                                {' → '}
+                                <span className={isDark ? 'text-emerald-300' : 'text-emerald-800'}>{it.patch.choice ?? valueLabel(it.patch.value)}</span>
+                              </div>
+                            )}
+                            {lines.length > 0 && (
+                              <div className="font-mono">
+                                {collapse(lines, 1).map((l, i) => l.op === '…'
+                                  ? <div key={i} className={`pl-5 italic ${textMuted}`}>… {l.count} {l.count === 1 ? 'Zeile' : 'Zeilen'} unverändert</div>
+                                  : (
+                                    <div key={i} className={`flex rounded-sm ${l.op === '-'
+                                      ? (isDark ? 'bg-rose-500/10 text-rose-200' : 'bg-rose-50 text-rose-900')
+                                      : l.op === '+'
+                                        ? (isDark ? 'bg-emerald-500/10 text-emerald-200' : 'bg-emerald-50 text-emerald-900')
+                                        : (isDark ? 'text-white/45' : 'text-black/45')}`}>
+                                      <span className="w-5 flex-shrink-0 text-center select-none">{l.op === ' ' ? '' : l.op === '-' ? '−' : '+'}</span>
+                                      <span className="flex-1 min-w-0 whitespace-pre-wrap break-words">
+                                        {parts(l.parts, l.text, l.op === '-'
+                                          ? (isDark ? 'bg-rose-500/35' : 'bg-rose-200')
+                                          : (isDark ? 'bg-emerald-500/35' : 'bg-emerald-200'))}
+                                      </span>
+                                    </div>
+                                  ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
               <div className="flex gap-2 pt-4">
@@ -2685,10 +2772,15 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
                   className={`flex-1 text-xs py-2 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
                   Abbrechen
                 </button>
-                <button onClick={() => applyAnswersImport(items)} disabled={items.length === 0}
-                  className={`flex-1 text-xs py-2 rounded font-semibold transition-colors disabled:opacity-40 ${isDark ? 'bg-white text-black hover:bg-white/90' : 'bg-black text-white hover:bg-black/80'}`}>
-                  Übernehmen
-                </button>
+                {(() => {
+                  const chosen = items.filter(it => !answersSkip.has(`${it.themeId}:${it.q.id}`));
+                  return (
+                    <button onClick={() => applyAnswersImport(chosen)} disabled={chosen.length === 0}
+                      className={`flex-1 text-xs py-2 rounded font-semibold transition-colors disabled:opacity-40 ${isDark ? 'bg-white text-black hover:bg-white/90' : 'bg-black text-white hover:bg-black/80'}`}>
+                      {items.length === 0 ? 'Übernehmen' : chosen.length === items.length ? `Alle ${items.length} übernehmen` : `${chosen.length} von ${items.length} übernehmen`}
+                    </button>
+                  );
+                })()}
               </div>
             </div>
           </div>
