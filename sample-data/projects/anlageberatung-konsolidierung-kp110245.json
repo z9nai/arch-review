@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "slug": "anlageberatung-konsolidierung-kp110245",
+  "name": "Anlageberatung Konsolidierung (KP110245)",
+  "description": "",
+  "responsibleProject": "",
+  "responsibleArchitecture": "Peter Muster",
+  "classification": null,
+  "architectureRelevant": null,
+  "createdAt": "2026-11-03",
+  "updatedAt": "2026-11-03T13:36:58+01:00",
+  "reviews": {
+    "data-classification": {
+      "relevant": null,
+      "reviewed": false,
+      "result": null,
+      "milestone": "",
+      "notes": ""
+    },
+    "data-storage": {
+      "relevant": null,
+      "reviewed": false,
+      "result": null,
+      "milestone": "",
+      "notes": ""
+    },
+    "integration-application": {
+      "relevant": null,
+      "reviewed": false,
+      "result": null,
+      "milestone": "",
+      "notes": ""
+    },
+    "cloud-infrastructure": {
+      "relevant": null,
+      "reviewed": false,
+      "result": null,
+      "milestone": "",
+      "notes": ""
+    },
+    "security-compliance": {
+      "relevant": null,
+      "reviewed": false,
+      "result": null,
+      "milestone": "",
+      "notes": ""
+    },
+    "idm-iam": {
+      "relevant": null,
+      "reviewed": false,
+      "result": null,
+      "milestone": "",
+      "notes": ""
+    },
+    "m10": {
+      "relevant": null,
+      "reviewed": true,
+      "result": null,
+      "milestone": "M10",
+      "notes": "Architekturrelevanz bestätigt (Beispiel).",
+      "approved": true,
+      "approvedBy": "Max Muster"
+    }
+  },
+  "projectNumber": "KP110245"
+}
