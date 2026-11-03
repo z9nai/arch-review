@@ -97,7 +97,8 @@ interface StoreCtx {
   loadAudit: (slug: string) => Promise<AuditEntry[] | null>;
   /** wer gerade ändert — fürs Protokoll (Anmeldung, sonst der Kommentar-Name) */
   auditAuthor: () => AuditAuthor;
-  createProject: (name: string, slug: string, ms10?: Ms10Data) => Promise<{ ok: true } | { ok: false; message: string }>;
+  /** projectNumber: aus der Projektübersicht angelegt — verknüpft den Review mit dem Projekt */
+  createProject: (name: string, slug: string, ms10?: Ms10Data, projectNumber?: string) => Promise<{ ok: true } | { ok: false; message: string }>;
   /** Kopie anlegen: Antworten/Klassifikation bleiben, Freigaben werden zurückgesetzt */
   duplicateProject: (sourceSlug: string, name: string, slug: string) => Promise<{ ok: true } | { ok: false; message: string }>;
   /** Neues Projekt aus einem importierten JSON anlegen (Inhalt unverändert, ohne Anhänge) */
@@ -767,7 +768,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const createProject = useCallback(async (name: string, slug: string, ms10?: Ms10Data) => {
+  const createProject = useCallback(async (name: string, slug: string, ms10?: Ms10Data, projectNumber?: string) => {
     const be = backendRef.current;
     if (!be) return { ok: false as const, message: 'Kein Ordner gewählt.' };
     let project: Project = {
@@ -783,6 +784,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       updatedAt: nowIsoWithTimezone(),
       reviews: {},
     };
+    if (projectNumber?.trim()) project.projectNumber = projectNumber.trim();
     if (ms10) project = applyMs10(project, ms10);
     let json: string;
     try { json = JSON.stringify(project, null, 2); } catch { return { ok: false as const, message: 'Projektdaten konnten nicht serialisiert werden.' }; }
@@ -794,7 +796,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
     setProjects(prev => [...prev, { slug, data: project, version: w.version }]
       .sort((a, b) => (a.data.name || a.slug).localeCompare(b.data.name || b.slug, 'de')));
-    await auditCreated(be, project, ms10 ? { source: 'ms10-import', note: 'Projekt aus MS10-PDF angelegt' } : { source: 'manual', note: 'Projekt angelegt' });
+    await auditCreated(be, project, ms10 ? { source: 'ms10-import', note: 'Projekt aus MS10-PDF angelegt' }
+      : projectNumber ? { source: 'manual', note: `Projekt aus der Projektübersicht angelegt (${projectNumber.trim()})` }
+      : { source: 'manual', note: 'Projekt angelegt' });
     return { ok: true as const };
   }, []);
 

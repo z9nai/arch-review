@@ -6,17 +6,20 @@ import { approvedMilestones, deriveStatus, openMilestone } from '../status';
 import {
   numberKey, PORTFOLIO_STATUSES, PORTFOLIO_STATUS_META, PortfolioProject, PortfolioStatus, reviewNumber, reviewsFor,
 } from '../portfolio';
-import { fmtTimestamp } from '../util';
+import { fmtTimestamp, slugify } from '../util';
 
 // Meilenstein-Tags eines Reviews wie in der Projektliste: freigegebene grün,
-// der nächste offene gelb; Klick öffnet den Review
-function ReviewTags({ review, isDark, onOpen, showName }: { review: ProjectListItem; isDark: boolean; onOpen: (slug: string) => void; showName: boolean }) {
+// der nächste offene gelb; darunter grau die verantwortliche Architektur,
+// falls gesetzt. Klick öffnet den Review
+function ReviewTags({ review, isDark, onOpen, showName, showArchitect = true }: { review: ProjectListItem; isDark: boolean; onOpen: (slug: string) => void; showName: boolean; showArchitect?: boolean }) {
   const status = deriveStatus(review.data);
   const ms = status === 'open' ? openMilestone(review.data) : null;
   const tag = 'inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border whitespace-nowrap';
+  const architect = review.data.responsibleArchitecture?.trim();
   return (
     <button type="button" onClick={() => onOpen(review.slug)} title={`Review «${review.data.name || review.slug}» öffnen`}
-      className={`inline-flex items-center gap-1 flex-wrap rounded px-1 -mx-1 py-0.5 transition-colors ${isDark ? 'hover:bg-white/8' : 'hover:bg-black/5'}`}>
+      className={`inline-flex flex-col items-start rounded px-1 -mx-1 py-0.5 text-left transition-colors ${isDark ? 'hover:bg-white/8' : 'hover:bg-black/5'}`}>
+      <span className="inline-flex items-center gap-1 flex-wrap">
       {showName && <span className={`text-[11px] mr-1 underline-offset-2 hover:underline ${isDark ? 'text-white/60' : 'text-black/60'}`}>{review.data.name || review.slug}</span>}
       {approvedMilestones(review.data).map(m => (
         <span key={m} className={`${tag} ${isDark ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' : 'bg-emerald-50 text-emerald-700 border-emerald-300'}`}>
@@ -29,6 +32,8 @@ function ReviewTags({ review, isDark, onOpen, showName }: { review: ProjectListI
       {status === 'notRelevant' && (
         <span className={`${tag} ${isDark ? 'bg-white/8 text-white/50 border-white/15' : 'bg-black/5 text-black/50 border-black/15'}`}>nicht relevant</span>
       )}
+      </span>
+      {showArchitect && architect && <span className={`text-[10px] mt-0.5 ${isDark ? 'text-white/40' : 'text-black/40'}`}>Architektur: {architect}</span>}
     </button>
   );
 }
@@ -40,8 +45,8 @@ export default function PortfolioView({ onOpen, onBack, onAdmin }: {
   onBack: () => void;
   onAdmin?: () => void; // nur für Admins: zum Excel-Import (Admin → Projektliste)
 }) {
-  const { isDark, projects, portfolio, portfolioError, refreshPortfolio, refreshProjects, projectsLoading, updatePortfolio } = useStore();
-  const { canAdmin } = usePermissions();
+  const { isDark, projects, portfolio, portfolioError, refreshPortfolio, refreshProjects, projectsLoading, updatePortfolio, createProject } = useStore();
+  const { canAdmin, canEdit } = usePermissions();
   const [qNumber, setQNumber] = useState('');
   const [qName, setQName] = useState('');
   const [statusFilter, setStatusFilter] = useState<Set<PortfolioStatus>>(new Set());
@@ -98,6 +103,35 @@ export default function PortfolioView({ onOpen, onBack, onAdmin }: {
   const adopt = (r: ProjectListItem, number: string) =>
     change(numberKey(number), list => list.some(x => numberKey(x.number) === numberKey(number)) ? list
       : [...list, { number, name: r.data.name || r.slug, status: 'inReview', importedAt: new Date().toISOString() }]);
+
+  // Architektur-Review zu einem Projekt ohne Review anlegen: Name «Name (Nummer)»,
+  // Projektnummer gesetzt (damit verknüpft), danach direkt öffnen. Admins
+  // setzen den Status dabei von «offen» / «kein Review» auf «in Review».
+  const createReview = async (p: PortfolioProject) => {
+    const key = numberKey(p.number);
+    const name = p.name.trim() ? `${p.name.trim()} (${p.number.trim()})` : p.number.trim();
+    const base = slugify(name) || slugify(p.number) || 'review';
+    const taken = new Set(projects.map(r => r.slug));
+    let slug = base;
+    for (let i = 2; taken.has(slug); i++) slug = `${base}-${i}`;
+    setErr(''); setBusyKey(key);
+    const res = await createProject(name, slug, undefined, p.number.trim());
+    if (!res.ok) { setBusyKey(null); setErr(res.message); return; }
+    if (canAdmin && (p.status === 'open' || p.status === 'noReview')) {
+      const upd = await updatePortfolio(prev => ({ ...prev, projects: prev.projects.map(x => numberKey(x.number) === key ? { ...x, status: 'inReview' } : x) }));
+      if (!upd.ok) { setBusyKey(null); setErr(`Review angelegt, Status nicht gesetzt: ${upd.message}`); return; }
+    }
+    setBusyKey(null);
+    setDetailKey(null);
+    onOpen(slug);
+  };
+  const createButton = (p: PortfolioProject) => (
+    <button onClick={() => void createReview(p)} disabled={busyKey === numberKey(p.number)}
+      title={`Architektur-Review «${p.name.trim() ? `${p.name.trim()} (${p.number.trim()})` : p.number.trim()}» anlegen und öffnen`}
+      className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded border whitespace-nowrap transition-colors disabled:opacity-40 ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
+      <Plus size={10} /> Review erstellen
+    </button>
+  );
 
   const toggleStatus = (s: PortfolioStatus) => setStatusFilter(prev => {
     const next = new Set(prev);
@@ -210,13 +244,18 @@ export default function PortfolioView({ onOpen, onBack, onAdmin }: {
                         ? <button type="button" onClick={() => setDetailKey(key)} title="Details anzeigen" className="text-left hover:underline underline-offset-2">{p.name}</button>
                         : <span className={textMuted}>–</span>}
                       {p.createdDate && <span className={`ml-2 text-[10px] ${textMuted}`}>{p.createdDate.split('-').reverse().join('.')}</span>}
+                      {(() => {
+                        // verantwortliche Architektur aus den Reviews, grau unter dem Namen
+                        const archs = [...new Set(reviews.map(r => r.data.responsibleArchitecture?.trim()).filter(Boolean))];
+                        return archs.length > 0 && <div className={`text-[10px] mt-0.5 ${isDark ? 'text-white/40' : 'text-black/40'}`}>Architektur: {archs.join(', ')}</div>;
+                      })()}
                     </td>
                     <td className="px-3 py-2">{statusControl(p)}</td>
                     <td className="px-3 py-2">
                       {reviews.length === 0
-                        ? <span className={textMuted}>–</span>
+                        ? (canEdit ? createButton(p) : <span className={textMuted}>–</span>)
                         : <div className="flex flex-col gap-0.5 items-start">
-                            {reviews.map(r => <ReviewTags key={r.slug} review={r} isDark={isDark} onOpen={onOpen} showName={reviews.length > 1} />)}
+                            {reviews.map(r => <ReviewTags key={r.slug} review={r} isDark={isDark} onOpen={onOpen} showName={reviews.length > 1} showArchitect={false} />)}
                           </div>}
                     </td>
                     <td className="px-1 py-1.5">
@@ -281,7 +320,7 @@ export default function PortfolioView({ onOpen, onBack, onAdmin }: {
 
       {detailRow && (
         <PortfolioDetail project={detailRow.p} reviews={detailRow.reviews} order={portfolio?.detailColumns ?? []}
-          statusControl={statusControl(detailRow.p)} isDark={isDark} onAdmin={onAdmin ? () => { setDetailKey(null); onAdmin(); } : undefined}
+          statusControl={statusControl(detailRow.p)} createButton={canEdit ? createButton(detailRow.p) : undefined} isDark={isDark} onAdmin={onAdmin ? () => { setDetailKey(null); onAdmin(); } : undefined}
           onOpen={slug => { setDetailKey(null); onOpen(slug); }} onClose={() => setDetailKey(null)} />
       )}
     </div>
@@ -292,11 +331,12 @@ const fmtDate = (iso: string) => iso.split('-').reverse().join('.');
 
 // Detail-Dialog eines Projekts: Nummer, Name, Status, die beim Import
 // gewählten Excel-Spalten und die verknüpften Reviews
-function PortfolioDetail({ project: p, reviews, order, statusControl, isDark, onOpen, onClose, onAdmin }: {
+function PortfolioDetail({ project: p, reviews, order, statusControl, createButton, isDark, onOpen, onClose, onAdmin }: {
   project: PortfolioProject;
   reviews: ProjectListItem[];
   order: string[];
   statusControl: React.ReactNode;
+  createButton?: React.ReactNode; // nur mit Schreibrecht: Review anlegen
   isDark: boolean;
   onOpen: (slug: string) => void;
   onClose: () => void;
@@ -355,7 +395,10 @@ function PortfolioDetail({ project: p, reviews, order, statusControl, isDark, on
           <div>
             <h4 className={`text-[10px] uppercase tracking-wider mb-2 ${textMuted}`}>Architektur-Review</h4>
             {reviews.length === 0 ? (
-              <p className={`text-[11px] ${textMuted}`}>Kein Review zu dieser Projektnummer.</p>
+              <div className="flex items-center gap-3">
+                <p className={`text-[11px] ${textMuted}`}>Kein Review zu dieser Projektnummer.</p>
+                {createButton}
+              </div>
             ) : (
               <div className="space-y-1.5">
                 {reviews.map(r => (

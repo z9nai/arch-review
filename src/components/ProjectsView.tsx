@@ -377,6 +377,7 @@ export default function ProjectsView({ onOpen }: { onOpen: (slug: string) => voi
                   <div className={`text-[11px] mt-1 ${textMuted}`}>
                     <span className="mr-3">{p.slug}</span>
                     <span className="mr-3">Klassifikation: {classificationLabel(p.data.classification)}</span>
+                    {p.data.responsibleArchitecture?.trim() && <span className="mr-3">Architektur: {p.data.responsibleArchitecture.trim()}</span>}
                     {p.data.updatedAt && <span>Stand: {fmtTimestamp(p.data.updatedAt)}</span>}
                   </div>
                 </div>
