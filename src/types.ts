@@ -286,6 +286,9 @@ export interface Project {
   responsibleProject: string;
   responsibleArchitecture: string;
   classification: string | null;
+  // true = Klassifikation von Admin manuell gesetzt (Abkürzung); die
+  // Ableitung aus den M10-Fragen überschreibt sie dann nicht
+  classificationOverride?: boolean;
   architectureRelevant: boolean | null;
   createdAt: string;
   updatedAt: string;

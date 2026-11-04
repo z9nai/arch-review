@@ -88,7 +88,7 @@ const KEEP_LINES = 1000;
 const FIELD_LABEL: Record<string, string> = {
   name: 'Name', description: 'Beschrieb', responsibleProject: 'Verantwortlich Projekt',
   responsibleArchitecture: 'Verantwortlich Architektur', classification: 'Klassifikation',
-  architectureRelevant: 'Architekturrelevant',
+  architectureRelevant: 'Architekturrelevant', classificationOverride: 'Klassifikation manuell',
   value: 'Antwort', choice: 'Auswahl', remarks: 'Bemerkungen', sources: 'Quellen',
   condition: 'Auflage', conditionText: 'Auflage (Text)', assignee: 'Zuständig',
   mentions: 'Erwähnt', notesMentions: 'Erwähnt',

@@ -95,7 +95,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
     uploadSourceFile, downloadSourceFile, deleteSourceFile, loadComments, updateComments,
     knownUsers, searchDirectory } = useStore();
   const { user: authUser, tryToken, requestConsent } = useAuth();
-  const { canEdit, canView } = usePermissions();
+  const { canEdit, canView, canAdmin } = usePermissions();
   // Bearbeitungssperre: 'mine' = ich halte sie; 'held' = jemand anderes;
   // 'free' = war fremd gesperrt, ist jetzt frei (Bearbeiten anbieten)
   const [lockState, setLockState] = useState<{ kind: 'mine' } | { kind: 'held'; lock: ProjectLock } | { kind: 'free' } | null>(null);
@@ -693,17 +693,24 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
       reviews[theme.id] = { ...emptyReview(), ...(reviews[theme.id] ?? {}), relevant: rel };
       rels.push(rel);
     }
-    const arch = rels.length === 0
+    const derivedArch = rels.length === 0
       ? p.architectureRelevant
       : rels.some(v => v === null) ? null : rels.some(v => v === true);
+    const firstClass = model?.classifications[0]?.id ?? null;
+    let classification = p.classification ?? null;
+    // Admin-Abkürzung: manuell gesetzte Klassifikation gilt, M10 wird
+    // nicht ausgewertet; «Architekturrelevant» folgt der Klassifikation.
+    if (p.classificationOverride && classification) {
+      return { ...p, reviews, architectureRelevant: classification !== firstClass, classification };
+    }
+    const arch = derivedArch;
     // Klassifikation: «alles Nein» setzt automatisch die erste Stufe
     // (nicht relevant); sonst bleibt die Wahl des Architekten bestehen,
     // der Auto-Wert wird aber zurückgenommen.
-    const firstClass = model?.classifications[0]?.id ?? null;
-    let classification = p.classification ?? null;
     if (arch === false) classification = firstClass;
     else if (classification !== null && classification === firstClass) classification = null;
-    return { ...p, reviews, architectureRelevant: arch, classification };
+    const { classificationOverride: _drop, ...rest } = p;
+    return { ...rest, reviews, architectureRelevant: arch, classification };
   };
   syncRef.current = syncDerived;
 
@@ -1843,6 +1850,40 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
       .filter(({ state }) => state.required === true);
   };
 
+  // Prüfer/in (Freigabe bzw. Abnahme, erforderlich): mit Entra-Anmeldung nur
+  // Personen aus dem Verzeichnis, sonst Freitext; «mich» trägt mich selbst ein
+  const reviewerField = (value: string, onChange: (v: string) => void, placeholder: string) => {
+    const v = value.trim();
+    const mine = !!v && isMine({ name: v, email: mentionUsers.find(u => u.name === v)?.email });
+    const missing = isDark ? 'border-rose-500/40' : 'border-rose-300';
+    return (
+      <span className="inline-flex items-center gap-1.5">
+        {authUser ? (
+          <span className={`text-[11px] ${isDark ? 'text-white/60' : 'text-black/60'}`}>
+            <PersonPicker value={v ? { name: v, email: mentionUsers.find(u => u.name === v)?.email ?? '' } : undefined}
+              onChange={u => onChange(u?.name ?? '')}
+              mine={mine} noun="Prüfer/in" emptyTitle="Prüfer/in aus dem Verzeichnis wählen (erforderlich)"
+              invalid={!v} disabled={ro}
+              users={mentionUsers} searchUsers={searchDirectory} onDirectoryProblem={onDirectoryProblem}
+              initialsFor={initialsFor} isDark={isDark} />
+          </span>
+        ) : (
+          <input disabled={ro} value={value} placeholder={placeholder}
+            onChange={e => onChange(e.target.value)}
+            className={`text-[11px] px-2 py-1.5 rounded border outline-none transition-colors ${inputCls} ${!v ? missing : ''}`} />
+        )}
+        {!ro && me && !mine && (
+          <button type="button" onClick={() => onChange(me.name)} title={`${me.name} als Prüfer/in eintragen`}
+            className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${isDark
+              ? 'border-white/15 text-white/50 hover:text-white hover:border-white/30'
+              : 'border-black/15 text-black/50 hover:text-black hover:border-black/30'}`}>
+            mich
+          </button>
+        )}
+      </span>
+    );
+  };
+
   // Kopfbereich eines Meilenstein-Blocks
   const milestoneHeader = (opts: {
     ms: string;
@@ -1853,6 +1894,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
     extra?: React.ReactNode;
   }) => {
     const notesEmpty = String(opts.review.notes ?? '').trim() === '';
+    const byMissing = String(opts.review.approvedBy ?? '').trim() === '';
     const checks = checksFor(opts.ms);
     const blocking = blockingChecks(opts.review, checks);
     // Änderung an einem Kontrollpunkt; hebt eine bestehende Freigabe auf, wenn
@@ -1871,21 +1913,24 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
           </div>
           <div className="flex items-center gap-4 flex-wrap">
             <label className={`flex items-center gap-1.5 text-xs cursor-pointer ${isDark ? 'text-white/70' : 'text-black/70'}`}>
-              <input disabled={ro || (blocking.length > 0 && opts.review.approved !== true)} type="checkbox" checked={opts.review.approved === true}
-                title={blocking.length ? `Erst möglich, wenn abgenommen bzw. begründet: ${blocking.map(c => c.label).join(', ')}` : undefined}
+              <input disabled={ro || (opts.review.approved !== true && (blocking.length > 0 || (byMissing && !me)))}
+                type="checkbox" checked={opts.review.approved === true}
+                title={blocking.length ? `Erst möglich, wenn abgenommen bzw. begründet: ${blocking.map(c => c.label).join(', ')}`
+                  : byMissing && !me ? 'Erst möglich, wenn Prüfer/in eingetragen ist' : undefined}
                 onChange={e => opts.update({
                   reviewed: e.target.checked,
                   approved: e.target.checked,
-                  // Prüfer/in mit der angemeldeten Person vorbelegen
-                  ...(e.target.checked && !String(opts.review.approvedBy ?? '').trim() && authUser?.name
-                    ? { approvedBy: authUser.name } : {}),
+                  // Prüfer/in (erforderlich) mit mir vorbelegen
+                  ...(e.target.checked && byMissing && me ? { approvedBy: me.name } : {}),
                 })}
                 className="accent-blue-500 cursor-pointer" />
               Geprüft und freigegeben
             </label>
-            <input disabled={ro} value={String(opts.review.approvedBy ?? '')} placeholder="Prüfer/in"
-              onChange={e => opts.update({ approvedBy: e.target.value })}
-              className={`text-[11px] px-2 py-1.5 rounded border outline-none transition-colors ${inputCls}`} />
+            {/* ohne Prüfer/in keine Freigabe: leeren hebt sie auf */}
+            {reviewerField(String(opts.review.approvedBy ?? ''), v => opts.update({
+              approvedBy: v,
+              ...(!v.trim() && opts.review.approved ? { approved: false, reviewed: false } : {}),
+            }), 'Prüfer/in (erforderlich)')}
           </div>
           {blocking.length > 0 && opts.review.approved !== true && (
             <div className={`text-[11px] ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>
@@ -2011,16 +2056,12 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
                         <input disabled={ro} type="checkbox" checked={s.approved === true}
                           onChange={e => updateCheck(c.id, {
                             approved: e.target.checked,
-                            ...(e.target.checked && byEmpty && authUser?.name ? { approvedBy: authUser.name } : {}),
+                            ...(e.target.checked && byEmpty && me ? { approvedBy: me.name } : {}),
                           })}
                           className="accent-blue-500 cursor-pointer" />
                         abgenommen
                       </label>
-                      <input disabled={ro} value={String(s.approvedBy ?? '')} placeholder="durch wen (erforderlich)"
-                        onChange={e => updateCheck(c.id, { approvedBy: e.target.value })}
-                        className={`text-[11px] px-2 py-1.5 rounded border outline-none transition-colors ${inputCls} ${
-                          byEmpty ? (isDark ? 'border-rose-500/40' : 'border-rose-300') : ''
-                        }`} />
+                      {reviewerField(String(s.approvedBy ?? ''), v => updateCheck(c.id, { approvedBy: v }), 'durch wen (erforderlich)')}
                     </div>
                     <textarea disabled={ro} value={String(s.remarks ?? '')} required rows={2}
                       onChange={e => updateCheck(c.id, { remarks: e.target.value })}
@@ -2429,7 +2470,41 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
                 className={`p-0.5 rounded transition-colors ${isDark ? 'text-white/25 hover:text-white/70' : 'text-black/25 hover:text-black/70'}`}>
                 <Info size={11} />
               </button>
-              {proj.architectureRelevant === false ? (
+              {canAdmin && !ro ? (
+                // Admin-Abkürzung: jede Stufe wählbar, auch ohne M10. Ein
+                // Override wird gemerkt, ausser auf dem normalen Weg;
+                // «automatisch» hebt ihn wieder auf.
+                <>
+                  <select value={proj.classification ?? ''}
+                    onChange={e => {
+                      const id = e.target.value || null;
+                      setProj(p => {
+                        if (!p) return p;
+                        const auto = syncDerived({ ...p, classification: id, classificationOverride: false });
+                        // normaler Weg (M10 ergibt relevant, Stufe gewählt) → kein Override
+                        return id === null || (auto.architectureRelevant === true && auto.classification === id)
+                          ? auto
+                          : syncDerived({ ...p, classification: id, classificationOverride: true });
+                      });
+                    }}
+                    title="Admin: Klassifikation direkt setzen (übersteuert die M10-Fragen)"
+                    className={`text-[11px] px-2 py-1 rounded border outline-none transition-colors ${inputCls} ${
+                      proj.classificationOverride ? (isDark ? 'border-amber-500/50' : 'border-amber-400')
+                        : proj.architectureRelevant === true && !proj.classification ? (isDark ? 'border-rose-500/40' : 'border-rose-300') : ''
+                    }`}>
+                    <option value="">
+                      {proj.classificationOverride ? '↺ automatisch (M10)' : proj.architectureRelevant === null ? '– offen –' : '– wählen –'}
+                    </option>
+                    {model.classifications.map(c => (
+                      <option key={c.id} value={c.id}>{c.label}</option>
+                    ))}
+                  </select>
+                  {proj.classificationOverride && (
+                    <span title="Von Admin manuell gesetzt — die M10-Fragen werden dafür nicht ausgewertet"
+                      className={`text-[10px] ${isDark ? 'text-amber-300/80' : 'text-amber-700'}`}>manuell</span>
+                  )}
+                </>
+              ) : proj.architectureRelevant === false ? (
                 // «alles Nein» → automatisch die erste Stufe (nicht relevant)
                 <span className={`text-[11px] px-2 py-1 rounded border ${isDark ? 'border-white/10 text-white/40' : 'border-black/10 text-black/40'}`}>
                   {model.classifications[0]?.label ?? 'nicht relevant'}

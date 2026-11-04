@@ -543,7 +543,15 @@ export function PersonPicker(p: {
   disabled?: boolean;
   /** hervorgehoben, z. B. wenn ich selbst zuständig bin */
   mine?: boolean;
+  /** Rolle im Tooltip/Knopf, Standard «Zuständig» (z. B. «Prüfer/in») */
+  noun?: string;
+  emptyTitle?: string;
+  /** Entfernen erlaubt (Standard ja) */
+  removable?: boolean;
+  /** leer, aber erforderlich → roter Rahmen */
+  invalid?: boolean;
 }) {
+  const noun = p.noun ?? 'Zuständig';
   const { isDark } = p;
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -589,7 +597,7 @@ export function PersonPicker(p: {
 
   if (p.value && !open) {
     return (
-      <span title={`Zuständig: ${p.value.name}${p.value.email ? ` · ${p.value.email}` : ''}`}
+      <span title={`${noun}: ${p.value.name}${p.value.email ? ` · ${p.value.email}` : ''}`}
         className={`inline-flex items-center gap-1 h-5 pl-1 pr-1 rounded-full border text-[10px] whitespace-nowrap ${p.mine
           ? (isDark ? 'border-blue-500/50 bg-blue-500/15 text-blue-200' : 'border-blue-300 bg-blue-50 text-blue-800')
           : (isDark ? 'border-white/15 bg-white/5 text-white/70' : 'border-black/15 bg-black/5 text-black/70')}`}>
@@ -601,10 +609,12 @@ export function PersonPicker(p: {
           <>
             <button type="button" title="Andere Person wählen" onClick={() => setOpen(true)}
               className="px-0.5 rounded hover:underline">ändern</button>
-            <button type="button" title="Zuständigkeit entfernen" onClick={() => p.onChange(undefined)}
-              className={`rounded-full p-0.5 transition-colors ${isDark ? 'hover:text-rose-400' : 'hover:text-rose-500'}`}>
-              <X size={9} />
-            </button>
+            {p.removable !== false && (
+              <button type="button" title={p.noun ? `${noun} entfernen` : 'Zuständigkeit entfernen'} onClick={() => p.onChange(undefined)}
+                className={`rounded-full p-0.5 transition-colors ${isDark ? 'hover:text-rose-400' : 'hover:text-rose-500'}`}>
+                <X size={9} />
+              </button>
+            )}
           </>
         )}
       </span>
@@ -613,9 +623,10 @@ export function PersonPicker(p: {
   if (!open) {
     return (
       <button type="button" disabled={p.disabled} onClick={() => setOpen(true)}
-        title="Jemandem die Beantwortung dieser Frage zuweisen"
-        className="inline-flex items-center gap-1 hover:underline underline-offset-2 disabled:no-underline">
-        <UserRound size={10} /> Zuständig …
+        title={p.emptyTitle ?? 'Jemandem die Beantwortung dieser Frage zuweisen'}
+        className={`inline-flex items-center gap-1 hover:underline underline-offset-2 disabled:no-underline ${p.invalid
+          ? `px-1.5 py-0.5 rounded border ${isDark ? 'border-rose-500/40' : 'border-rose-300'}` : ''}`}>
+        <UserRound size={10} /> {noun} …
       </button>
     );
   }
