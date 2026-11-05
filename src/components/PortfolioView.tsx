@@ -241,7 +241,14 @@ export default function PortfolioView({ onOpen, onBack, onAdmin }: {
                     <td className={`px-3 py-2 font-mono whitespace-nowrap ${isDark ? 'text-white/70' : 'text-black/70'}`}>{p.number}</td>
                     <td className={`px-3 py-2 ${isDark ? 'text-white/90' : 'text-black/90'}`}>
                       {p.name
-                        ? <button type="button" onClick={() => setDetailKey(key)} title="Details anzeigen" className="text-left hover:underline underline-offset-2">{p.name}</button>
+                        ? (() => {
+                            // Klick öffnet den Review (bei mehreren den zuletzt bearbeiteten);
+                            // ohne Review die Details
+                            const latest = [...reviews].sort((a, b) => String(b.data.updatedAt ?? '').localeCompare(String(a.data.updatedAt ?? '')))[0];
+                            return latest
+                              ? <button type="button" onClick={() => onOpen(latest.slug)} title={`Review «${latest.data.name || latest.slug}» öffnen`} className="text-left hover:underline underline-offset-2">{p.name}</button>
+                              : <button type="button" onClick={() => setDetailKey(key)} title="Details anzeigen" className="text-left hover:underline underline-offset-2">{p.name}</button>;
+                          })()
                         : <span className={textMuted}>–</span>}
                       {p.createdDate && <span className={`ml-2 text-[10px] ${textMuted}`}>{p.createdDate.split('-').reverse().join('.')}</span>}
                       {(() => {
