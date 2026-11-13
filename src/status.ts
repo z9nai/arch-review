@@ -26,9 +26,34 @@ export function checkState(review: Review, id: string): MilestoneCheckState {
   return { required: false, assessment: '', approved: false, approvedBy: '', remarks: '', ...(review.checks?.[id] ?? {}) };
 }
 
+export const isTask = (c: MilestoneCheck): boolean => c.kind === 'task';
+
+// Ist der Kontrollpunkt fix erforderlich (nicht pro Projekt ankreuzbar)?
+// Aufgaben immer; Prüfungen, die erst ab einer Klassifikation eingeblendet
+// werden, sind dann erforderlich.
+export function checkFixedRequired(c: MilestoneCheck): boolean {
+  return isTask(c) || !!c.minClassification;
+}
+
+// Erforderlich für dieses Projekt?
+export function checkRequired(c: MilestoneCheck, s: MilestoneCheckState): boolean {
+  return checkFixedRequired(c) || s.required === true;
+}
+
+// Wird der Kontrollpunkt für dieses Projekt eingeblendet? Archivierte nie;
+// mit minClassification erst, wenn die Klassifikation des Projekts mindestens
+// so hoch ist (ohne Klassifikation: nein).
+export function checkVisible(c: MilestoneCheck, classification: string | null | undefined, classificationOrder: string[]): boolean {
+  if (c.archived) return false;
+  if (!c.minClassification) return true;
+  if (!classification) return false;
+  return classificationOrder.indexOf(classification) >= classificationOrder.indexOf(c.minClassification);
+}
+
 // Erforderliche Prüfung vollständig: Einschätzung der Architektur liegt vor,
-// abgenommen, mit Prüfer/in und Bemerkung
-export function checkComplete(s: MilestoneCheckState): boolean {
+// abgenommen, mit Prüfer/in und Bemerkung. Aufgabe: erledigt, durch wen.
+export function checkComplete(s: MilestoneCheckState, c?: MilestoneCheck): boolean {
+  if (c && isTask(c)) return s.approved === true && String(s.approvedBy ?? '').trim() !== '';
   return String(s.assessment ?? '').trim() !== ''
     && s.approved === true && String(s.approvedBy ?? '').trim() !== '' && String(s.remarks ?? '').trim() !== '';
 }
@@ -39,11 +64,12 @@ export function checkJustified(s: MilestoneCheckState): boolean {
 }
 
 // Kontrollpunkte, die die Freigabe des Meilensteins noch blockieren —
-// erforderliche bis zur Abnahme, nicht erforderliche bis zur Begründung
+// erforderliche bis zur Abnahme (Aufgaben: bis erledigt), nicht erforderliche
+// bis zur Begründung. Erwartet die für das Projekt eingeblendeten Kontrollpunkte.
 export function blockingChecks(review: Review, checks: MilestoneCheck[]): MilestoneCheck[] {
   return checks.filter(c => {
     const s = checkState(review, c.id);
-    return s.required ? !checkComplete(s) : !checkJustified(s);
+    return checkRequired(c, s) ? !checkComplete(s, c) : !checkJustified(s);
   });
 }
 

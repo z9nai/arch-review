@@ -14,6 +14,7 @@ const INSTRUCTIONS = [
   'Antworten stehen unter project.reviews.<themeId>.answers.<questionId> — themeId und questionId wie in catalog.questions.',
   'Eine Antwort: { "value": true | false | null, "remarks": "Text", "choice": "Option" }. value = Ja/Nein/offen; bei kind "choice" steht die gewählte Option (exakt aus options) in choice und value bleibt null; bei kind "text" zählt nur remarks. Nur M20-Fragen: "condition": true = es gilt eine Auflage, "conditionText" = welche. "assignee": { "name", "email" } = wer die Frage beantworten soll. "mentions" = per @ in remarks erwähnte Personen (im Text «@Name»), gelten als Quelle.',
   'Meilenstein-Köpfe liegen unter project.reviews.m10 / m20 / m40 (notes = Bemerkungen; reviewed/approved/approvedBy = Prüf- und Freigabevermerke).',
+  'Kontrollpunkte des Meilensteins (catalog.milestoneChecks) liegen unter project.reviews.<ms>.checks.<id>. Prüfung: required, assessment = Einschätzung Architektur, approved/approvedBy/remarks = Abnahme (mit minClassification immer erforderlich, dann zählt required nicht). Aufgabe (kind "task"): approved = erledigt, approvedBy = durch wen, remarks = Bemerkung.',
   'project.classification ist eine id aus catalog.classifications oder null.',
   'Nicht ändern: slug, ids, sources (Anhänge), Felder, deren Bedeutung unklar ist — unbekannte Felder bleiben beim Import erhalten.',
 ].join('\n');
@@ -32,7 +33,7 @@ export interface ProjectExport {
       id: string; number: string; milestone: string; themeId: string; text: string;
       kind: 'yesNo' | 'text' | 'choice'; options?: string[]; hint?: string; minClassification?: string;
     }[];
-    milestoneChecks?: { id: string; milestone: string; label: string; hint?: string }[];
+    milestoneChecks?: { id: string; milestone: string; label: string; hint?: string; kind?: string; minClassification?: string }[];
   };
 }
 
@@ -73,7 +74,12 @@ export function buildProjectExport(project: Project, model: Model): ProjectExpor
           ...(q.minClassification ? { minClassification: q.minClassification } : {}),
         })),
       ...(model.milestoneChecks?.length ? {
-        milestoneChecks: model.milestoneChecks.map(c => ({ id: c.id, milestone: c.milestone, label: c.label, ...(c.hint ? { hint: c.hint } : {}) })),
+        milestoneChecks: model.milestoneChecks.filter(c => !c.archived).map(c => ({
+          id: c.id, milestone: c.milestone, label: c.label,
+          ...(c.hint ? { hint: c.hint } : {}),
+          ...(c.kind === 'task' ? { kind: 'task' } : {}),
+          ...(c.minClassification ? { minClassification: c.minClassification } : {}),
+        })),
       } : {}),
     },
   };
