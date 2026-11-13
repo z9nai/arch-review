@@ -66,6 +66,7 @@ export interface MilestoneCheckState {
   // Resultat Abnahme (bei Aufgaben: erledigt / durch wen):
   approved?: boolean;    // Prüfung abgenommen bzw. Aufgabe erledigt
   approvedBy?: string;   // durch wen
+  approvedAt?: string;   // Aufgabe: wann erledigt (ISO mit Zeitzone)
   remarks?: string;      // Bemerkungen (Pflicht, wenn erforderlich)
   [key: string]: unknown;
 }

@@ -17,6 +17,7 @@ import { formatTables, stripRich } from '../richText';
 import { collapse, diffLines, DiffPart } from '../lineDiff';
 import AuditPanel from './AuditPanel';
 import { fitTextarea, fmtTimestamp, formatBytes, normalizeUrl, nowIsoWithTimezone, sanitizeFilename } from '../util';
+import type { MilestoneCheck } from '../types';
 
 const FOUNDATION_MS = MILESTONES[0]; // M10
 const CONDITIONS_MS = 'M20'; // nur hier haben Fragen eine «Auflage»
@@ -1586,7 +1587,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
               if (isTask(c)) {
                 const by = String(s.approvedBy ?? '').trim();
                 return {
-                  line: `**${c.label}** — ${s.approved ? `erledigt${by ? ` durch ${by}` : ''}` : 'offen'}`,
+                  line: `**${c.label}** — ${s.approved ? `erledigt${by ? ` durch ${by}` : ''}${s.approvedAt ? ` (${fmtTimestamp(String(s.approvedAt)).split(' ')[0]})` : ''}` : 'offen'}`,
                   ...(String(s.remarks ?? '').trim() ? { remarks: String(s.remarks).trim(), remarksLabel: 'Bemerkungen' } : {}),
                 };
               }
@@ -1837,6 +1838,22 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
     setAnswersPdfItems(null);
   };
 
+  // ⓘ eines Kontrollpunkts: öffnet die Erläuterung im selben Dialog wie bei
+  // den Fragen (dort ein eigener Knopf — nicht im <label>, sonst würde der
+  // Klick die Checkbox umschalten)
+  const checkInfoButton = (c: MilestoneCheck) => {
+    const cl = c.minClassification ? model.classifications.find(x => x.id === c.minClassification)?.label ?? c.minClassification : '';
+    const md = [c.hint, cl ? `Eingeblendet und erforderlich ab Klassifikation «${cl}».` : ''].filter(Boolean).join('\n\n');
+    if (!md) return null;
+    return (
+      <button type="button" onClick={() => setInfoQuestion({ id: c.id, text: c.label, milestone: c.milestone, themeId: '', hint: md })}
+        title="Erläuterung anzeigen"
+        className={`p-0.5 rounded flex-shrink-0 transition-colors ${isDark ? 'text-white/25 hover:text-white/70' : 'text-black/25 hover:text-black/70'}`}>
+        <Info size={11} />
+      </button>
+    );
+  };
+
   // Kontrollpunkte eines Meilensteins (aus model.json), die für dieses Projekt
   // eingeblendet sind — Prüfungen und Aufgaben, in der Reihenfolge des Modells
   const checksFor = (ms: string) => (model.milestoneChecks ?? []).filter(c => c.milestone === ms
@@ -2040,16 +2057,13 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
             return (
               <div key={c.id} data-comment-target={checkKey} className={`space-y-2 transition-colors ${anchorCls(checkKey)}`}>
                 <div className="flex items-center gap-1.5">
-                  <label title={fixed
-                      ? [c.hint, `Erforderlich ab Klassifikation «${model.classifications.find(x => x.id === c.minClassification)?.label ?? c.minClassification}».`].filter(Boolean).join('\n\n')
-                      : c.hint}
-                    className={`flex items-center gap-1.5 text-xs ${fixed ? '' : 'cursor-pointer'} ${isDark ? 'text-white/70' : 'text-black/70'}`}>
+                  <label className={`flex items-center gap-1.5 text-xs ${fixed ? '' : 'cursor-pointer'} ${isDark ? 'text-white/70' : 'text-black/70'}`}>
                     <input disabled={ro || fixed} type="checkbox" checked={required}
                       onChange={e => updateCheck(c.id, { required: e.target.checked })}
                       className="accent-blue-500 cursor-pointer" />
                     {c.label} erforderlich
-                    {(c.hint || fixed) && <Info size={11} className="opacity-50" />}
                   </label>
+                  {checkInfoButton(c)}
                   {bubble(checkKey)}
                 </div>
                 {/* Einschätzung immer: begründet, warum die Prüfung nötig ist — oder warum nicht */}
@@ -2098,30 +2112,48 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
               <p className={`text-[10px] uppercase tracking-wider ${labelCls}`}>Aufgaben Architektur</p>
               {checks.filter(isTask).map(c => {
                 const s = checkState(opts.review, c.id);
-                const byEmpty = String(s.approvedBy ?? '').trim() === '';
+                const by = String(s.approvedBy ?? '').trim();
                 const checkKey = `check:${opts.ms}:${c.id}`;
+                // Bemerkung nur auf Klick (wie bei den Fragen), offen sobald Text drin ist
+                const remOpen = String(s.remarks ?? '').trim() !== '' || openRemarks.has(checkKey);
                 return (
                   <div key={c.id} data-comment-target={checkKey} className={`space-y-1.5 transition-colors ${anchorCls(checkKey)}`}>
-                    <div className="flex items-center gap-4 flex-wrap">
-                      <label title={c.hint}
-                        className={`flex items-center gap-1.5 text-xs cursor-pointer ${isDark ? 'text-white/70' : 'text-black/70'}`}>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <label className={`flex items-center gap-1.5 text-xs cursor-pointer ${isDark ? 'text-white/70' : 'text-black/70'}`}>
                         <input disabled={ro} type="checkbox" checked={s.approved === true}
-                          onChange={e => updateCheck(c.id, {
-                            approved: e.target.checked,
-                            ...(e.target.checked && byEmpty && me ? { approvedBy: me.name } : {}),
-                          })}
+                          onChange={e => updateCheck(c.id, e.target.checked
+                            // erledigt: wer (angemeldet bzw. Kommentar-Name) und wann
+                            ? { approved: true, approvedBy: by || me?.name || '', approvedAt: nowIsoWithTimezone() }
+                            : { approved: false, approvedBy: '', approvedAt: undefined })}
                           className="accent-blue-500 cursor-pointer" />
                         {c.label}
-                        {c.hint && <Info size={11} className="opacity-50" />}
                       </label>
-                      {reviewerField(String(s.approvedBy ?? ''), v => updateCheck(c.id, { approvedBy: v }), 'durch wen (erforderlich)')}
+                      {checkInfoButton(c)}
+                      {s.approved === true && (me
+                        ? <span className={`text-[11px] ${textMuted}`}>
+                            erledigt durch {by || me.name}{s.approvedAt ? `, ${fmtTimestamp(String(s.approvedAt)).split(' ')[0]}` : ''}
+                          </span>
+                        // ohne Anmeldung/Namen: von Hand eintragen
+                        : <>
+                            {reviewerField(by, v => updateCheck(c.id, { approvedBy: v }), 'durch wen (erforderlich)')}
+                            {s.approvedAt && <span className={`text-[11px] ${textMuted}`}>{fmtTimestamp(String(s.approvedAt)).split(' ')[0]}</span>}
+                          </>)}
                       {bubble(checkKey)}
+                      {!remOpen && (
+                        <button type="button" disabled={ro} onClick={() => toggleRemarks(checkKey, true)}
+                          className={`text-[11px] hover:underline underline-offset-2 disabled:no-underline ${textMuted}`}>
+                          Bemerkungen …
+                        </button>
+                      )}
                     </div>
-                    <textarea disabled={ro} value={String(s.remarks ?? '')} rows={1}
-                      onChange={e => updateCheck(c.id, { remarks: e.target.value })}
-                      data-autogrow
-                      placeholder="Bemerkungen (optional)"
-                      className={`ml-5 w-[calc(100%-1.25rem)] min-h-[32px] text-[11px] px-2 py-1.5 rounded border outline-none resize-none overflow-hidden transition-colors ${inputCls}`} />
+                    {remOpen && (
+                      <textarea disabled={ro} value={String(s.remarks ?? '')} rows={1} autoFocus={String(s.remarks ?? '').trim() === ''}
+                        onChange={e => updateCheck(c.id, { remarks: e.target.value })}
+                        onBlur={e => { if (!e.target.value.trim()) toggleRemarks(checkKey, false); }}
+                        data-autogrow
+                        placeholder="Bemerkungen (optional)"
+                        className={`ml-5 w-[calc(100%-1.25rem)] min-h-[32px] text-[11px] px-2 py-1.5 rounded border outline-none resize-none overflow-hidden transition-colors ${inputCls}`} />
+                    )}
                   </div>
                 );
               })}

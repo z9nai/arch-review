@@ -900,16 +900,9 @@
     {
       "id": "leanix-update",
       "milestone": "M40",
-      "label": "LeanIX nachgeführt",
+      "label": "LeanIX nachgeführt, inkl. Verknüpfung zur Dokumentation",
       "kind": "task",
-      "hint": "Applikations-Factsheet angelegt und auf dem Stand der Umsetzung, Verantwortliche eingetragen; jede produktive Schnittstelle als Interface erfasst (Quelle, Ziel, Datenobjekte, Versionierung gemäss M20C2), die eingesetzten Technologien als IT-Komponenten, Lifecycle gesetzt. Abgleich mit M20C1 (Zielarchitektur) und M20C4 (Kontextdiagramm). Erledigt die Architektur selbst vor der Freigabe — nicht als Auflage weiterreichen. Ersetzt M20C5 und M40C1."
-    },
-    {
-      "id": "leanix-docs",
-      "milestone": "M40",
-      "label": "Dokumentation in LeanIX verankert",
-      "kind": "task",
-      "hint": "Applikations-Factsheet mit Verknüpfung zur Lösungsdokumentation und zu den Architekturentscheiden (M40H2): Wer die Applikation in LeanIX findet, findet von dort die Dokumentation. Vorläufige Referenz, solange keine Struktur- und Ablagevorgabe besteht. Ersetzt M40H3."
+      "hint": "Applikations-Factsheet angelegt und auf dem Stand der Umsetzung, Verantwortliche eingetragen; jede produktive Schnittstelle als Interface erfasst (Quelle, Ziel, Datenobjekte, Versionierung gemäss M20C2), die eingesetzten Technologien als IT-Komponenten, Lifecycle gesetzt; das Factsheet verlinkt die Lösungsdokumentation und die Architekturentscheide (M40H2). Abgleich mit M20C1 (Zielarchitektur) und M20C4 (Kontextdiagramm). Erledigt die Architektur selbst vor der Freigabe — nicht als Auflage weiterreichen. Ersetzt M20C5, M40C1 und M40H3."
     }
   ],
   "company": "My Company",

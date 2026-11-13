@@ -178,8 +178,10 @@ Zum Ausprobieren kann `sample-data/` als geteilter Ordner gewählt werden
   Begründung für «nicht erforderlich». **«Übergabe»** abgewählt: die
   Prüfung geht nicht in die Übergabe an die Fachstelle (z. B. Board).
 - **Aufgaben Architektur** (z. B. «LeanIX nachgeführt» im M40): Kontrollpunkte
-  der Art «Aufgabe» erledigt die Architektur selbst — «erledigt» + durch wen,
-  Bemerkung optional. Sie sperren die Freigabe, bis sie erledigt sind.
+  der Art «Aufgabe» erledigt die Architektur selbst — das Häkchen trägt
+  automatisch ein, wer und wann (ohne Anmeldung: Name von Hand); die Bemerkung
+  ist optional («Bemerkungen …»). Sie sperren die Freigabe, bis sie erledigt
+  sind. Das ⓘ öffnet bei allen Kontrollpunkten die Erläuterung als Dialog.
   Prüfungen und Aufgaben pflegt der Admin je Meilenstein unter «Fragen»
   (Bezeichnung, Art, Klassifikation, Übergabe, Reihenfolge, archivieren).
   Der Zustand im Projekt hängt an der id (`reviews.<ms>.checks.<id>`) —
