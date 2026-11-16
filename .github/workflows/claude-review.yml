@@ -1,0 +1,64 @@
+name: Claude Review
+
+# Automatic review for PRs targeting main.
+# Note: claude-code-action only runs a workflow file that is identical to the one
+# on the default branch, so the review works from the first PR after this file is in main.
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+    branches: [main]
+
+jobs:
+  claude-review:
+    # skip drafts, PRs explicitly opting out via label, and PRs from forks
+    # (fork PRs have no access to the token secret; skipping is cleaner than failing)
+    if: |
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      !contains(github.event.pull_request.labels.*.name, 'skip-claude-review')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: read
+      id-token: write
+      actions: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Claude Review
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            Review this pull request (use `gh pr diff` and `gh pr view` to inspect it).
+            This repo is Z9nAI Arch Review: a client-only React/TypeScript app (Vite, Tailwind)
+            for architecture reviews of projects. It reads the catalog from config/model.json,
+            writes projects/*.json plus an audit log, and imports/exports answers as text and
+            fillable PDF (pdf-lib). The UI and the catalog are in German.
+            Focus on:
+            - correctness: wrong state updates in React, lost or overwritten data when saving,
+              importing or merging answers, broken round trips (unknown JSON fields must survive)
+            - PDF/text import and export: field names, encodings, cases that silently drop input
+            - catalog changes (src/defaultModel.ts, sample-data/config/model.json): both files in
+              sync, ids and numbering unchanged unless the PR says so
+            - security: user text rendered as HTML, unsafe links, secrets or tokens in the repo
+            - this repo is public: no customer data (names of real customers, projects, people,
+              internal documents) in sample-data, docs, code comments or commit messages
+
+            Skip generated files (dist/, package-lock.json).
+            German UI texts - review them in German terms, answer in English.
+            Be concise: report only findings that matter, no praise, no summaries of the diff.
+            Read files of the repo with Read, Grep and Glob (not with cat or other shell commands).
+            Post your review as a single PR comment, in one command:
+            gh pr comment ${{ github.event.pull_request.number }} --body '<the review in Markdown>'
+            Write the body inline in single quotes - no $(...), heredoc, pipe or file: only
+            `gh pr comment` itself is allowed, anything else is refused and the review is lost.
+            Write ’ instead of ' inside the text.
+          claude_args: '--allowedTools "Read,Grep,Glob,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh pr list:*),Bash(gh issue view:*)"'
