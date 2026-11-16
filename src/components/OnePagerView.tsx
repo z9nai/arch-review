@@ -13,8 +13,9 @@ import { applyMs10, extractPdfText, hasMs10Data, Ms10Data, MS10_FIELD_LABELS, pa
 import { DEFAULT_MODEL } from '../defaultModel';
 import { buildProjectExport, describeImportChanges, downloadJson, parseProjectImport, questionNumbers } from '../projectJson';
 import { AuditEntry, AuditOrigin, makeEntry, targetLabel } from '../audit';
-import { formatTables, stripRich } from '../richText';
-import { collapse, diffLines, DiffPart } from '../lineDiff';
+import { formatTables, normRemarks, stripRich } from '../richText';
+import { remarksFingerprint, toFieldText } from '../fieldText';
+import { collapse, diffLines, DiffPart, lineKey } from '../lineDiff';
 import AuditPanel from './AuditPanel';
 import { fitTextarea, fmtTimestamp, formatBytes, normalizeUrl, nowIsoWithTimezone, sanitizeFilename } from '../util';
 import type { MilestoneCheck } from '../types';
@@ -126,10 +127,16 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
   const [answersMs, setAnswersMs] = useState<string | null>(null);
   const [answersText, setAnswersText] = useState('');
   const [answersPdfItems, setAnswersPdfItems] = useState<ImportItem[] | null>(null);
+  // PDF-Rückimport: Fragen, deren App-Stand bleibt (im PDF unverändert), und Exportzeitpunkt
+  const [answersPdfInfo, setAnswersPdfInfo] = useState<{ kept: string[]; already: string[]; exportedAt?: string } | null>(null);
   // Vorschau: abgewählte bzw. zugeklappte Fragen (Schlüssel themeId:frageId)
   const [answersSkip, setAnswersSkip] = useState<Set<string>>(new Set());
   const [answersClosed, setAnswersClosed] = useState<Set<string>>(new Set());
-  const resetAnswersSel = () => { setAnswersSkip(new Set()); setAnswersClosed(new Set()); };
+  // Vorschau: von Hand angepasstes Ergebnis je Frage (fehlt = Text aus dem Import)
+  const [answersEdits, setAnswersEdits] = useState<Record<string, string>>({});
+  // Vorschau: schon einzeln übernommene Fragen (verschwinden aus der Liste)
+  const [answersDone, setAnswersDone] = useState<Set<string>>(new Set());
+  const resetAnswersSel = () => { setAnswersSkip(new Set()); setAnswersClosed(new Set()); setAnswersEdits({}); setAnswersDone(new Set()); };
   const [pdfBusy, setPdfBusy] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set()); // "M10:themeId"
   // Panels einklappbar (Meilensteine, Projektangaben, Quellen): ohne eigene
@@ -1301,11 +1308,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
       : kind === 'choice' ? (a?.choice ?? 'offen') : 'beantwortet';
   };
   // Vergleich beim Rückimport: Tabellen-Ausrichtung, Leerzeichen (Mail-Umbruch) und Leerzeilen zählen nicht
-  const sameRemarks = (a: string, b: string) => {
-    const norm = (s: string) => formatTables(s.replace(/\r\n?/g, '\n').split('\n').map(l => l.trim()).join('\n'))
-      .split('\n').map(l => l.trim().replace(/\s+/g, ' ')).filter(Boolean).join('\n');
-    return norm(a) === norm(b);
-  };
+  const sameRemarks = (a: string, b: string) => normRemarks(a) === normRemarks(b);
 
   // who: nur die Fragen dieser Person (personKey) — mit persönlicher Anrede
   const buildExport = (ms: string, who = ''): { text: string; count: number } => {
@@ -1667,28 +1670,46 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
   // Ausgefülltes Formular-PDF einlesen → ImportItems (gleicher Weg wie Text)
   const importPdfAnswers = async (ms: string, file: File) => {
     try {
-      const { readAnswersPdf, toFieldText } = await import('../pdfExport');
-      const raw = await readAnswersPdf(await file.arrayBuffer());
+      const { readAnswersPdf } = await import('../pdfExport');
+      const { answers: raw, baseline } = await readAnswersPdf(await file.arrayBuffer());
       const items: ImportItem[] = [];
+      const kept: string[] = [];
+      const already: string[] = [];
       for (const r of raw) {
         const q = allQuestions.find(x => x.id === r.questionId && x.themeId === r.themeId && x.milestone === ms);
         if (!q) continue;
         const idx = allQuestions.filter(x => x.themeId === q.themeId && x.milestone === ms).findIndex(x => x.id === q.id);
+        const number = `${ms}${themeLetterOf(q.themeId)}${idx + 1}`;
         const patch: Partial<QuestionAnswer> = {};
+        let conflict = false;
         if ((r.ja ?? false) !== (r.nein ?? false)) patch.value = r.ja === true;
         if (r.choice) patch.choice = r.choice;
+        // Stand beim Export (neuere PDFs): wer hat seither geändert — PDF, App oder beide?
+        const base = baseline?.h[`${q.themeId}::${q.id}`];
+        const seen = r.remarks ? remarksFingerprint(r.remarks) : undefined;
+        const alreadyDone = !!seen && !!getThemeReview(proj!, q.themeId).answers?.[q.id]?.importSeen?.includes(seen);
+        const pdfChanged = !r.remarks || base === undefined || remarksFingerprint(r.remarks) !== base;
+        const appChanged = base !== undefined && remarksFingerprint(remarksOf(q.themeId, q)) !== base;
         // vorausgefüllte Bemerkung unverändert zurück → keine Änderung
-        if (r.remarks && !sameRemarks(r.remarks, toFieldText(remarksOf(q.themeId, q)))) {
+        if (r.remarks && alreadyDone) {
+          // genau dieser Text wurde schon übernommen (evtl. angepasst) → nicht nochmals vorschlagen
+          if (!sameRemarks(r.remarks, toFieldText(remarksOf(q.themeId, q)))) already.push(number);
+        } else if (r.remarks && !sameRemarks(r.remarks, toFieldText(remarksOf(q.themeId, q))) && !pdfChanged) {
+          // im PDF nichts geändert, nur in der App: der neuere App-Stand bleibt
+          kept.push(number);
+        } else if (r.remarks && !sameRemarks(r.remarks, toFieldText(remarksOf(q.themeId, q)))) {
+          conflict = appChanged;
           // Das PDF kennt nur WinAnsi (→ wird ->, ⚠️ wird ?): Zeilen, die nur so
           // verändert zurückkommen, behalten den Originaltext
           const oldText = formatTables(remarksOf(q.themeId, q), false);
           const orig = new Map<string, string>();
-          for (const l of oldText.split('\n')) orig.set(toFieldText(l), l);
+          // Schlüssel ohne Leerraum-/Unicode-Unterschiede: nur Inhalt zählt
+          for (const l of oldText.split('\n')) orig.set(lineKey(toFieldText(l)), l);
           // in geänderten Zeilen wenigstens die Wörter zurück, die nur so verändert sind («<->» → «↔»)
           const words = new Map<string, string>();
           for (const w of oldText.split(/\s+/)) if (w && toFieldText(w) !== w) words.set(toFieldText(w), w);
           patch.remarks = formatTables(formatTables(r.remarks, false).split('\n')
-            .map(l => orig.get(l) ?? l.split(/(\s+)/).map(w => words.get(w) ?? w).join(''))
+            .map(l => orig.get(lineKey(l)) ?? l.split(/(\s+)/).map(w => words.get(w) ?? w).join(''))
             .join('\n'));
         }
         if (!Object.keys(patch).length) continue;
@@ -1696,10 +1717,15 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
         if (patch.value !== undefined) parts.push(patch.value ? 'Ja' : 'Nein');
         if (patch.choice) parts.push(patch.choice);
         if (patch.remarks) parts.push(`«${patch.remarks.length > 40 ? patch.remarks.slice(0, 40) + '…' : patch.remarks}»`);
-        items.push({ themeId: q.themeId, q, number: `${ms}${themeLetterOf(q.themeId)}${idx + 1}`, patch, summary: parts.join(' · ') });
+        items.push({ themeId: q.themeId, q, number, patch, summary: parts.join(' · '),
+          ...(patch.remarks !== undefined && seen ? { seen } : {}), ...(conflict ? { conflict: true } : {}) });
       }
       setAnswersPdfItems(items);
       resetAnswersSel();
+      setAnswersPdfInfo({ kept, already, exportedAt: baseline?.at });
+      // in PDF und App geändert: nicht vorausgewählt — bewusst entscheiden
+      const conflicts = items.filter(it => it.conflict).map(it => `${it.themeId}:${it.q.id}`);
+      if (conflicts.length) setAnswersSkip(new Set(conflicts));
     } catch {
       showToast('PDF konnte nicht gelesen werden — ist es das exportierte Formular?');
     }
@@ -1708,7 +1734,9 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
   // Ausgefüllten Export-Text wieder einlesen: erkennt Themen-Header,
   // Fragenummern (M20B3 …), angekreuzte [X] Ja/[X] Nein, Auswahl-Antworten
   // und Bemerkungen (auch mehrzeilig).
-  type ImportItem = { themeId: string; q: Question; number: string; patch: Partial<QuestionAnswer>; summary: string };
+  // conflict: Bemerkung im PDF und seit dem Export auch in der App geändert
+  // seen: Fingerabdruck des importierten Texts — beim Übernehmen gemerkt (importSeen)
+  type ImportItem = { themeId: string; q: Question; number: string; patch: Partial<QuestionAnswer>; summary: string; seen?: string; conflict?: boolean };
 
   const parseAnswersImport = (ms: string, text: string): ImportItem[] => {
     const themeByTitle = new Map<string, string>();
@@ -1740,13 +1768,16 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
         if (curChoice) patch.choice = curChoice;
         const rem = curRemarks.join('\n').replace(/\n{3,}/g, '\n\n').trim();
         // vorausgefüllte Bemerkung unverändert zurück → keine Änderung
-        if (rem && !sameRemarks(rem, remarksOf(cur.themeId, cur.q))) patch.remarks = rem;
+        // schon einmal (evtl. angepasst) übernommener Text → erledigt
+        const seen = rem ? remarksFingerprint(rem) : undefined;
+        const alreadyDone = !!seen && !!getThemeReview(proj!, cur.themeId).answers?.[cur.q.id]?.importSeen?.includes(seen);
+        if (rem && !alreadyDone && !sameRemarks(rem, remarksOf(cur.themeId, cur.q))) patch.remarks = rem;
         if (Object.keys(patch).length) {
           const parts: string[] = [];
           if (curValue !== undefined) parts.push(curValue ? 'Ja' : 'Nein');
           if (curChoice) parts.push(curChoice);
           if (patch.remarks) parts.push(`«${rem.length > 40 ? rem.slice(0, 40) + '…' : rem}»`);
-          items.push({ ...cur, patch, summary: parts.join(' · ') });
+          items.push({ ...cur, patch, summary: parts.join(' · '), ...(patch.remarks !== undefined && seen ? { seen } : {}) });
         }
       }
       cur = null;
@@ -1816,7 +1847,10 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
     return items;
   };
 
-  const applyAnswersImport = (items: ImportItem[]) => {
+  // rest: beim Übernehmen einer einzelnen Frage die übrigen — der Dialog bleibt
+  // dann offen, solange noch etwas zu entscheiden ist
+  // ignore: Text nur als erledigt merken (importSeen), Bemerkung bleibt wie sie ist
+  const applyAnswersImport = (items: ImportItem[], rest?: ImportItem[], ignore = false) => {
     if (!proj) return;
     const next = (p => {
       const reviews = { ...p.reviews };
@@ -1824,7 +1858,10 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
         const review = { ...emptyReview(), ...(reviews[it.themeId] ?? {}) };
         const answers = { ...(review.answers ?? {}) };
         const existing: QuestionAnswer = answers[it.q.id] ?? { value: null, remarks: '' };
-        answers[it.q.id] = { ...existing, ...it.patch };
+        answers[it.q.id] = {
+          ...existing, ...(ignore ? {} : it.patch),
+          ...(it.seen ? { importSeen: [...(existing.importSeen ?? []).filter(h => h !== it.seen), it.seen].slice(-10) } : {}),
+        };
         reviews[it.themeId] = { ...review, answers };
       }
       return syncDerived({ ...p, reviews });
@@ -1832,10 +1869,16 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
     cutAudit(proj);
     cutAudit(next, { source: 'answers-import', ...(answersMs ? { note: `Antworten ${answersMs}` } : {}) });
     setProj(next);
-    showToast(`${items.length} ${items.length === 1 ? 'Antwort' : 'Antworten'} übernommen.`);
+    if (rest?.length) {
+      showToast(`${items.map(it => it.number).join(', ')} ${ignore ? 'ignoriert — kommt beim nächsten Import nicht wieder' : 'übernommen'}.`);
+      // übernommene Frage aus der Liste — auch wenn der Import-Text weiter davon abweicht
+      setAnswersDone(prev => new Set([...prev, ...items.map(it => `${it.themeId}:${it.q.id}`)]));
+      return;
+    }
+    showToast(ignore ? `${items.map(it => it.number).join(', ')} ignoriert.` : `${items.length} ${items.length === 1 ? 'Antwort' : 'Antworten'} übernommen.`);
     setAnswersMs(null);
     setAnswersText('');
-    setAnswersPdfItems(null);
+    setAnswersPdfItems(null); setAnswersPdfInfo(null);
   };
 
   // ⓘ eines Kontrollpunkts: öffnet die Erläuterung im selben Dialog wie bei
@@ -2285,7 +2328,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
               className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
               <Mail size={11} /> Offene Fragen
             </button>
-            <button onClick={() => { setAnswersMs(ms); setAnswersText(''); setAnswersPdfItems(null); resetAnswersSel(); }} disabled={ro}
+            <button onClick={() => { setAnswersMs(ms); setAnswersText(''); setAnswersPdfItems(null); setAnswersPdfInfo(null); resetAnswersSel(); }} disabled={ro}
               title="Ausgefüllten E-Mail-Text einlesen und Antworten übernehmen"
               className={`flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded border transition-colors disabled:opacity-40 ${isDark ? 'border-white/15 text-white/50 hover:border-white/30 hover:text-white' : 'border-black/15 text-black/50 hover:border-black/30 hover:text-black'}`}>
               <ClipboardPaste size={11} /> Antworten importieren
@@ -2805,7 +2848,8 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
 
       {/* Import: ausgefüllte Antworten aus E-Mail-Text übernehmen */}
       {answersMs && (() => {
-        const items = answersPdfItems ?? parseAnswersImport(answersMs, answersText);
+        const items = (answersPdfItems ?? parseAnswersImport(answersMs, answersText))
+          .filter(it => !answersDone.has(`${it.themeId}:${it.q.id}`));
         return (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-6" onClick={() => setAnswersMs(null)}>
             <div className={`max-w-3xl w-full max-h-[85vh] flex flex-col rounded-xl border p-6 ${isDark ? 'border-white/15 bg-[#16171a]' : 'border-black/15 bg-white'}`}
@@ -2833,20 +2877,32 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
                   }} />
               </label>
               <textarea disabled={ro} value={answersText} autoFocus rows={items.length ? 4 : 10}
-                onChange={e => { setAnswersText(e.target.value); setAnswersPdfItems(null); resetAnswersSel(); }}
+                onChange={e => { setAnswersText(e.target.value); setAnswersPdfItems(null); setAnswersPdfInfo(null); resetAnswersSel(); }}
                 placeholder={'M20F2 Bleiben die Daten dort liegen (nicht nur Anzeige)?\n[X] Ja    [ ] Nein\nBemerkung: bleibt in der neuen Core-DB'}
                 className={`w-full text-[11px] leading-relaxed px-3 py-2 rounded border outline-none resize-y font-mono ${inputCls}`} />
               <div className={`mt-3 text-[11px] ${textMuted}`}>
                 {answersPdfItems
                   ? (items.length === 0
-                    ? 'Keine Änderungen im PDF — alles unverändert bestätigt, oder stimmt der Meilenstein nicht?'
-                    : `${items.length} ${items.length === 1 ? 'Antwort' : 'Antworten'} aus dem PDF erkannt:`)
+                    ? (answersPdfInfo?.already.length
+                      ? 'Keine neuen Änderungen im PDF.'
+                      : 'Keine Änderungen im PDF — alles unverändert bestätigt, oder stimmt der Meilenstein nicht?')
+                    : `${items.length} ${items.length === 1 ? 'Antwort' : 'Antworten'} aus dem PDF erkannt${answersPdfInfo?.exportedAt ? ` (PDF exportiert ${fmtTimestamp(answersPdfInfo.exportedAt)})` : ''}:`)
                   : answersText.trim() === ''
                     ? 'Noch kein Text eingefügt.'
                     : items.length === 0
                       ? 'Keine Änderungen erkannt — alles unverändert bestätigt? Sonst prüfen: Meilenstein richtig, Themen-Titel und Fragenummern erhalten.'
                       : `${items.length} ${items.length === 1 ? 'Antwort' : 'Antworten'} erkannt:`}
               </div>
+              {answersPdfItems && (answersPdfInfo?.already.length ?? 0) > 0 && (
+                <div className={`mt-1 text-[11px] ${textMuted}`}>
+                  {answersPdfInfo!.already.join(', ')}: dieser Text wurde schon übernommen (ggf. angepasst) oder ignoriert — ausgelassen.
+                </div>
+              )}
+              {answersPdfItems && (answersPdfInfo?.kept.length ?? 0) > 0 && (
+                <div className={`mt-1 text-[11px] ${textMuted}`}>
+                  {answersPdfInfo!.kept.join(', ')}: im PDF unverändert, in der App seit dem Export geändert — der App-Stand bleibt.
+                </div>
+              )}
               {items.length > 0 && (
                 <div className="mt-2 flex items-center gap-3 text-[11px]">
                   <span className={textMuted}>Übernommen werden die angehakten Fragen.</span>
@@ -2866,9 +2922,16 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
                     const on = !answersSkip.has(key);
                     const open = !answersClosed.has(key);
                     const old = getThemeReview(proj, it.themeId).answers?.[it.q.id];
+                    // Ergebnis: von Hand angepasst oder wie importiert — die Vorschau vergleicht dagegen
+                    const edited = answersEdits[key];
+                    const merged = edited ?? it.patch.remarks;
+                    // nur diese Frage übernehmen (mit angepasstem Ergebnis), die übrigen bleiben zur Auswahl
+                    const applyOne = () => applyAnswersImport(
+                      [edited === undefined ? it : { ...it, patch: { ...it.patch, remarks: formatTables(edited.trim()) } }],
+                      items.filter(x => x !== it));
                     // Tabellen kompakt vergleichen: sonst ändert eine breitere Zelle die Polsterung aller Zeilen
-                    const lines = it.patch.remarks !== undefined
-                      ? diffLines(formatTables(remarksOf(it.themeId, it.q), false), formatTables(it.patch.remarks.trim(), false))
+                    const lines = merged !== undefined
+                      ? diffLines(formatTables(remarksOf(it.themeId, it.q), false), formatTables(merged.trim(), false))
                       : [];
                     const added = lines.filter(l => l.op === '+').length;
                     const removed = lines.filter(l => l.op === '-').length;
@@ -2887,6 +2950,12 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
                             <span className="font-semibold flex-shrink-0">{it.number}</span>
                             <span className="truncate">{stripRich(it.q.text)}</span>
                           </button>
+                          {it.conflict && (
+                            <span title="Die Bemerkung wurde im PDF und seit dem Export auch in der App geändert — Übernehmen ersetzt den App-Stand"
+                              className={`flex-shrink-0 flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded ${isDark ? 'bg-amber-500/15 text-amber-300' : 'bg-amber-100 text-amber-800'}`}>
+                              <AlertTriangle size={10} /> auch in der App geändert
+                            </span>
+                          )}
                           {lines.length > 0 && (
                             <span className="flex-shrink-0 text-[10px] font-mono">
                               {added > 0 && <span className={isDark ? 'text-emerald-300' : 'text-emerald-700'}>+{added}</span>}
@@ -2897,6 +2966,12 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
                         </div>
                         {open && (
                           <div className={`border-t px-2 py-1.5 text-[10.5px] leading-snug ${isDark ? 'border-white/10' : 'border-black/10'}`}>
+                            {it.conflict && (
+                              <div className={`mb-1 ${isDark ? 'text-amber-300' : 'text-amber-800'}`}>
+                                Seit dem Export{answersPdfInfo?.exportedAt ? ` (${fmtTimestamp(answersPdfInfo.exportedAt)})` : ''} wurde die Bemerkung auch in der App geändert.
+                                Übernehmen ersetzt den aktuellen App-Stand durch das PDF — deshalb nicht vorausgewählt.
+                              </div>
+                            )}
                             {(it.patch.value !== undefined || it.patch.choice) && (
                               <div className={`mb-1 ${isDark ? 'text-white/70' : 'text-black/70'}`}>
                                 Antwort: <span className={isDark ? 'text-rose-300 line-through' : 'text-rose-700 line-through'}>{it.patch.choice ? (old?.choice || 'offen') : valueLabel(old?.value)}</span>
@@ -2924,6 +2999,43 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
                                   ))}
                               </div>
                             )}
+                            {it.patch.remarks !== undefined && edited === undefined && (
+                              <div className="mt-1.5 flex items-center gap-3">
+                                {/* Tabellen kompakt zum Bearbeiten (breite Spalten umbrechen sonst); beim Übernehmen wieder ausgerichtet */}
+                                <button onClick={() => setAnswersEdits(prev => ({ ...prev, [key]: formatTables(it.patch.remarks!, false) }))} disabled={!on}
+                                  title="Ergebnis vor dem Übernehmen von Hand anpassen — z. B. einzelne Zeilen aus dem App-Stand behalten"
+                                  className={`inline-flex items-center gap-1 text-[10.5px] underline-offset-2 hover:underline disabled:opacity-40 ${isDark ? 'text-white/50' : 'text-black/50'}`}>
+                                  <Pencil size={10} /> Ergebnis bearbeiten
+                                </button>
+                                {it.seen && (
+                                  <button onClick={() => applyAnswersImport([it], items.filter(x => x !== it), true)} disabled={!on}
+                                    title="App-Stand behalten und diesen Text merken — beim nächsten Import desselben PDFs/Texts kommt die Frage nicht wieder"
+                                    className={`inline-flex items-center gap-1 text-[10.5px] underline-offset-2 hover:underline disabled:opacity-40 ${isDark ? 'text-white/50' : 'text-black/50'}`}>
+                                    <X size={10} /> ignorieren
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                            {it.patch.remarks !== undefined && edited !== undefined && (
+                              <div className="mt-1.5">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className={`text-[10px] uppercase tracking-wide ${textMuted}`}>Ergebnis (wird übernommen)</span>
+                                  <span className="flex-1" />
+                                  <button onClick={applyOne} disabled={!on}
+                                    title="Nur diese Frage jetzt mit dem bearbeiteten Ergebnis übernehmen — die übrigen bleiben zur Auswahl"
+                                    className={`inline-flex items-center gap-1 text-[10.5px] px-2 py-0.5 rounded font-semibold transition-colors disabled:opacity-40 ${isDark ? 'bg-white text-black hover:bg-white/90' : 'bg-black text-white hover:bg-black/80'}`}>
+                                    <Check size={10} /> Diese übernehmen
+                                  </button>
+                                  <button onClick={() => setAnswersEdits(prev => { const n = { ...prev }; delete n[key]; return n; })}
+                                    title="Eigene Anpassungen verwerfen — wieder der Text aus dem Import"
+                                    className={`text-[10.5px] underline-offset-2 hover:underline ${isDark ? 'text-white/50' : 'text-black/50'}`}>zurücksetzen</button>
+                                </div>
+                                <textarea value={edited} disabled={!on} aria-label={`Ergebnis ${it.number}`}
+                                  ref={el => { if (el) fitTextarea(el); }}
+                                  onChange={e => { const v = e.target.value; fitTextarea(e.target); setAnswersEdits(prev => ({ ...prev, [key]: v })); }}
+                                  className={`w-full text-[10.5px] leading-snug px-2 py-1.5 rounded border outline-none resize-y font-mono ${inputCls}`} />
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -2937,7 +3049,11 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
                   Abbrechen
                 </button>
                 {(() => {
-                  const chosen = items.filter(it => !answersSkip.has(`${it.themeId}:${it.q.id}`));
+                  // angepasstes Ergebnis statt des importierten Texts (Tabellen wieder ausgerichtet)
+                  const chosen = items.filter(it => !answersSkip.has(`${it.themeId}:${it.q.id}`)).map(it => {
+                    const e = answersEdits[`${it.themeId}:${it.q.id}`];
+                    return e === undefined ? it : { ...it, patch: { ...it.patch, remarks: formatTables(e.trim()) } };
+                  });
                   return (
                     <button onClick={() => applyAnswersImport(chosen)} disabled={chosen.length === 0}
                       className={`flex-1 text-xs py-2 rounded font-semibold transition-colors disabled:opacity-40 ${isDark ? 'bg-white text-black hover:bg-white/90' : 'bg-black text-white hover:bg-black/80'}`}>

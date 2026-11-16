@@ -193,6 +193,10 @@ export interface QuestionAnswer {
   // per «@» in den Bemerkungen erwähnte Personen (im Text steht «@Name») —
   // gelten zugleich als Quelle der Antwort
   mentions?: DirectoryUser[];
+  // Fingerabdrücke schon übernommener Import-Texte (PDF/Mail, neueste zuletzt):
+  // Derselbe Text beim nächsten Import gilt als erledigt, auch wenn er beim
+  // Übernehmen von Hand angepasst wurde
+  importSeen?: string[];
 }
 
 // Review-Eintrag: je Thema (Relevanz + Antworten) oder je Meilenstein

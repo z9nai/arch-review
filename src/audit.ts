@@ -184,6 +184,8 @@ class Collector {
 const PROJECT_SKIP = new Set(['reviews', 'sources', 'updatedAt', 'createdAt', 'version', 'slug']);
 const REVIEW_SKIP = new Set(['answers', 'checks', 'milestone']);
 const NO_SKIP = new Set<string>();
+// interne Merker ohne Aussage für den Verlauf
+const ANSWER_SKIP = new Set(['importSeen']);
 const SOURCE_SKIP = new Set(['id', 'uploadedAt', 'uploadedBy', 'size', 'contentType']);
 
 /** Meilenstein eines Review-Schlüssels (m20, ms20, foundation) — sonst null (Thema). */
@@ -245,7 +247,7 @@ export function diffProjects(a: Project, b: Project, model: Model | null): Audit
     col.fields(tt, label(tt), ra, rb, REVIEW_SKIP);
     for (const qid of new Set([...Object.keys(ra.answers ?? {}), ...Object.keys(rb.answers ?? {})])) {
       const qt = `q:${key}:${qid}`;
-      col.fields(qt, label(qt), ra.answers?.[qid] ?? {}, rb.answers?.[qid] ?? {}, NO_SKIP);
+      col.fields(qt, label(qt), ra.answers?.[qid] ?? {}, rb.answers?.[qid] ?? {}, ANSWER_SKIP);
     }
   }
 

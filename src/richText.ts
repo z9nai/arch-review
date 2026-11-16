@@ -166,6 +166,13 @@ export function formatTables(text: string, pad = true): string {
   return out.join('\n');
 }
 
+/** Bemerkung für Vergleiche: Tabellen-Ausrichtung, Leerzeichen (Mail-Umbruch),
+ *  Leerzeilen und Unicode-Form (NFC/NFD) zählen nicht. */
+export function normRemarks(s: string): string {
+  return formatTables(s.normalize('NFC').replace(/\r\n?/g, '\n').split('\n').map(l => l.trim()).join('\n'))
+    .split('\n').map(l => l.trim().replace(/\s+/g, ' ')).filter(Boolean).join('\n');
+}
+
 // ── Formatieren einer Markierung (Textarea) ──────────────────────────────────
 
 export type Edit = { value: string; start: number; end: number };
