@@ -143,21 +143,24 @@ export const DEFAULT_MODEL: Model = {
       "milestone": "M20",
       "text": "Sind die Anspruchsgruppen des Systems benannt — Fachbereich, Architektur, Entwicklung, Betrieb, Security, Datenschutz, Lieferant — über Entwurf, Umsetzung, Betrieb und Ausserbetriebnahme?",
       "hint": "Spezifikation der Beteiligten; die Betriebsorganisation mit Support-Kette und SLAs weist M40G1 nach. Original: Identify stakeholders who have an interest in the design, development, implementation, assessment, operation, maintenance, or disposal of the system.",
-      "source": "NIST SP 800-37 Rev. 2, RMF Prepare, Task P-9 (System Stakeholders)"
+      "source": "NIST SP 800-37 Rev. 2, RMF Prepare, Task P-9 (System Stakeholders)",
+      "enabled": false
     },
     {
       "id": "B1",
       "text": "Ist die Betriebsorganisation geklärt — Verantwortliche je Komponente, Support-Kette Bank → Betreiber → Hersteller, SLAs, Betriebszeiten?",
       "milestone": "M40",
       "themeId": "operations",
-      "hint": "Baut auf M20D3 (wer stellt/betreibt/patcht) auf und macht es betriebsfähig: Wer nimmt Störungen entgegen, wer eskaliert zum Hersteller, welche Reaktions- und Lösungszeiten gelten, wer darf Changes beauftragen (RfC). Ein Vertrag ohne benannte Personen/Rollen ist keine Betriebsorganisation."
+      "hint": "Baut auf M20D3 (wer stellt/betreibt/patcht) auf und macht es betriebsfähig: Wer nimmt Störungen entgegen, wer eskaliert zum Hersteller, welche Reaktions- und Lösungszeiten gelten, wer darf Changes beauftragen (RfC). Ein Vertrag ohne benannte Personen/Rollen ist keine Betriebsorganisation.",
+      "enabled": false
     },
     {
       "id": "B2",
       "text": "Liegen Betriebshandbuch und Runbooks für Standard- und Notfallabläufe vor?",
       "milestone": "M40",
       "themeId": "operations",
-      "hint": "Start/Stop, Deployment, Backup/Restore, Failover, Wiederanlauf nach Ausfall, Incident-Behandlung — vom Betreiber geschrieben, von der Bank abgenommen. Ein Handbuch als Projektlieferobjekt zählt erst, wenn es da ist."
+      "hint": "Start/Stop, Deployment, Backup/Restore, Failover, Wiederanlauf nach Ausfall, Incident-Behandlung — vom Betreiber geschrieben, von der Bank abgenommen. Ein Handbuch als Projektlieferobjekt zählt erst, wenn es da ist.",
+      "enabled": false
     },
     {
       "id": "B3",
@@ -171,7 +174,8 @@ export const DEFAULT_MODEL: Model = {
       "text": "Ist die Datensicherung im Betrieb eingerichtet — Backup-Läufe überwacht, Restore regelmässig getestet, Aufbewahrung geregelt?",
       "milestone": "M40",
       "themeId": "operations",
-      "hint": "Die Betriebsroutine zu M20D6 (Konzept) und M40D2 (einmaliger Test vor PROD): Backup-Jobs laufen und werden überwacht, Restore wird periodisch geprobt, Aufbewahrungsfristen und Löschung sind umgesetzt — je Datenhaltung gemäss Schutzklasse (M40B1)."
+      "hint": "Die Betriebsroutine zu M20D6 (Konzept) und M40D2 (einmaliger Test vor PROD): Backup-Jobs laufen und werden überwacht, Restore wird periodisch geprobt, Aufbewahrungsfristen und Löschung sind umgesetzt — je Datenhaltung gemäss Schutzklasse (M40B1).",
+      "enabled": false
     },
     {
       "id": "OP1",
@@ -702,7 +706,8 @@ export const DEFAULT_MODEL: Model = {
       "milestone": "M40",
       "text": "Werden Kapazität und Kosten der Zielumgebung laufend überwacht?",
       "source": "AWS Well-Architected, Cost Optimization",
-      "hint": "Schliesst die Sizing-Annahmen aus M20D4: Auslastung gegen das Mengengerüst, Kosten gegen die Offerte; der Nachforderungsweg (Consumption-Modell, RfC) ist im Betrieb etabliert."
+      "hint": "Schliesst die Sizing-Annahmen aus M20D4: Auslastung gegen das Mengengerüst, Kosten gegen die Offerte; der Nachforderungsweg (Consumption-Modell, RfC) ist im Betrieb etabliert.",
+      "enabled": false
     },
     {
       "id": "AM1",
@@ -716,7 +721,8 @@ export const DEFAULT_MODEL: Model = {
       "themeId": "idm-iam",
       "milestone": "M40",
       "text": "Werden Berechtigungen regelmässig überprüft und rezertifiziert?",
-      "source": "BSI IT-Grundschutz, ORP.4"
+      "source": "BSI IT-Grundschutz, ORP.4",
+      "enabled": false
     },
     {
       "id": "cat-nist-p14",
@@ -878,7 +884,8 @@ export const DEFAULT_MODEL: Model = {
       "milestone": "M40",
       "text": "Ist das System in den Security-Incident-Prozess eingebunden — Meldewege, Ansprechpersonen, Meldepflichten gegenüber der FINMA?",
       "hint": "Abgrenzung zu M40G3 (technische Alarmierung): Hier geht es um den organisatorischen Umgang mit Sicherheitsvorfällen inklusive Meldepflicht bei Cyberangriffen — wer meldet, wer entscheidet, wer kommuniziert.",
-      "source": "AWS Well-Architected, Security / FINMA-RS 2023/1"
+      "source": "AWS Well-Architected, Security / FINMA-RS 2023/1",
+      "enabled": false
     }
   ],
   "classificationInfoMd": "# Klassifikation\n\nDie Klassifikation ist das Ergebnis der Foundation-Prüfung (M10) und Teil\nder Freigabe:\n\n- **nicht relevant** — alle Relevanz-Fragen sind mit Nein beantwortet.\n  Es findet keine weitere Architekturprüfung statt (kein M20/M40).\n- **relevant** — das Projekt berührt die Architektur; die Fragenkataloge\n  M20 und M40 werden geprüft.\n- **wegweisend** — das Projekt prägt die Architektur; zusätzlich werden\n  die als «ab wegweisend» markierten Fragen gestellt.\n\nOb ein Projekt architekturrelevant ist, ergibt sich automatisch aus den\nJa/Nein-Fragen im M10 (mindestens eine Frage mit Ja → relevant; alle Nein\n→ nicht relevant).\n\nOb ein relevantes Projekt zusätzlich **wegweisend** ist, entscheidet\nder/die Architekt/in anhand folgender Kriterien (mindestens eines trifft zu):\n\n- **Referenz-/Pilotcharakter** — das Projekt führt ein Muster, eine\n  Technologie oder eine Plattform ein, die anschliessend als Vorlage für\n  weitere Projekte dient.\n- **Wirkung über das Projekt hinaus** — Entscheide betreffen mehrere\n  Systeme, mehrere Mandanten/Banken oder die gemeinsame Plattform, nicht\n  nur die Applikation des Projekts selbst.\n- **Abweichung von bestehenden Vorgaben** — das Projekt weicht bewusst von\n  einem etablierten Standard ab, und diese Abweichung soll künftig als\n  Präzedenzfall/neue Richtlinie gelten (nicht nur als Einzelfall-Ausnahme).\n- **Hohe Tragweite bei Fehlentscheid** — Risiko, Kosten oder regulatorische\n  Sichtbarkeit sind so hoch, dass ein Fehler in der Architekturprüfung\n  überproportionalen Schaden anrichten würde.\n",
