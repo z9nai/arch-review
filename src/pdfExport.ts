@@ -459,7 +459,7 @@ export type ReportMilestone = {
   result?: string;           // «architekturrelevant (…)» — eigene Zeile, fett
   approvedBy?: string;
   conditions?: { number: string; text: string }[]; // alle Auflagen des Meilensteins (M20)
-  checks?: { line: string; assessment?: string; remarks?: string }[]; // Abnahme-Kontrollpunkte
+  checks?: { line: string; assessment?: string; remarks?: string; remarksLabel?: string }[]; // Kontrollpunkte (Prüfungen, Aufgaben)
   notes?: string;
   themes: ReportTheme[];
   skippedThemesNote?: string; // «Kein Review nötig: A · …»
@@ -668,7 +668,7 @@ export async function buildReviewReportPdf(r: ReviewReport, tpl?: ReportTemplate
         f.text(c.assessment, 8.5, 11.5, { color: GRAY, x: L + 10, width: W - 10 });
       }
       if (c.remarks) {
-        sectionLabel('Bemerkungen Abnahme', L + 10);
+        sectionLabel(c.remarksLabel ?? 'Bemerkungen Abnahme', L + 10);
         f.text(c.remarks, 8.5, 11.5, { color: GRAY, x: L + 10, width: W - 10 });
       }
     }

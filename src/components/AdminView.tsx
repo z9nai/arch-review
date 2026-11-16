@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Archive, ArchiveRestore, BookOpen, ChevronDown, ChevronLeft, ChevronUp, Copy, ExternalLink, FileSpreadsheet, FileText, Image, KeyRound, Layers, ListChecks, Mail, MessageSquare, Minus, Plus, Save, ShieldCheck, Trash2, Upload } from 'lucide-react';
 import { PDFDocument } from 'pdf-lib';
 import { useStore } from '../store';
-import { MILESTONES, MILESTONE_TITLES, Model, Question, TeamsNotifySettings } from '../types';
+import { MILESTONES, MILESTONE_TITLES, MilestoneCheck, Model, Question, TeamsNotifySettings } from '../types';
 import { DEFAULT_TEAMS_DELAY_MINUTES, DEFAULT_TEAMS_TEMPLATE } from '../teams';
 import { DEFAULT_MODEL } from '../defaultModel';
 import { CATALOG_QUESTIONS } from '../catalog';
@@ -251,6 +251,37 @@ export default function AdminView({ onBack, focusSection, onOverview }: {
 
   const restoreQuestion = (id: string) =>
     updateQuestion(id, { archived: undefined });
+
+  // ── Kontrollpunkte im Meilenstein-Kopf (Prüfungen und Aufgaben) ─────────
+  // Wie bei den Fragen hängt der Zustand im Projekt an der id: archivieren
+  // statt löschen. Die Reihenfolge im Modell ist die Anzeige-Reihenfolge.
+  const updateCheckDef = (id: string, patch: Partial<MilestoneCheck>) =>
+    setDraft(d => d ? { ...d, milestoneChecks: (d.milestoneChecks ?? []).map(c => c.id === id ? { ...c, ...patch } : c) } : d);
+
+  const addCheckDef = (ms: string) =>
+    setDraft(d => d ? { ...d, milestoneChecks: [...(d.milestoneChecks ?? []), { id: 'c' + genId().slice(1), milestone: ms, label: '' }] } : d);
+
+  // mit dem nächsten Kontrollpunkt desselben Meilensteins tauschen
+  const moveCheckDef = (id: string, dir: -1 | 1) =>
+    setDraft(d => {
+      if (!d) return d;
+      const all = [...(d.milestoneChecks ?? [])];
+      const i = all.findIndex(c => c.id === id);
+      if (i < 0) return d;
+      let j = i + dir;
+      while (j >= 0 && j < all.length && all[j].milestone !== all[i].milestone) j += dir;
+      if (j < 0 || j >= all.length) return d;
+      [all[i], all[j]] = [all[j], all[i]];
+      return { ...d, milestoneChecks: all };
+    });
+
+  const deleteCheckDef = (id: string, label: string) => {
+    if (!window.confirm(
+      `Kontrollpunkt «${label.trim() || id}» endgültig löschen?\n\n` +
+      `Die id «${id}» wird damit frei; erfasste Zustände in Projekten verlieren ihren Bezug. ` +
+      `Wurde er schon in Reviews verwendet, stattdessen archivieren.`)) return;
+    setDraft(d => d ? { ...d, milestoneChecks: (d.milestoneChecks ?? []).filter(c => c.id !== id) } : d);
+  };
 
   const addQuestion = (ms: string) =>
     setDraft(d => d ? {
@@ -734,9 +765,12 @@ export default function AdminView({ onBack, focusSection, onOverview }: {
         hint="Ist ein Abnahme-Kontrollpunkt «erforderlich», bietet der Meilenstein einen Übergabetext an die Fachstelle an."
         more={<>Mit der Einschätzung Architektur und der Bitte um Rückmeldung. Mehrere erforderliche Prüfungen ergeben
           ein gemeinsames Mail.
-          {(draft.milestoneChecks ?? []).length > 0 && (
-            <> Ausgelöst durch: {(draft.milestoneChecks ?? []).map(mc => `${mc.label} (${mc.milestone})`).join(', ')}.</>
-          )}</>}>
+          {(() => {
+            const triggers = (draft.milestoneChecks ?? []).filter(mc => !mc.archived && mc.kind !== 'task' && mc.handover !== false);
+            return triggers.length > 0 && (
+              <> Ausgelöst durch: {triggers.map(mc => `${mc.label} (${mc.milestone})`).join(', ')}.</>
+            );
+          })()}</>}>
         <div className="grid grid-cols-2 gap-2">
           <input value={draft.handover?.to ?? ''}
             onChange={e => updateHandover({ to: e.target.value || undefined })}
@@ -837,6 +871,88 @@ export default function AdminView({ onBack, focusSection, onOverview }: {
                 </div>
               </div>
               <div className="px-4 pb-4 pt-2 space-y-2">
+                {/* Kontrollpunkte im Meilenstein-Kopf */}
+                {(() => {
+                  const cs = (draft.milestoneChecks ?? []).filter(c => c.milestone === ms);
+                  const btn = `p-1 rounded transition-colors disabled:opacity-20 ${isDark ? 'text-white/30 hover:text-white/80' : 'text-black/30 hover:text-black/80'}`;
+                  return (
+                    <div className={`space-y-2 pb-3 mb-1 border-b ${isDark ? 'border-white/8' : 'border-black/8'}`}>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] uppercase tracking-wider ${textMuted}`}>Kontrollpunkte im Meilenstein-Kopf</span>
+                        <button onClick={() => addCheckDef(ms)} title={`Kontrollpunkt (Prüfung oder Aufgabe) für ${ms} hinzufügen`}
+                          className={`p-0.5 rounded border ${isDark ? 'border-white/15 text-white/40 hover:text-white/80' : 'border-black/15 text-black/40 hover:text-black/80'}`}>
+                          <Plus size={10} />
+                        </button>
+                      </div>
+                      {cs.length === 0 && <p className={`text-[11px] ${textMuted}`}>Keine — mit + ergänzen.</p>}
+                      {cs.map((c, i) => c.archived ? (
+                        <div key={c.id} className={`rounded-lg border border-dashed px-3 py-2 flex items-center gap-2 flex-wrap opacity-60 ${isDark ? 'border-white/15' : 'border-black/15'}`}>
+                          <span className={`flex-1 min-w-[220px] text-[11px] line-through ${isDark ? 'text-white/60' : 'text-black/60'}`}>{c.label || <em>(ohne Bezeichnung)</em>}</span>
+                          <span className={`inline-block text-[9px] px-1.5 py-0.5 rounded-full border whitespace-nowrap ${isDark ? 'bg-white/8 text-white/50 border-white/15' : 'bg-black/5 text-black/50 border-black/15'}`}>archiviert</span>
+                          <span className={`text-[10px] ${textMuted}`}>id: {c.id}</span>
+                          <button onClick={() => updateCheckDef(c.id, { archived: undefined })} title="Kontrollpunkt wiederherstellen"
+                            className={`p-1.5 rounded transition-colors ${isDark ? 'text-white/25 hover:text-emerald-400' : 'text-black/25 hover:text-emerald-600'}`}>
+                            <ArchiveRestore size={12} />
+                          </button>
+                        </div>
+                      ) : (
+                        <div key={c.id} className={`rounded-lg border px-3 py-2 space-y-2 ${isDark ? 'border-white/10 bg-white/3' : 'border-black/10 bg-white'}`}>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="flex flex-col flex-shrink-0">
+                              <button disabled={i === 0} onClick={() => moveCheckDef(c.id, -1)} title="nach oben" className={btn}><ChevronUp size={11} /></button>
+                              <button disabled={i === cs.length - 1} onClick={() => moveCheckDef(c.id, 1)} title="nach unten" className={btn}><ChevronDown size={11} /></button>
+                            </span>
+                            <input value={c.label} placeholder="Bezeichnung, z. B. «FINMA-Prüfung»"
+                              onChange={e => updateCheckDef(c.id, { label: e.target.value })}
+                              className={`flex-1 min-w-[200px] text-[11px] px-2 py-1.5 rounded border outline-none transition-colors ${inputCls} ${!c.label.trim() ? (isDark ? 'border-rose-500/40' : 'border-rose-300') : ''}`} />
+                            <select value={c.kind ?? 'review'}
+                              onChange={e => updateCheckDef(c.id, e.target.value === 'task' ? { kind: 'task', handover: undefined } : { kind: undefined })}
+                              title="Prüfung = durch eine andere Stelle (erforderlich?, Einschätzung, Abnahme); Aufgabe = erledigt die Architektur selbst"
+                              className={`text-[11px] px-2 py-1.5 rounded border outline-none transition-colors ${inputCls}`}>
+                              <option value="review">Prüfung</option>
+                              <option value="task">Aufgabe Architektur</option>
+                            </select>
+                            <select value={c.minClassification ?? ''}
+                              onChange={e => updateCheckDef(c.id, { minClassification: e.target.value || undefined })}
+                              title="Ab welcher Klassifikation der Kontrollpunkt eingeblendet wird — dann ist er immer erforderlich"
+                              className={`text-[11px] px-2 py-1.5 rounded border outline-none transition-colors ${inputCls}`}>
+                              <option value="">alle Klassifikationen</option>
+                              {draft.classifications.slice(1).map(cl => (
+                                <option key={cl.id} value={cl.id}>nur ab {cl.label}</option>
+                              ))}
+                            </select>
+                            {c.kind !== 'task' && (
+                              <label className="flex items-center gap-1.5 text-[11px] cursor-pointer flex-shrink-0"
+                                title="Erforderliche Prüfung geht in die Übergabe an die Fachstelle (E-Mail)">
+                                <input type="checkbox" checked={c.handover !== false}
+                                  onChange={e => updateCheckDef(c.id, { handover: e.target.checked ? undefined : false })}
+                                  className="accent-blue-500 cursor-pointer" />
+                                Übergabe
+                              </label>
+                            )}
+                            <button onClick={() => updateCheckDef(c.id, { archived: true })}
+                              title="Kontrollpunkt archivieren — id bleibt reserviert, wird nicht mehr eingeblendet"
+                              className={`p-1.5 rounded transition-colors ${isDark ? 'text-white/25 hover:text-amber-400' : 'text-black/25 hover:text-amber-600'}`}>
+                              <Archive size={12} />
+                            </button>
+                            <button onClick={() => deleteCheckDef(c.id, c.label)}
+                              title="Kontrollpunkt endgültig löschen (nur im Aufbau — id wird frei)"
+                              className={`p-1.5 rounded transition-colors ${isDark ? 'text-white/25 hover:text-red-400' : 'text-black/25 hover:text-red-500'}`}>
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <textarea value={c.hint ?? ''} placeholder="Erläuterung (optional) — Tooltip beim Kontrollpunkt" rows={1}
+                              onChange={e => updateCheckDef(c.id, { hint: e.target.value || undefined })}
+                              onFocus={autoGrow} onInput={autoGrow}
+                              className={`flex-1 min-w-[200px] text-[11px] px-2 py-1.5 rounded border outline-none resize-none overflow-hidden transition-colors ${inputCls}`} />
+                            <span className={`text-[10px] ${textMuted}`}>id: {c.id}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
                 {qs.length === 0 && (
                   <p className={`text-[11px] ${textMuted}`}>Keine Fragen — mit + ergänzen.</p>
                 )}

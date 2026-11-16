@@ -134,7 +134,8 @@ export const DEFAULT_MODEL: Model = {
       "milestone": "M20",
       "minClassification": "wegweisend",
       "text": "Ist die Einstufung/Spezifikation dieses Themas durch das Architektur-Board abgenommen?",
-      "hint": "Nur bei wegweisenden Projekten. Traktandum/Protokoll-Referenz in den Bemerkungen festhalten."
+      "hint": "Nur bei wegweisenden Projekten. Traktandum/Protokoll-Referenz in den Bemerkungen festhalten.",
+      "archived": true
     },
     {
       "id": "cat-nist-p9",
@@ -243,7 +244,8 @@ export const DEFAULT_MODEL: Model = {
       "milestone": "M20",
       "minClassification": "wegweisend",
       "text": "Ist die Einstufung/Spezifikation dieses Themas durch das Architektur-Board abgenommen?",
-      "hint": "Nur bei wegweisenden Projekten. Traktandum/Protokoll-Referenz in den Bemerkungen festhalten."
+      "hint": "Nur bei wegweisenden Projekten. Traktandum/Protokoll-Referenz in den Bemerkungen festhalten.",
+      "archived": true
     },
     {
       "id": "S1",
@@ -399,7 +401,8 @@ export const DEFAULT_MODEL: Model = {
       "milestone": "M20",
       "minClassification": "wegweisend",
       "text": "Ist die Einstufung/Spezifikation dieses Themas durch das Architektur-Board abgenommen?",
-      "hint": "Nur bei wegweisenden Projekten. Traktandum/Protokoll-Referenz in den Bemerkungen festhalten."
+      "hint": "Nur bei wegweisenden Projekten. Traktandum/Protokoll-Referenz in den Bemerkungen festhalten.",
+      "archived": true
     },
     {
       "id": "E1",
@@ -554,7 +557,8 @@ export const DEFAULT_MODEL: Model = {
       "milestone": "M20",
       "minClassification": "wegweisend",
       "text": "Ist die Einstufung/Spezifikation dieses Themas durch das Architektur-Board abgenommen?",
-      "themeId": "data-storage"
+      "themeId": "data-storage",
+      "archived": true
     },
     {
       "id": "cat-nist-p13",
@@ -594,7 +598,8 @@ export const DEFAULT_MODEL: Model = {
       "milestone": "M20",
       "minClassification": "wegweisend",
       "text": "Ist die Einstufung/Spezifikation dieses Themas durch das Architektur-Board abgenommen?",
-      "themeId": "data-classification"
+      "themeId": "data-classification",
+      "archived": true
     },
     {
       "id": "cat-ia1",
@@ -617,7 +622,7 @@ export const DEFAULT_MODEL: Model = {
       "milestone": "M20",
       "text": "Liegt ein aktuelles Kontextdiagramm mit Systemgrenze und allen Nachbarsystemen vor?",
       "source": "arc42, Kapitel 3 (Kontextabgrenzung)",
-      "hint": "Idealerweise aus LeanIX generiert bzw. dort erfasst — dann ist M40C1 später ein Abgleich statt eine Nacherfassung. Die Systemgrenze legt fest, welche Komponenten zum System gehören und welche ausserhalb liegen — Nachbarsysteme, Plattformdienste, Lieferanten."
+      "hint": "Idealerweise aus LeanIX generiert bzw. dort erfasst — dann ist die M40-Aufgabe «LeanIX nachgeführt» später ein Abgleich statt eine Nacherfassung. Die Systemgrenze legt fest, welche Komponenten zum System gehören und welche ausserhalb liegen — Nachbarsysteme, Plattformdienste, Lieferanten."
     },
     {
       "id": "cat-nist-p18",
@@ -625,7 +630,8 @@ export const DEFAULT_MODEL: Model = {
       "milestone": "M20",
       "text": "Ist das System im Applikationsportfolio registriert (z. B. LeanIX: Applikations-Factsheet angelegt, Verantwortliche eingetragen)?",
       "hint": "Registrierung schon bei der Spezifikation — die Nachführung auf den Stand der Umsetzung prüft M40C1. Original: Register the system with organizational program or management offices.",
-      "source": "NIST SP 800-37 Rev. 2, RMF Prepare, Task P-18 (System Registration)"
+      "source": "NIST SP 800-37 Rev. 2, RMF Prepare, Task P-18 (System Registration)",
+      "archived": true
     },
     {
       "hint": "Bei Referenz-/Pilotcharakter dient dieses Muster als Vorlage für spätere Projekte — die getroffene Wahl sollte entsprechend als Vorgabe festgehalten werden, nicht nur als Einzelfallentscheid.",
@@ -641,14 +647,16 @@ export const DEFAULT_MODEL: Model = {
       "milestone": "M20",
       "minClassification": "wegweisend",
       "text": "Ist die Einstufung/Spezifikation dieses Themas durch das Architektur-Board abgenommen?",
-      "themeId": "integration-application"
+      "themeId": "integration-application",
+      "archived": true
     },
     {
       "id": "IA40-1",
       "themeId": "integration-application",
       "milestone": "M40",
       "text": "Sind Applikation und Schnittstellen in LeanIX nachgeführt und auf dem Stand der Umsetzung — Applikations-Factsheet, Interfaces, IT-Komponenten, Verantwortliche?",
-      "hint": "LeanIX ist die Referenz, nicht eine Projektliste: jede produktive Schnittstelle ist als Interface erfasst (Quelle, Ziel, Datenobjekte, Versionierung gemäss M20C2), die eingesetzten Technologien als IT-Komponenten, Verantwortliche und Lifecycle gesetzt. Abgleich mit M20C1 (Zielarchitektur) und M20C4 (Kontextdiagramm). Schnittstellen, die während der Realisierung dazukamen, sind der Normalfall — deshalb die Frage. Nachführung durch die Architektur (kein separater EA-Prozess) — deshalb vor der Freigabe selbst erledigen, nicht als Auflage weiterreichen."
+      "hint": "LeanIX ist die Referenz, nicht eine Projektliste: jede produktive Schnittstelle ist als Interface erfasst (Quelle, Ziel, Datenobjekte, Versionierung gemäss M20C2), die eingesetzten Technologien als IT-Komponenten, Verantwortliche und Lifecycle gesetzt. Abgleich mit M20C1 (Zielarchitektur) und M20C4 (Kontextdiagramm). Schnittstellen, die während der Realisierung dazukamen, sind der Normalfall — deshalb die Frage. Nachführung durch die Architektur (kein separater EA-Prozess) — deshalb vor der Freigabe selbst erledigen, nicht als Auflage weiterreichen.",
+      "archived": true
     },
     {
       "id": "IA40-2",
@@ -662,7 +670,7 @@ export const DEFAULT_MODEL: Model = {
       "text": "Ist die Architekturdokumentation auf dem Stand der umgesetzten Lösung — Zielarchitektur, Schnittstellen, Datenhaltung, Betrieb?",
       "milestone": "M40",
       "themeId": "documentation",
-      "hint": "Nicht «gibt es Dokumentation», sondern «stimmt sie mit dem überein, was läuft». Abgleich mit M40C1 (LeanIX), M40D1 (Plattform), M40B1 (Datenhaltung), M40G2 (Betriebshandbuch). Herstellerdokumentation ersetzt die eigene Lösungsdokumentation nicht — die bankspezifische Konfiguration und Integration muss beschrieben sein."
+      "hint": "Nicht «gibt es Dokumentation», sondern «stimmt sie mit dem überein, was läuft». Abgleich mit LeanIX (M40-Aufgabe «LeanIX nachgeführt»), M40D1 (Plattform), M40B1 (Datenhaltung), M40G2 (Betriebshandbuch). Herstellerdokumentation ersetzt die eigene Lösungsdokumentation nicht — die bankspezifische Konfiguration und Integration muss beschrieben sein."
     },
     {
       "id": "DO2",
@@ -677,7 +685,8 @@ export const DEFAULT_MODEL: Model = {
       "milestone": "M40",
       "text": "Ist die Dokumentation in LeanIX verankert — Applikations-Factsheet mit Verknüpfung zur Lösungsdokumentation und zu den Architekturentscheiden?",
       "source": "arc42 / LeanIX",
-      "hint": "Vorläufige Referenz, solange keine Struktur- und Ablagevorgabe besteht: Wer die Applikation in LeanIX findet, findet von dort die Dokumentation. Sobald eine Vorgabe existiert (z. B. arc42-Gliederung, Dokumentablage), hier zusätzlich deren Einhaltung prüfen."
+      "hint": "Vorläufige Referenz, solange keine Struktur- und Ablagevorgabe besteht: Wer die Applikation in LeanIX findet, findet von dort die Dokumentation. Sobald eine Vorgabe existiert (z. B. arc42-Gliederung, Dokumentablage), hier zusätzlich deren Einhaltung prüfen.",
+      "archived": true
     },
     {
       "id": "U1",
@@ -875,6 +884,14 @@ export const DEFAULT_MODEL: Model = {
   "classificationInfoMd": "# Klassifikation\n\nDie Klassifikation ist das Ergebnis der Foundation-Prüfung (M10) und Teil\nder Freigabe:\n\n- **nicht relevant** — alle Relevanz-Fragen sind mit Nein beantwortet.\n  Es findet keine weitere Architekturprüfung statt (kein M20/M40).\n- **relevant** — das Projekt berührt die Architektur; die Fragenkataloge\n  M20 und M40 werden geprüft.\n- **wegweisend** — das Projekt prägt die Architektur; zusätzlich werden\n  die als «ab wegweisend» markierten Fragen gestellt.\n\nOb ein Projekt architekturrelevant ist, ergibt sich automatisch aus den\nJa/Nein-Fragen im M10 (mindestens eine Frage mit Ja → relevant; alle Nein\n→ nicht relevant).\n\nOb ein relevantes Projekt zusätzlich **wegweisend** ist, entscheidet\nder/die Architekt/in anhand folgender Kriterien (mindestens eines trifft zu):\n\n- **Referenz-/Pilotcharakter** — das Projekt führt ein Muster, eine\n  Technologie oder eine Plattform ein, die anschliessend als Vorlage für\n  weitere Projekte dient.\n- **Wirkung über das Projekt hinaus** — Entscheide betreffen mehrere\n  Systeme, mehrere Mandanten/Banken oder die gemeinsame Plattform, nicht\n  nur die Applikation des Projekts selbst.\n- **Abweichung von bestehenden Vorgaben** — das Projekt weicht bewusst von\n  einem etablierten Standard ab, und diese Abweichung soll künftig als\n  Präzedenzfall/neue Richtlinie gelten (nicht nur als Einzelfall-Ausnahme).\n- **Hohe Tragweite bei Fehlentscheid** — Risiko, Kosten oder regulatorische\n  Sichtbarkeit sind so hoch, dass ein Fehler in der Architekturprüfung\n  überproportionalen Schaden anrichten würde.\n",
   "milestoneChecks": [
     {
+      "id": "board-approval",
+      "milestone": "M20",
+      "label": "Architektur-Board-Abnahme",
+      "hint": "Nur bei wegweisenden Projekten: Die Spezifikation (M20) wird dem Architektur-Board vorgelegt. Einschätzung Architektur = was dem Board vorgelegt wird und mit welchem Antrag; Abnahme mit Traktandum/Protokoll-Referenz in den Bemerkungen. Ersetzt die früheren Board-Fragen je Thema (M20A4, M20B19, M20C7, M20D9, M20E8, M20F8).",
+      "minClassification": "wegweisend",
+      "handover": false
+    },
+    {
       "id": "finma-relevant",
       "milestone": "M20",
       "label": "FINMA-Prüfung",
@@ -885,6 +902,13 @@ export const DEFAULT_MODEL: Model = {
       "milestone": "M20",
       "label": "Lieferanten-Prüfung",
       "hint": "Falls neuer Lieferant: to be defined — Umfang und Ablauf der Lieferanten-Prüfung folgen aus der Abstimmung mit der Fachstelle Security & Compliance."
+    },
+    {
+      "id": "leanix-update",
+      "milestone": "M40",
+      "label": "LeanIX nachgeführt, inkl. Verknüpfung zur Dokumentation",
+      "kind": "task",
+      "hint": "Applikations-Factsheet angelegt und auf dem Stand der Umsetzung, Verantwortliche eingetragen; jede produktive Schnittstelle als Interface erfasst (Quelle, Ziel, Datenobjekte, Versionierung gemäss M20C2), die eingesetzten Technologien als IT-Komponenten, Lifecycle gesetzt; das Factsheet verlinkt die Lösungsdokumentation und die Architekturentscheide (M40H2). Abgleich mit M20C1 (Zielarchitektur) und M20C4 (Kontextdiagramm). Erledigt die Architektur selbst vor der Freigabe — nicht als Auflage weiterreichen. Ersetzt M20C5, M40C1 und M40H3."
     }
   ]
 };

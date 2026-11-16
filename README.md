@@ -172,6 +172,20 @@ Zum Ausprobieren kann `sample-data/` als geteilter Ordner gewählt werden
   Punkt angekreuzt, kommen Abnahme, Prüfer/in und Bemerkungen dazu. Die
   Freigabe des Meilensteins bleibt gesperrt, bis jeder Kontrollpunkt
   entweder abgenommen oder begründet ist; beide Fälle stehen im Review-PDF.
+  Mit **«nur ab Klassifikation»** (z. B. Architektur-Board-Abnahme ab
+  wegweisend) wird ein Kontrollpunkt erst ab dieser Klassifikation
+  eingeblendet und ist dann immer erforderlich — ohne Ankreuzen, ohne
+  Begründung für «nicht erforderlich». **«Übergabe»** abgewählt: die
+  Prüfung geht nicht in die Übergabe an die Fachstelle (z. B. Board).
+- **Aufgaben Architektur** (z. B. «LeanIX nachgeführt» im M40): Kontrollpunkte
+  der Art «Aufgabe» erledigt die Architektur selbst — das Häkchen trägt
+  automatisch ein, wer und wann (ohne Anmeldung: Name von Hand); die Bemerkung
+  ist optional («Bemerkungen …»). Sie sperren die Freigabe, bis sie erledigt
+  sind. Das ⓘ öffnet bei allen Kontrollpunkten die Erläuterung als Dialog.
+  Prüfungen und Aufgaben pflegt der Admin je Meilenstein unter «Fragen»
+  (Bezeichnung, Art, Klassifikation, Übergabe, Reihenfolge, archivieren).
+  Der Zustand im Projekt hängt an der id (`reviews.<ms>.checks.<id>`) —
+  archivieren statt löschen.
 - **Fragen beantworten**: Ja/Nein sind sich gegenseitig ausschliessende
   Checkboxen; «Bemerkungen …» öffnet beim Klick eine Textarea (bleibt offen,
   solange Text drinsteht). Antworten hängen am stabilen Frage-Schlüssel in
@@ -313,7 +327,8 @@ Vorschau übernommen.
 
 Die Übergabe hängt an den **Abnahme-Kontrollpunkten** des Meilensteins
 (z. B. FINMA-Prüfung, Lieferanten-Prüfung): Sobald im Projekt mindestens
-einer als **«erforderlich»** angekreuzt ist, erscheint im Meilenstein-Kopf
+einer als **«erforderlich»** angekreuzt ist (Prüfungen mit «Übergabe»;
+Aufgaben und z. B. die Board-Abnahme nie), erscheint im Meilenstein-Kopf
 unter den Kontrollpunkten der Button **«Übergabe an Fachstelle»**. Sind
 mehrere erforderlich, ergibt das **ein gemeinsames Mail**.
 

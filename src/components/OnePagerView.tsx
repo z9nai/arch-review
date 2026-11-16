@@ -8,7 +8,7 @@ import { assignInitials, authorOf, CommentBubble, CommentsPanel, CommentTargetIn
 import { useTeamsNotify } from './useTeamsNotify';
 import { TEAMS_SCOPES } from '../teams';
 import { DIRECTORY_SCOPES } from '../store';
-import { blockingChecks, checkState, deriveStatus, emptyReview, getMilestoneReview, getThemeReview, STATUS_META } from '../status';
+import { blockingChecks, checkFixedRequired, checkRequired, checkState, checkVisible, deriveStatus, emptyReview, getMilestoneReview, getThemeReview, isTask, STATUS_META } from '../status';
 import { applyMs10, extractPdfText, hasMs10Data, Ms10Data, MS10_FIELD_LABELS, parseMs10Text } from '../ms10';
 import { DEFAULT_MODEL } from '../defaultModel';
 import { buildProjectExport, describeImportChanges, downloadJson, parseProjectImport, questionNumbers } from '../projectJson';
@@ -17,6 +17,7 @@ import { formatTables, stripRich } from '../richText';
 import { collapse, diffLines, DiffPart } from '../lineDiff';
 import AuditPanel from './AuditPanel';
 import { fitTextarea, fmtTimestamp, formatBytes, normalizeUrl, nowIsoWithTimezone, sanitizeFilename } from '../util';
+import type { MilestoneCheck } from '../types';
 
 const FOUNDATION_MS = MILESTONES[0]; // M10
 const CONDITIONS_MS = 'M20'; // nur hier haben Fragen eine «Auflage»
@@ -1583,7 +1584,14 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
         ...(checksFor(ms).length
           ? { checks: checksFor(ms).map(c => {
               const s = checkState(review, c.id);
-              if (!s.required) return {
+              if (isTask(c)) {
+                const by = String(s.approvedBy ?? '').trim();
+                return {
+                  line: `**${c.label}** — ${s.approved ? `erledigt${by ? ` durch ${by}` : ''}${s.approvedAt ? ` (${fmtTimestamp(String(s.approvedAt)).split(' ')[0]})` : ''}` : 'offen'}`,
+                  ...(String(s.remarks ?? '').trim() ? { remarks: String(s.remarks).trim(), remarksLabel: 'Bemerkungen' } : {}),
+                };
+              }
+              if (!checkRequired(c, s)) return {
                 line: `**${c.label}** — nicht erforderlich`,
                 ...(String(s.assessment ?? '').trim() ? { assessment: String(s.assessment).trim() } : {}),
               };
@@ -1830,8 +1838,26 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
     setAnswersPdfItems(null);
   };
 
-  // Abnahme-Kontrollpunkte eines Meilensteins (aus model.json)
-  const checksFor = (ms: string) => (model.milestoneChecks ?? []).filter(c => c.milestone === ms);
+  // ⓘ eines Kontrollpunkts: öffnet die Erläuterung im selben Dialog wie bei
+  // den Fragen (dort ein eigener Knopf — nicht im <label>, sonst würde der
+  // Klick die Checkbox umschalten)
+  const checkInfoButton = (c: MilestoneCheck) => {
+    const cl = c.minClassification ? model.classifications.find(x => x.id === c.minClassification)?.label ?? c.minClassification : '';
+    const md = [c.hint, cl ? `Eingeblendet und erforderlich ab Klassifikation «${cl}».` : ''].filter(Boolean).join('\n\n');
+    if (!md) return null;
+    return (
+      <button type="button" onClick={() => setInfoQuestion({ id: c.id, text: c.label, milestone: c.milestone, themeId: '', hint: md })}
+        title="Erläuterung anzeigen"
+        className={`p-0.5 rounded flex-shrink-0 transition-colors ${isDark ? 'text-white/25 hover:text-white/70' : 'text-black/25 hover:text-black/70'}`}>
+        <Info size={11} />
+      </button>
+    );
+  };
+
+  // Kontrollpunkte eines Meilensteins (aus model.json), die für dieses Projekt
+  // eingeblendet sind — Prüfungen und Aufgaben, in der Reihenfolge des Modells
+  const checksFor = (ms: string) => (model.milestoneChecks ?? []).filter(c => c.milestone === ms
+    && checkVisible(c, proj?.classification, model.classifications.map(x => x.id)));
 
   // Alle Auflagen eines Meilensteins in Dokumentreihenfolge — erfasst werden
   // sie bei den Fragen (Häkchen «Auflage» + Text), der Kopf zeigt sie gesammelt
@@ -1843,11 +1869,13 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
   // Die Übergabe an die Fachstelle hängt an den Abnahme-Kontrollpunkten:
   // Erst wenn einer davon «erforderlich» angekreuzt ist, gibt es den
   // Übergabetext — und die Einschätzung Architektur darin ist der Auftrag.
+  // Nur Prüfungen mit Übergabe (nicht das Board, keine Aufgaben).
   const requiredChecks = (ms: string) => {
     const review = getMilestoneReview(proj, ms);
     return checksFor(ms)
+      .filter(check => !isTask(check) && check.handover !== false)
       .map(check => ({ check, state: checkState(review, check.id) }))
-      .filter(({ state }) => state.required === true);
+      .filter(({ check, state }) => checkRequired(check, state));
   };
 
   // Prüfer/in (Freigabe bzw. Abnahme, erforderlich): mit Entra-Anmeldung nur
@@ -1934,12 +1962,13 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
           </div>
           {blocking.length > 0 && opts.review.approved !== true && (
             <div className={`text-[11px] ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>
-              {[
-                blocking.filter(c => checkState(opts.review, c.id).required === true),
-                blocking.filter(c => checkState(opts.review, c.id).required !== true),
-              ].map((group, i) => group.length === 0 ? null : (
-                <p key={i}>
-                  Freigabe erst möglich, wenn {i === 0 ? 'abgenommen' : 'begründet'}: {group.map(c => c.label).join(', ')}
+              {([
+                ['abgenommen', blocking.filter(c => !isTask(c) && checkRequired(c, checkState(opts.review, c.id)))],
+                ['begründet', blocking.filter(c => !isTask(c) && !checkRequired(c, checkState(opts.review, c.id)))],
+                ['erledigt', blocking.filter(c => isTask(c))],
+              ] as const).map(([what, group]) => group.length === 0 ? null : (
+                <p key={what}>
+                  Freigabe erst möglich, wenn {what}: {group.map(c => c.label).join(', ')}
                 </p>
               ))}
             </div>
@@ -2016,8 +2045,10 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
               </div>
             );
           })()}
-          {checks.map(c => {
+          {checks.filter(c => !isTask(c)).map(c => {
             const s = checkState(opts.review, c.id);
+            const fixed = checkFixedRequired(c);
+            const required = checkRequired(c, s);
             const byEmpty = String(s.approvedBy ?? '').trim() === '';
             const remEmpty = String(s.remarks ?? '').trim() === '';
             const assEmpty = String(s.assessment ?? '').trim() === '';
@@ -2026,14 +2057,13 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
             return (
               <div key={c.id} data-comment-target={checkKey} className={`space-y-2 transition-colors ${anchorCls(checkKey)}`}>
                 <div className="flex items-center gap-1.5">
-                  <label title={c.hint}
-                    className={`flex items-center gap-1.5 text-xs cursor-pointer ${isDark ? 'text-white/70' : 'text-black/70'}`}>
-                    <input disabled={ro} type="checkbox" checked={s.required}
+                  <label className={`flex items-center gap-1.5 text-xs ${fixed ? '' : 'cursor-pointer'} ${isDark ? 'text-white/70' : 'text-black/70'}`}>
+                    <input disabled={ro || fixed} type="checkbox" checked={required}
                       onChange={e => updateCheck(c.id, { required: e.target.checked })}
                       className="accent-blue-500 cursor-pointer" />
                     {c.label} erforderlich
-                    {c.hint && <Info size={11} className="opacity-50" />}
                   </label>
+                  {checkInfoButton(c)}
                   {bubble(checkKey)}
                 </div>
                 {/* Einschätzung immer: begründet, warum die Prüfung nötig ist — oder warum nicht */}
@@ -2042,13 +2072,13 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
                   <textarea disabled={ro} value={String(s.assessment ?? '')} required rows={2}
                     onChange={e => updateCheck(c.id, { assessment: e.target.value })}
                     data-autogrow
-                    placeholder={s.required
+                    placeholder={required
                       ? 'Warum ist die Prüfung nötig, was ist zu prüfen, was erwartet die Architektur (erforderlich)'
                       : 'Warum ist die Prüfung nicht nötig (erforderlich)'}
                     className={`w-full min-h-[52px] text-[11px] px-2 py-1.5 rounded border outline-none resize-none overflow-hidden transition-colors ${inputCls} ${
                       assEmpty ? (isDark ? 'border-rose-500/40' : 'border-rose-300') : ''
                     }`} />
-                  {s.required && (
+                  {required && (
                     <>
                     <p className={sub}>Resultat Abnahme</p>
                     <div className="flex items-center gap-4 flex-wrap">
@@ -2076,6 +2106,59 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
               </div>
             );
           })}
+          {/* Aufgaben der Architektur (z. B. LeanIX): erledigt + durch wen, Bemerkung optional */}
+          {checks.some(isTask) && (
+            <div className="space-y-2">
+              <p className={`text-[10px] uppercase tracking-wider ${labelCls}`}>Aufgaben Architektur</p>
+              {checks.filter(isTask).map(c => {
+                const s = checkState(opts.review, c.id);
+                const by = String(s.approvedBy ?? '').trim();
+                const checkKey = `check:${opts.ms}:${c.id}`;
+                // Bemerkung nur auf Klick (wie bei den Fragen), offen sobald Text drin ist
+                const remOpen = String(s.remarks ?? '').trim() !== '' || openRemarks.has(checkKey);
+                return (
+                  <div key={c.id} data-comment-target={checkKey} className={`space-y-1.5 transition-colors ${anchorCls(checkKey)}`}>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <label className={`flex items-center gap-1.5 text-xs cursor-pointer ${isDark ? 'text-white/70' : 'text-black/70'}`}>
+                        <input disabled={ro} type="checkbox" checked={s.approved === true}
+                          onChange={e => updateCheck(c.id, e.target.checked
+                            // erledigt: wer (angemeldet bzw. Kommentar-Name) und wann
+                            ? { approved: true, approvedBy: by || me?.name || '', approvedAt: nowIsoWithTimezone() }
+                            : { approved: false, approvedBy: '', approvedAt: undefined })}
+                          className="accent-blue-500 cursor-pointer" />
+                        {c.label}
+                      </label>
+                      {checkInfoButton(c)}
+                      {s.approved === true && (me
+                        ? <span className={`text-[11px] ${textMuted}`}>
+                            erledigt durch {by || me.name}{s.approvedAt ? `, ${fmtTimestamp(String(s.approvedAt)).split(' ')[0]}` : ''}
+                          </span>
+                        // ohne Anmeldung/Namen: von Hand eintragen
+                        : <>
+                            {reviewerField(by, v => updateCheck(c.id, { approvedBy: v }), 'durch wen (erforderlich)')}
+                            {s.approvedAt && <span className={`text-[11px] ${textMuted}`}>{fmtTimestamp(String(s.approvedAt)).split(' ')[0]}</span>}
+                          </>)}
+                      {bubble(checkKey)}
+                      {!remOpen && (
+                        <button type="button" disabled={ro} onClick={() => toggleRemarks(checkKey, true)}
+                          className={`text-[11px] hover:underline underline-offset-2 disabled:no-underline ${textMuted}`}>
+                          Bemerkungen …
+                        </button>
+                      )}
+                    </div>
+                    {remOpen && (
+                      <textarea disabled={ro} value={String(s.remarks ?? '')} rows={1} autoFocus={String(s.remarks ?? '').trim() === ''}
+                        onChange={e => updateCheck(c.id, { remarks: e.target.value })}
+                        onBlur={e => { if (!e.target.value.trim()) toggleRemarks(checkKey, false); }}
+                        data-autogrow
+                        placeholder="Bemerkungen (optional)"
+                        className={`ml-5 w-[calc(100%-1.25rem)] min-h-[32px] text-[11px] px-2 py-1.5 rounded border outline-none resize-none overflow-hidden transition-colors ${inputCls}`} />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
           {/* Übergabe an die Fachstelle — ein Mail für alle erforderlichen Prüfungen */}
           {requiredChecks(opts.ms).length > 0 && (
             <button onClick={() => { setExportHandover(true); setExportMs(opts.ms); setCopiedKey(null); }}
@@ -2107,7 +2190,7 @@ export default function OnePagerView({ slug, onBack, focusCommentId }: { slug: s
     for (const ms of visibleMs) {
       const group = `${ms} · ${MILESTONE_TITLES[ms] ?? 'Prüfung'}`;
       out.push({ key: `ms:${ms}:notes`, label: 'Bemerkungen', group });
-      for (const c of checksFor(ms)) out.push({ key: `check:${ms}:${c.id}`, label: `${c.label} erforderlich`, group });
+      for (const c of checksFor(ms)) out.push({ key: `check:${ms}:${c.id}`, label: isTask(c) ? c.label : `${c.label} erforderlich`, group });
       for (const theme of themes) {
         if (ms !== FOUNDATION_MS && derivedRelevant(proj, theme.id) === false) continue;
         for (const { q, number } of questionsAt(theme.id, ms)) {

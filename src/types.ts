@@ -32,20 +32,41 @@ export interface Classification {
 // braucht es Abnahme, Prüfer/in und Bemerkung — und der Meilenstein kann erst
 // freigegeben werden, wenn alle erforderlichen Prüfungen abgenommen sind.
 // Zustand im Projekt unter reviews.<ms>.checks[id] (MilestoneCheckState).
+//
+// Zwei Arten (kind):
+// - «review» (Default): Prüfung durch eine andere Stelle (Fachstelle, Board).
+//   Pro Projekt «erforderlich» ankreuzen, Einschätzung Architektur, Abnahme
+//   durch wen + Bemerkung; nicht erforderlich braucht eine Begründung.
+// - «task»: Aufgabe der Architektur selbst (z. B. LeanIX nachführen) — immer
+//   fällig, «erledigt» + durch wen, Bemerkung optional.
+// minClassification: nur ab dieser Klassifikation eingeblendet (kumulativ,
+// wie bei den Fragen); eingeblendet ist der Kontrollpunkt dann immer
+// erforderlich (kein Ankreuzen, keine Begründung für «nicht erforderlich»).
+// handover: erforderliche Prüfungen gehen in die Übergabe an die Fachstelle
+// (Default true; Aufgaben nie).
+// Wie bei den Fragen: der Zustand im Projekt hängt an der id — archivieren
+// statt löschen, ids nie wiederverwenden.
+export type MilestoneCheckKind = 'review' | 'task';
 export interface MilestoneCheck {
   id: string;
   milestone: string;   // M10 / M20 / M40
   label: string;       // z. B. «FINMA-Prüfung» — angezeigt als «<label> erforderlich»
   hint?: string;       // Erläuterung (Tooltip)
+  kind?: MilestoneCheckKind; // Default 'review'
+  minClassification?: string; // nur ab dieser Klassifikation (id), dann immer erforderlich
+  handover?: boolean;  // in die Übergabe an die Fachstelle (Default true; nur 'review')
+  archived?: boolean;  // archiviert: wird nicht mehr eingeblendet, id bleibt reserviert
   [key: string]: unknown;
 }
 
 export interface MilestoneCheckState {
-  required: boolean;     // Prüfung ist für dieses Vorhaben nötig
+  required: boolean;     // Prüfung ist für dieses Vorhaben nötig (bei Aufgaben
+                         // und Prüfungen mit minClassification ohne Bedeutung)
   assessment?: string;   // Einschätzung Architektur (Pflicht, wenn erforderlich)
-  // Resultat Abnahme:
-  approved?: boolean;    // Prüfung abgenommen
+  // Resultat Abnahme (bei Aufgaben: erledigt / durch wen):
+  approved?: boolean;    // Prüfung abgenommen bzw. Aufgabe erledigt
   approvedBy?: string;   // durch wen
+  approvedAt?: string;   // Aufgabe: wann erledigt (ISO mit Zeitzone)
   remarks?: string;      // Bemerkungen (Pflicht, wenn erforderlich)
   [key: string]: unknown;
 }
