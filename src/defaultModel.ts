@@ -80,8 +80,8 @@ export const DEFAULT_MODEL: Model = {
       "themeId": "security-compliance",
       "milestone": "M20",
       "remarksAlwaysOpen": true,
-      "text": "Sind die regulatorischen Anforderungen des Vorhabens identifiziert — FINMA-RS 2023/1 Rz 32 (Risikobeurteilung bei wesentlicher Änderung), FINMA-RS 2018/3 (Outsourcing), DSG — und ist geklärt, wer die Einhaltung nachweist?",
-      "hint": "Wesentliche Änderung der Systemlandschaft → ad hoc Risiko- und Kontrollbeurteilung (FINMA-RS 2023/1 Rz 32). Outsourcing im Sinne von FINMA-RS 2018/3, wenn ein Dienstleister selbständig und dauernd eine für die Geschäftstätigkeit wesentliche Funktion erfüllt. DSG: Personendaten, ggf. Datenschutz-Folgenabschätzung. Das Ergebnis fliesst in die Kontrollpunkte «FINMA-Prüfung» und «Lieferanten-Prüfung» der M20-Abnahme. Entwurf — Kriterien mit der Fachstelle Security & Compliance abstimmen."
+      "text": "Sind die regulatorischen Anforderungen des Vorhabens identifiziert — FINMA-RS 2023/1 Rz 32 (Risikobeurteilung bei wesentlicher Änderung), FINMA-RS 2018/3 (Outsourcing), DSG?",
+      "hint": "Wesentliche Änderung der Systemlandschaft → ad hoc Risiko- und Kontrollbeurteilung (FINMA-RS 2023/1 Rz 32). Outsourcing im Sinne von FINMA-RS 2018/3, wenn ein Dienstleister selbständig und dauernd eine für die Geschäftstätigkeit wesentliche Funktion erfüllt. DSG: Personendaten, ggf. Datenschutz-Folgenabschätzung. Die Architektur identifiziert die Anforderungen und leitet daraus die Sicherheitsanforderungen ab (M20E3); den formalen Nachweis der Einhaltung führt Compliance. Das Ergebnis fliesst in die Kontrollpunkte «FINMA-Prüfung» und «Lieferanten-Prüfung» der M20-Abnahme. Security-Nachweise vor PROD (Pentest, Audit) prüft M40E1."
     },
     {
       "id": "SC14",
@@ -125,8 +125,8 @@ export const DEFAULT_MODEL: Model = {
       "id": "CI5",
       "themeId": "security-compliance",
       "milestone": "M20",
-      "text": "Ist ein Exit-Szenario beschrieben (Rückbau, Anbieterwechsel, Datenrückführung)?",
-      "hint": "Für ausgelagerte oder Cloud-basierte Plattformen regulatorisch gefordert (Outsourcing-Vorgaben). Mindestens: Was passiert bei Abbruch oder Anbieterwechsel, wie kommen die Daten zurück, welche Abhängigkeiten (proprietäre Dienste, Operatoren, Formate) machen den Wechsel teuer."
+      "text": "Ist das Exit-Szenario technisch beschrieben — Datenrückführung (welche Daten, Format), Rückbau und die Abhängigkeiten, die einen Wechsel erschweren?",
+      "hint": "Für ausgelagerte oder Cloud-basierte Plattformen regulatorisch gefordert (FINMA-RS 2018/3). Die Architektur beschreibt den technischen Teil: wie die Daten zurückkommen, was zurückgebaut werden muss und welche Abhängigkeiten (proprietäre Dienste, Operatoren, Formate) den Wechsel teuer machen. Exit- bzw. Abbruchkriterien und vertragliche Regelungen sind nicht Teil dieser Frage."
     },
     {
       "id": "SC11",
@@ -213,8 +213,8 @@ export const DEFAULT_MODEL: Model = {
       "id": "AM4",
       "themeId": "idm-iam",
       "milestone": "M20",
-      "text": "Sind Vergabe und Entzug von Berechtigungen (Eintritt, Wechsel, Austritt) an die zentralen Prozesse angebunden — auch für Rollen-Templates des Herstellers?",
-      "hint": "Provisionierung und Entzug müssen über dieselben Prozesse laufen wie bei den übrigen Systemen (Joiner/Mover/Leaver). Bei Migration: Sind bestehende Rollen übernehmbar, oder ist ein Neuaufbau nötig — und wer macht ihn?"
+      "text": "Ist die technische Provisionierung der Berechtigungen beschrieben — Anbindung an die zentrale Berechtigungsverwaltung, auch für Rollen-Templates des Herstellers, und Übernahme oder Neuaufbau bestehender Rollen?",
+      "hint": "Wie kommen Berechtigungen ins System und wieder heraus: Schnittstelle, Datenquelle, automatisch oder manuell, wer liefert die Daten. Bei Migration: Sind bestehende Rollen übernehmbar oder ist ein Neuaufbau nötig — und wer macht ihn? Die Prozesse Eintritt, Wechsel und Austritt selbst verantwortet die IAM-Organisation."
     },
     {
       "id": "A3",
@@ -580,8 +580,8 @@ export const DEFAULT_MODEL: Model = {
       "id": "cat-dc2",
       "themeId": "data-classification",
       "milestone": "M20",
-      "text": "Ist der Umgang mit besonders schützenswerten Personendaten geregelt?",
-      "hint": "Gesundheit, Religion, biometrische Daten usw.",
+      "text": "Ist festgehalten, ob besonders schützenswerte Personendaten vorkommen — und wenn ja, in welchen Komponenten und Datenspeichern?",
+      "hint": "Besonders schützenswert nach DSG Art. 5 lit. c, z. B. Gesundheit, Religion, biometrische oder genetische Daten. Die Architektur hält fest, ob und wo sie vorkommen; wie mit ihnen umzugehen ist (Rechtsgrundlage, Datenschutz-Folgenabschätzung), regelt der Datenschutz. Aufbewahrung und Löschung prüft M20B20.",
       "source": "CH-DSG (revidiert), Art. 5"
     },
     {
