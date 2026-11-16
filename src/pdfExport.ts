@@ -6,6 +6,8 @@
 // Markdown (Absätze, Aufzählungen, **fett**, `Code`) und Symbole (⚠ → ↔ …).
 import { ReportTemplate } from './types';
 import { formatTables, splitRemarks, splitRow, tableHead, type TableAlign } from './richText';
+import { cleanFieldText, remarksFingerprint, toFieldText } from './fieldText';
+export { remarksFingerprint, toFieldText };
 import {
   AnnotationFlags,
   PDFDocument,
@@ -53,20 +55,10 @@ const HEAD_BG = rgb(0.92, 0.92, 0.95);
 const RESERVE_BG = rgb(0.985, 0.985, 0.995);
 const CONDITION = rgb(0.72, 0.42, 0.04);
 
-// Text für ein Formularfeld: Das Feld rendert der Viewer mit Helvetica — Symbole
-// ausserhalb WinAnsi lesbar ersetzen statt «?». Gleiche Umwandlung beim Einlesen,
-// damit eine unverändert zurückgeschickte Bemerkung als unverändert erkannt wird.
 // Schrift in den Formularfeldern: kleiner als der Fragetext (9.5), wie die Hilfe (8);
 // ganzzahlig, weil macOS Vorschau (PDFKit) Bruchteile rundet
 const FIELD_SIZE = 8;
 
-const FIELD_SUBST: Record<string, string> = {
-  '→': '->', '←': '<-', '↔': '<->', '⇒': '=>', '⇐': '<=', '≥': '>=', '≤': '<=', '≠': '!=',
-  '✓': 'OK', '✔': 'OK', '✗': 'x', '✘': 'x', '⚠': '(!)', '☐': '[ ]', '☑': '[x]', '☒': '[x]',
-};
-export const toFieldText = (s: string): string =>
-  s.replace(/\r\n?/g, '\n').replace(/\t/g, '    ').replace(/[︎️‍]/g, '').replace(/./gu, c => FIELD_SUBST[c] ?? c)
-    .replace(/[^\n\x20-\xFFŒœŠšŸŽžƒ–—‘’‚“”„†‡•…‰‹›€™]/g, '?');
 
 type RichOpts = { color?: RGB; x?: number; width?: number; bold?: boolean; plain?: boolean };
 
@@ -110,6 +102,8 @@ export async function buildOpenQuestionsPdf(opts: {
   sections: PdfSection[];
   /** beantwortete Fragen mit Auflage — eigener Abschnitt am Schluss */
   conditionSections?: PdfSection[];
+  /** Zeitpunkt des Exports (ISO) — für den Hinweis beim Rückimport */
+  exportedAt?: string;
 }): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   doc.setTitle(`Offene Fragen ${opts.milestoneTitle} — ${opts.projectName}`);
@@ -342,6 +336,20 @@ export async function buildOpenQuestionsPdf(opts: {
     }
   }
 
+  // Stand der Bemerkungen beim Export (Fingerabdruck je Frage) unsichtbar mitgeben:
+  // Beim Rückimport erkennt die App so, ob die Bemerkung in der App seither
+  // geändert wurde, und überschreibt den neueren Stand nicht stillschweigend
+  const baseline: PdfBaseline = { v: 1, at: opts.exportedAt ?? new Date().toISOString(), h: {} };
+  for (const sec of [...opts.sections, ...(opts.conditionSections ?? [])]) {
+    for (const q of sec.questions) baseline.h[q.fieldKey] = remarksFingerprint(q.remarks ?? '');
+  }
+  const baseJson = JSON.stringify(baseline).replace(/[^\x20-\x7e]/g, c => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`);
+  const baseField = form.createTextField(BASELINE_FIELD);
+  baseField.setText(baseJson);
+  baseField.enableReadOnly();
+  baseField.addToPage(doc.getPage(0), { x: 0, y: 0, width: 0, height: 0, hidden: true, borderWidth: 0 });
+  doc.setKeywords([`${BASELINE_FIELD}=${baseJson}`]);
+
   form.updateFieldAppearances(helv);
   // Schrift der Felder im Formular hinterlegen (AcroForm /DR, /DA): Viewer, die
   // Felder selbst neu zeichnen (z. B. beim Bearbeiten), finden sonst die Schrift
@@ -368,10 +376,25 @@ export type PdfAnswerRaw = {
   remarks?: string;
 };
 
+
+/** Stand der Bemerkungen beim Export: Fingerabdruck je Frage (`themeId::frageId`) */
+export type PdfBaseline = { v: 1; at: string; h: Record<string, string> };
+const BASELINE_FIELD = '__baseline__';
+
+
+
+const parseBaseline = (raw: string | undefined): PdfBaseline | undefined => {
+  if (!raw) return undefined;
+  try {
+    const b = JSON.parse(raw) as PdfBaseline;
+    return b && b.v === 1 && typeof b.h === 'object' ? b : undefined;
+  } catch { return undefined; }
+};
+
 // Ausgefülltes Formular-PDF wieder einlesen (Gegenstück zu buildOpenQuestionsPdf).
 // Bemerkungen mit Tabellen kommen in Abschnitten zurück (`…::remarks::<i>::text`,
 // `::head`, `::r<z>::c<s>`) und werden wieder zu Text + Markdown-Tabelle zusammengesetzt.
-export async function readAnswersPdf(bytes: ArrayBuffer): Promise<PdfAnswerRaw[]> {
+export async function readAnswersPdf(bytes: ArrayBuffer): Promise<{ answers: PdfAnswerRaw[]; baseline?: PdfBaseline }> {
   const doc = await PDFDocument.load(bytes, { ignoreEncryption: true, updateMetadata: false });
   const map = new Map<string, PdfAnswerRaw>();
   type Seg = { text?: string; head?: string; cells: Map<number, Map<number, string>> };
@@ -382,8 +405,13 @@ export async function readAnswersPdf(bytes: ArrayBuffer): Promise<PdfAnswerRaw[]
     map.set(key, a);
     return { key, a };
   };
+  let baseline: PdfBaseline | undefined;
   for (const field of doc.getForm().getFields()) {
     const name = field.getName();
+    if (name === BASELINE_FIELD) {
+      if (field instanceof PDFTextField) baseline = parseBaseline(field.getText());
+      continue;
+    }
     const seg = name.match(/^(.+?)::(.+?)::remarks::(\d+)::(text|head|r(\d+)::c(\d+))$/);
     if (seg && field instanceof PDFTextField) {
       const { key } = entry(seg[1], seg[2]);
@@ -391,7 +419,7 @@ export async function readAnswersPdf(bytes: ArrayBuffer): Promise<PdfAnswerRaw[]
       segsOf.set(key, segs);
       const sg: Seg = segs.get(+seg[3]) ?? { cells: new Map() };
       segs.set(+seg[3], sg);
-      const v = field.getText() ?? '';
+      const v = cleanFieldText(field.getText() ?? '');
       if (seg[4] === 'text') sg.text = v;
       else if (seg[4] === 'head') sg.head = v;
       else {
@@ -411,7 +439,7 @@ export async function readAnswersPdf(bytes: ArrayBuffer): Promise<PdfAnswerRaw[]
       const sel = field.getSelected()[0];
       if (sel) a.choice = sel;
     } else if (field instanceof PDFTextField) {
-      const t = (field.getText() ?? '').trim();
+      const t = cleanFieldText(field.getText() ?? '').trim();
       if (t) a.remarks = t;
     }
   }
@@ -432,7 +460,13 @@ export async function readAnswersPdf(bytes: ArrayBuffer): Promise<PdfAnswerRaw[]
     const remarks = parts.join('\n\n').trim();
     if (remarks) map.get(key)!.remarks = remarks;
   }
-  return [...map.values()];
+  // Viewer, die unbekannte Felder verwerfen: Stand aus den Stichwörtern
+  if (!baseline) {
+    const kw = doc.getKeywords() ?? '';
+    const at = kw.indexOf(`${BASELINE_FIELD}=`);
+    if (at >= 0) baseline = parseBaseline(kw.slice(at + BASELINE_FIELD.length + 1));
+  }
+  return { answers: [...map.values()], baseline };
 }
 
 // ── Architektur-Review-Bericht ───────────────────────────────────────────────
